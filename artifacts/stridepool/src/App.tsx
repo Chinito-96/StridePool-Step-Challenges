@@ -1,14 +1,16 @@
-import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, CircleUserRound, Clock3, Compass, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
+import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
+import type { ProfileUpdate, StridePoolBootstrap } from '@workspace/api-client-react';
 
 type Challenge = {
   id: string;
   name: string;
   theme: string;
-  level: 'Gentle' | 'Steady' | 'Brisk';
+  level: string;
   startDate: string;
   endDate: string;
   days: number;
@@ -19,13 +21,13 @@ type Challenge = {
   finishers: number;
   color: string;
   joined: boolean;
-  goalType?: 'fixed' | 'personalized';
+  goalType?: string;
   community?: boolean;
   graceDays?: number;
 };
 type Activity = { id: string; type: string; title: string; meta: string; timestamp: string };
 type WalletSummary = { balance: number; pending: number; totalEarned: number };
-type ProfileSettings = { reminders: boolean; weeklyDigest: boolean; publicProgress: boolean; healthConnected: boolean };
+type ProfileSettings = { displayName: string; goalBaseline: number; reminders: boolean; weeklyDigest: boolean; publicProgress: boolean; healthConnected: boolean };
 type AppState = {
   challenges: Challenge[];
   joinedIds: string[];
@@ -38,6 +40,8 @@ type AppState = {
   syncSteps: () => void;
   addFunds: () => void;
   toggleSetting: (key: keyof ProfileSettings) => void;
+  updateProfile: (updates: ProfileUpdate) => void;
+  auth: { user: AuthUser | null; isLoading: boolean; isAuthenticated: boolean; login: () => void; logout: () => void };
 };
 
 const queryClient = new QueryClient();
@@ -58,18 +62,6 @@ const defaultActivities: Activity[] = [
   { id: 'a3', type: 'milestone', title: 'Three-day rhythm unlocked', meta: 'Sunrise Steps · 3 day streak', timestamp: 'Yesterday' },
 ];
 
-function usePersistentState<T>(key: string, initial: T | (() => T)) {
-  const [value, setValue] = useState<T>(() => {
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try { return JSON.parse(saved) as T; } catch { /* use seed */ }
-    }
-    return typeof initial === 'function' ? (initial as () => T)() : initial;
-  });
-  useEffect(() => { localStorage.setItem(key, JSON.stringify(value)); }, [key, value]);
-  return [value, setValue] as const;
-}
-
 const AppContext = createContext<AppState | null>(null);
 function useApp() {
   const context = useContext(AppContext);
@@ -78,38 +70,77 @@ function useApp() {
 }
 
 function AppProvider({ children }: { children: ReactNode }) {
-  const [joinedIds, setJoinedIds] = usePersistentState<string[]>('stridepool-joined', ['sunrise-steps']);
-  const [steps, setSteps] = usePersistentState('stridepool-steps', 7284);
-  const [activities, setActivities] = usePersistentState<Activity[]>('stridepool-activities', defaultActivities);
-  const [wallet, setWallet] = usePersistentState<WalletSummary>('stridepool-wallet', { balance: 42.5, pending: 18, totalEarned: 156.75 });
-  const [profile, setProfile] = usePersistentState<ProfileSettings>('stridepool-profile', { reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true });
-  const challenges = useMemo(() => seededChallenges.map((challenge) => ({ ...challenge, joined: joinedIds.includes(challenge.id) })), [joinedIds]);
+  const auth = useAuth();
+  const [serverState, setServerState] = useState<StridePoolBootstrap | null>(null);
+  const [anonymousFreeIds, setAnonymousFreeIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('stridepool-free-joined') ?? '[]') as string[]; } catch { return []; }
+  });
+  const refresh = useCallback(async () => {
+    const response = await fetch('/api/stridepool/bootstrap', { credentials: 'include' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    setServerState(await response.json() as StridePoolBootstrap);
+  }, []);
+  useEffect(() => {
+    if (!auth.isLoading) void refresh().catch(() => setServerState(null));
+  }, [auth.isLoading, auth.user?.id, refresh]);
+  useEffect(() => {
+    localStorage.setItem('stridepool-free-joined', JSON.stringify(anonymousFreeIds));
+  }, [anonymousFreeIds]);
 
+  const baseChallenges = serverState?.challenges ?? seededChallenges;
+  const joinedIds = serverState?.joinedIds ?? anonymousFreeIds;
+  const challenges = useMemo(() => baseChallenges.map((challenge) => ({ ...challenge, joined: serverState?.joinedIds.includes(challenge.id) ?? anonymousFreeIds.includes(challenge.id) })), [anonymousFreeIds, baseChallenges, serverState?.joinedIds]);
+  const steps = serverState?.steps ?? 7284;
+  const activities = serverState?.activities ?? defaultActivities;
+  const wallet = serverState?.wallet ?? { balance: 42.5, pending: 18, totalEarned: 156.75 };
+  const profile = serverState?.profile ?? { reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, displayName: 'Alex Morgan' };
+  const loginIfNeeded = () => { if (!auth.isAuthenticated) auth.login(); };
   const joinChallenge = (id: string) => {
-    if (joinedIds.includes(id)) return;
-    const challenge = seededChallenges.find((item) => item.id === id);
-    if (!challenge) return;
-    setJoinedIds((current) => [...current, id]);
-    setWallet((current) => ({ ...current, balance: Math.max(0, current.balance - challenge.entryFee), pending: current.pending + challenge.entryFee }));
-    setActivities((current) => [{ id: `join-${Date.now()}`, type: 'challenge', title: `You joined ${challenge.name}`, meta: `$${challenge.entryFee} committed · starts ${challenge.startDate}`, timestamp: 'Just now' }, ...current]);
+    const challenge = challenges.find((item) => item.id === id);
+    if (!challenge || challenge.joined) return;
+    if (!auth.isAuthenticated) {
+      if (challenge.community && challenge.entryFee === 0) setAnonymousFreeIds((current) => current.includes(id) ? current : [...current, id]);
+      else loginIfNeeded();
+      return;
+    }
+    void fetch(`/api/stridepool/challenges/${id}/join`, { method: 'POST', credentials: 'include' }).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await refresh();
+    }).catch(() => undefined);
   };
   const leaveChallenge = (id: string) => {
-    const challenge = seededChallenges.find((item) => item.id === id);
-    if (!challenge || !joinedIds.includes(id)) return;
-    setJoinedIds((current) => current.filter((item) => item !== id));
-    setWallet((current) => ({ ...current, balance: current.balance + challenge.entryFee, pending: Math.max(0, current.pending - challenge.entryFee) }));
-    setActivities((current) => [{ id: `leave-${Date.now()}`, type: 'challenge', title: `You left ${challenge.name}`, meta: `$${challenge.entryFee} returned to your balance`, timestamp: 'Just now' }, ...current]);
+    if (!auth.isAuthenticated) {
+      setAnonymousFreeIds((current) => current.filter((item) => item !== id));
+      return;
+    }
+    void fetch(`/api/stridepool/challenges/${id}/leave`, { method: 'POST', credentials: 'include' }).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await refresh();
+    }).catch(() => undefined);
   };
   const syncSteps = () => {
-    setSteps((current) => current + 628);
-    setActivities((current) => [{ id: `sync-${Date.now()}`, type: 'sync', title: 'Verified steps synced', meta: '+628 steps · rhythm is building', timestamp: 'Just now' }, ...current]);
+    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
+    void fetch('/api/stridepool/sync', { method: 'POST', credentials: 'include' }).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await refresh();
+    }).catch(() => undefined);
   };
   const addFunds = () => {
-    setWallet((current) => ({ ...current, balance: current.balance + 25 }));
-    setActivities((current) => [{ id: `funds-${Date.now()}`, type: 'funds', title: 'Demo funds added', meta: '$25 added to available balance', timestamp: 'Just now' }, ...current]);
+    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
+    void fetch('/api/stridepool/wallet/demo-funds', { method: 'POST', credentials: 'include' }).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await refresh();
+    }).catch(() => undefined);
   };
-  const toggleSetting = (key: keyof ProfileSettings) => setProfile((current) => ({ ...current, [key]: !current[key] }));
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, joinChallenge, leaveChallenge, syncSteps, addFunds, toggleSetting }), [challenges, joinedIds, steps, activities, wallet, profile]);
+  const updateProfile = (updates: ProfileUpdate) => {
+    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
+    void fetch('/api/stridepool/profile', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await refresh();
+    }).catch(() => undefined);
+  };
+  const toggleSetting = (key: keyof ProfileSettings) => updateProfile({ [key]: !profile[key] });
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, joinChallenge, leaveChallenge, syncSteps, addFunds, toggleSetting, updateProfile, auth }), [activities, auth, challenges, joinedIds, profile, serverState, steps, updateProfile, wallet]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -131,6 +162,7 @@ function Logo() {
 }
 
 function AppShell({ children }: { children: ReactNode }) {
+  const { auth } = useApp();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -161,7 +193,7 @@ function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md sm:px-8 lg:px-12">
         <div className="flex items-center gap-3 lg:hidden"><button className="icon-button rounded-lg p-2 hover:bg-muted" onClick={() => setMobileOpen(true)} aria-label="Open navigation" data-testid="button-open-navigation"><Menu size={21} /></button><Logo /></div>
         <div className="hidden lg:block"><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-muted-foreground">StridePool / {pageName}</p></div>
-        <div className="flex items-center gap-3"><div className="relative"><button onClick={() => setNotificationOpen((value) => !value)} className="icon-button relative rounded-lg p-2.5 hover:bg-muted" aria-label="View notifications" aria-expanded={notificationOpen} data-testid="button-notifications"><Bell size={19} /><span className="pulse-dot absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" /></button>{notificationOpen && <div className="absolute right-0 top-12 z-40 w-[290px] rounded-2xl border border-border bg-card p-4 shadow-2xl" role="status" data-testid="panel-notifications"><div className="flex items-center justify-between"><p className="font-display text-sm font-bold">A note for your rhythm</p><button onClick={() => setNotificationOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Close notifications" data-testid="button-close-notifications"><X size={14} /></button></div><p className="mt-2 text-xs leading-5 text-muted-foreground">You are 2,716 steps from today's goal. A quick loop after lunch would get you there.</p><Link href="/challenges" onClick={() => setNotificationOpen(false)} className="mt-3 block text-xs font-bold text-primary" data-testid="link-notification-challenges">See open challenges <ArrowUpRight size={13} className="ml-1 inline" /></Link></div>}</div><Link href="/profile" className="flex items-center gap-2.5 rounded-xl p-1.5 pr-2 transition hover:bg-muted" data-testid="link-header-profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-display text-xs font-bold text-secondary-foreground">AM</span><span className="hidden text-sm font-semibold sm:block">Alex Morgan</span><ChevronDown size={15} className="hidden text-muted-foreground sm:block" /></Link></div>
+         <div className="flex items-center gap-3"><div className="relative"><button onClick={() => setNotificationOpen((value) => !value)} className="icon-button relative rounded-lg p-2.5 hover:bg-muted" aria-label="View notifications" aria-expanded={notificationOpen} data-testid="button-notifications"><Bell size={19} /><span className="pulse-dot absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" /></button>{notificationOpen && <div className="absolute right-0 top-12 z-40 w-[290px] rounded-2xl border border-border bg-card p-4 shadow-2xl" role="status" data-testid="panel-notifications"><div className="flex items-center justify-between"><p className="font-display text-sm font-bold">A note for your rhythm</p><button onClick={() => setNotificationOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Close notifications" data-testid="button-close-notifications"><X size={14} /></button></div><p className="mt-2 text-xs leading-5 text-muted-foreground">You are 2,716 steps from today's goal. A quick loop after lunch would get you there.</p><Link href="/challenges" onClick={() => setNotificationOpen(false)} className="mt-3 block text-xs font-bold text-primary" data-testid="link-notification-challenges">See open challenges <ArrowUpRight size={13} className="ml-1 inline" /></Link></div>}</div>{auth.isAuthenticated ? <Link href="/profile" className="flex items-center gap-2.5 rounded-xl p-1.5 pr-2 transition hover:bg-muted" data-testid="link-header-profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-display text-xs font-bold text-secondary-foreground">{(auth.user?.firstName?.[0] ?? 'A')}{(auth.user?.lastName?.[0] ?? 'M')}</span><span className="hidden text-sm font-semibold sm:block">{auth.user?.firstName || auth.user?.email || 'Your profile'}</span><ChevronDown size={15} className="hidden text-muted-foreground sm:block" /></Link> : <button onClick={auth.login} className="rounded-xl bg-foreground px-3.5 py-2 text-xs font-bold text-background transition hover:bg-primary hover:text-primary-foreground" data-testid="button-login">Log in</button>}</div>
       </header>
       <main className="page-enter min-h-[calc(100dvh-72px)] px-5 pb-28 pt-8 sm:px-8 lg:px-12 lg:pb-12">{children}</main>
     </div>
@@ -192,12 +224,12 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities, syncSteps } = useApp();
+  const { challenges, steps, activities, syncSteps, profile } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
-  const goal = 10_000;
-  const percent = Math.min(100, Math.round((steps / goal) * 100));
   const spotlight = challenges.find((item) => item.joined) ?? challenges[0];
   const upcoming = challenges.find((item) => !item.joined) ?? challenges[1];
+  const goal = spotlight?.goalType === 'personalized' ? profile.goalBaseline : 10_000;
+  const percent = Math.min(100, Math.round((steps / goal) * 100));
   return <div className="mx-auto max-w-[1280px]">
     <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="rise-in"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">{dateLabel}</p><h1 className="font-display text-[clamp(2.15rem,5vw,3.7rem)] font-bold leading-[.97] tracking-[-.06em]">Keep your <span className="text-primary">rhythm.</span></h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">A little movement today keeps tomorrow feeling lighter.</p></div><Button onClick={syncSteps} data-testid="button-sync-steps"><RefreshCw size={16} /> Sync steps</Button></div>
     <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
@@ -259,10 +291,11 @@ function WalletStat({ label, value, detail, icon }: { label: string; value: stri
 function WalletRow({ activity }: { activity: Activity }) { const positive = activity.type === 'milestone'; return <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${positive ? 'bg-accent/35 text-accent-foreground' : 'bg-muted text-primary'}`}>{positive ? <Award size={16} /> : <ArrowUpRight size={16} />}</span><div className="flex-1"><p className="text-sm font-bold">{positive ? 'Earnings credited' : activity.title.replace('You ', '')}</p><p className="mt-0.5 text-xs text-muted-foreground">{activity.timestamp}</p></div><span className={`font-mono-app text-sm font-bold ${positive ? 'text-primary' : 'text-foreground'}`}>{positive ? '+$12.50' : `-$${activity.title.includes('Sunrise') ? '8.00' : '0.00'}`}</span></div>; }
 
 function ProfilePage() {
-  const { profile, toggleSetting } = useApp();
+  const { profile, toggleSetting, updateProfile, auth } = useApp();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState('Alex Morgan');
-  return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => setEditing(false)} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{name}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Challenges completed</span><span className="font-bold">7</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Longest rhythm</span><span className="font-bold">12 days</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Steps this month</span><span className="font-bold">184,620</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}</section><section className="space-y-5"><SettingsGroup eyebrow="Connected source" title="Where your steps come from"><div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background"><HeartPulse size={19} /></span><div><p className="text-sm font-bold">Apple Health</p><p className="mt-0.5 text-xs text-muted-foreground">{profile.healthConnected ? 'Connected · syncing automatically' : 'Not connected'}</p></div><span className={`ml-auto flex items-center gap-1.5 text-xs font-bold ${profile.healthConnected ? 'text-primary' : 'text-muted-foreground'}`}><span className={`h-2 w-2 rounded-full ${profile.healthConnected ? 'bg-primary' : 'bg-muted-foreground'}`} /> {profile.healthConnected ? 'Active' : 'Paused'}</span></div><Button variant="secondary" className="mt-3 w-full" onClick={() => toggleSetting('healthConnected')} data-testid="button-toggle-health">{profile.healthConnected ? 'Pause connection' : 'Reconnect Apple Health'}</Button></SettingsGroup><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weeklyDigest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
+  const [name, setName] = useState(profile.displayName);
+  useEffect(() => setName(profile.displayName), [profile.displayName]);
+  return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => { updateProfile({ displayName: name }); setEditing(false); }} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{profile.displayName}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Challenges completed</span><span className="font-bold">7</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Longest rhythm</span><span className="font-bold">12 days</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Steps this month</span><span className="font-bold">184,620</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}{auth.isAuthenticated && <button onClick={auth.logout} className="mt-4 flex items-center gap-2 text-xs font-bold text-secondary-foreground/70 underline underline-offset-4" data-testid="button-logout">Log out</button>}</section><section className="space-y-5"><SettingsGroup eyebrow="Connected source" title="Where your steps come from"><div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background"><HeartPulse size={19} /></span><div><p className="text-sm font-bold">Apple Health</p><p className="mt-0.5 text-xs text-muted-foreground">{profile.healthConnected ? 'Connected · syncing automatically' : 'Not connected'}</p></div><span className={`ml-auto flex items-center gap-1.5 text-xs font-bold ${profile.healthConnected ? 'text-primary' : 'text-muted-foreground'}`}><span className={`h-2 w-2 rounded-full ${profile.healthConnected ? 'bg-primary' : 'bg-muted-foreground'}`} /> {profile.healthConnected ? 'Active' : 'Paused'}</span></div><Button variant="secondary" className="mt-3 w-full" onClick={() => toggleSetting('healthConnected')} data-testid="button-toggle-health">{profile.healthConnected ? 'Pause connection' : 'Reconnect Apple Health'}</Button></SettingsGroup><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weeklyDigest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
 }
 function SettingsGroup({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) { return <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6"><p className="font-mono-app text-[10px] uppercase tracking-[.17em] text-primary">{eyebrow}</p><h2 className="mt-1 font-display text-xl font-bold tracking-[-.035em]">{title}</h2><div className="mt-5">{children}</div></div>; }
 function ToggleRow({ label, description, checked, onToggle, testId }: { label: string; description: string; checked: boolean; onToggle: () => void; testId: string }) { return <button onClick={onToggle} className="flex w-full items-center gap-4 border-b border-border/70 py-4 text-left last:border-0 last:pb-0 first:pt-0" role="switch" aria-checked={checked} data-testid={testId}><span className={`relative h-6 w-11 shrink-0 rounded-full transition ${checked ? 'bg-primary' : 'bg-muted'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} /></span><span><span className="block text-sm font-bold">{label}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{description}</span></span></button>; }

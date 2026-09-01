@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: stridepool
+    description: StridePool persistence and challenge operations.
 paths:
   /healthz:
     get:
@@ -24,7 +28,217 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the OIDC authorization endpoint.
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      responses:
+        "302":
+          description: Redirect after the OIDC callback.
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the browser session and begin OIDC logout
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the OIDC provider logout URL.
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileTokenExchangeRequest"
+      responses:
+        "200":
+          description: Session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileTokenExchangeSuccess"
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      responses:
+        "200":
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutSuccess"
+  /stridepool/bootstrap:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolBootstrap
+      summary: Load public challenges and the current user's persisted state
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: StridePool application state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StridePoolBootstrap"
+  /stridepool/challenges/{id}/join:
+    post:
+      tags: [stridepool]
+      operationId: joinStridePoolChallenge
+      summary: Join a challenge for the authenticated user
+      parameters:
+        - $ref: "#/components/parameters/ChallengeId"
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Challenge joined.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntryMutationResponse"
+        "401":
+          description: Login required for paid or personalized challenges.
+  /stridepool/challenges/{id}/leave:
+    post:
+      tags: [stridepool]
+      operationId: leaveStridePoolChallenge
+      summary: Leave a challenge for the authenticated user
+      parameters:
+        - $ref: "#/components/parameters/ChallengeId"
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Challenge left.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntryMutationResponse"
+        "401":
+          description: Login required.
+  /stridepool/sync:
+    post:
+      tags: [stridepool]
+      operationId: syncStridePoolSteps
+      summary: Add a verified demo step record for the authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Steps synchronized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStepsResponse"
+        "401":
+          description: Login required.
+  /stridepool/wallet/demo-funds:
+    post:
+      tags: [stridepool]
+      operationId: addStridePoolDemoFunds
+      summary: Add demo wallet funds for an authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Wallet updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletSummary"
+        "401":
+          description: Login required.
+  /stridepool/profile:
+    patch:
+      tags: [stridepool]
+      operationId: updateStridePoolProfile
+      summary: Update persisted StridePool profile settings
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Profile updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileSettings"
+        "401":
+          description: Login required.
 components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      schema:
+        type: string
+    ChallengeId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +247,132 @@ components:
           type: string
       required:
         - status
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, "null"]
+        firstName:
+          type: [string, "null"]
+        lastName:
+          type: [string, "null"]
+        profileImageUrl:
+          type: [string, "null"]
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code: { type: string, minLength: 1 }
+        code_verifier: { type: string, minLength: 1 }
+        redirect_uri: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
+        nonce: { type: string, minLength: 1 }
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, const: true }
+    Challenge:
+      type: object
+      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, goalType, community, graceDays, joined]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        theme: { type: string }
+        level: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        days: { type: integer }
+        dailyGoal: { type: integer }
+        entryFee: { type: number }
+        prizePool: { type: number }
+        participantCount: { type: integer }
+        finishers: { type: integer }
+        color: { type: string }
+        goalType: { type: string }
+        community: { type: boolean }
+        graceDays: { type: integer }
+        joined: { type: boolean }
+    Activity:
+      type: object
+      required: [id, type, title, meta, timestamp]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        title: { type: string }
+        meta: { type: string }
+        timestamp: { type: string }
+    WalletSummary:
+      type: object
+      required: [balance, pending, totalEarned]
+      properties:
+        balance: { type: number }
+        pending: { type: number }
+        totalEarned: { type: number }
+    ProfileSettings:
+      type: object
+      required: [displayName, reminders, weeklyDigest, publicProgress, healthConnected, goalBaseline]
+      properties:
+        displayName: { type: string }
+        reminders: { type: boolean }
+        weeklyDigest: { type: boolean }
+        publicProgress: { type: boolean }
+        healthConnected: { type: boolean }
+        goalBaseline: { type: integer }
+    ProfileUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        reminders: { type: boolean }
+        weeklyDigest: { type: boolean }
+        publicProgress: { type: boolean }
+        healthConnected: { type: boolean }
+    StridePoolBootstrap:
+      type: object
+      required: [user, challenges, joinedIds, steps, activities, wallet, profile]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+        challenges:
+          type: array
+          items: { $ref: "#/components/schemas/Challenge" }
+        joinedIds:
+          type: array
+          items: { type: string }
+        steps: { type: integer }
+        activities:
+          type: array
+          items: { $ref: "#/components/schemas/Activity" }
+        wallet: { $ref: "#/components/schemas/WalletSummary" }
+        profile: { $ref: "#/components/schemas/ProfileSettings" }
+    EntryMutationResponse:
+      type: object
+      required: [joined, wallet]
+      properties:
+        joined: { type: boolean }
+        wallet: { $ref: "#/components/schemas/WalletSummary" }
+    SyncStepsResponse:
+      type: object
+      required: [steps, activity]
+      properties:
+        steps: { type: integer }
+        activity: { $ref: "#/components/schemas/Activity" }
 

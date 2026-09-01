@@ -1,1 +1,2 @@
 - [Step challenge positioning](step-challenge-positioning.md) — lead with transparent money math, social accountability, and humane recovery options.
+- [Orval integer schema compatibility](zod-orval-compatibility.md) — generated `z.int()` requires the workspace’s Zod 4 API.
