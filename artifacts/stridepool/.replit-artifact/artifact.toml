@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "StridePool"
+description = "A responsive step-challenge web app where people build consistency together, join transparent prize pools, and earn a share when they complete every day of a challenge."
+version = "1.0.0"
+id = "artifacts/stridepool"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20949
+
+[services.development]
+run = "pnpm --filter @workspace/stridepool run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/stridepool", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/stridepool/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20949"
+BASE_PATH = "/"

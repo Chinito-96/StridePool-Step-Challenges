@@ -1,0 +1,1 @@
+- [Step challenge positioning](step-challenge-positioning.md) — lead with transparent money math, social accountability, and humane recovery options.

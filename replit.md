@@ -1,6 +1,6 @@
-# [Project name]
+# StridePool
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+StridePool is a responsive step-challenge web app where people build consistency together, join transparent prize pools, and earn a share when they complete every day of a challenge.
 
 ## Run & Operate
 
@@ -22,23 +22,35 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/stridepool/src/App.tsx` — app routes, demo data, local persistence, and product interactions
+- `artifacts/stridepool/src/index.css` — StridePool visual system and responsive layout
+- `docs/steppa-benchmark.md` — sourced competitor research and product opportunities
+- `competitor-monitoring.md` — competitor bookmark bundle and monthly review ritual
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first build is frontend-only so the product loop can be explored without committing to payment, health-data, or account infrastructure.
+- Demo state is persisted in localStorage to make join, step sync, wallet, and profile interactions survive navigation and reloads.
+- The experience uses an original StridePool identity and copy; Steppa is treated as a mechanics benchmark, not a visual or content source.
+- The product emphasizes transparent pool math, human recovery paths, and social accountability as the main opportunities over the benchmark.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Dashboard for today’s movement, active challenges, upcoming challenges, and recent activity
+- Searchable and filterable challenge discovery with challenge detail and join confirmation flow
+- Payout math with entry fee, current pool, estimated share, and platform fee shown before confirmation
+- Simulated step syncing that updates daily progress and activity
+- Wallet balance, pending funds, earnings history, and payout method demo
+- Profile editing, health-source connection demo, notifications, and privacy controls
+- Responsive desktop navigation and mobile bottom navigation
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Use this build as a starting point and differentiate it further before any finalization or publication.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- This is currently a browser prototype; production payment rails, health integrations, authentication, and compliance review are intentionally not wired up.
 
 ## Pointers
 
