@@ -35,6 +35,7 @@ export const usersTable = pgTable("users", {
   eligibilityAcceptedTerms: boolean("eligibility_accepted_terms").notNull().default(false),
   // Future real-payment fields: populate only when a provider is selected.
   stripeCustomerId: varchar("stripe_customer_id"),
+  stripeConnectAccountId: varchar("stripe_connect_account_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

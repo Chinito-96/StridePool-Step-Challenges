@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type {
   CheckoutInput,
   ComplianceStatus,
@@ -11,14 +11,17 @@ import type {
 import { db, challengesTable, usersTable, walletLedgerEntriesTable } from "@workspace/db";
 import { and, desc, eq } from "drizzle-orm";
 import { nextPayoutRetry } from "./settlement";
+import {
+  createStripeCheckout,
+  createStripePayoutOnboarding,
+  getStripeProviderStatus,
+} from "./stripe-provider";
 
-const providerName = process.env.PAYMENT_PROVIDER_NAME?.trim() ?? "";
-const webhookSecretConfigured = Boolean(process.env.PAYMENT_PROVIDER_WEBHOOK_SECRET);
+const providerName = "Stripe";
 const approvedStates = (process.env.PAID_PLAY_APPROVED_STATES ?? "")
   .split(",")
   .map((state) => state.trim().toUpperCase())
   .filter(Boolean);
-const paidPlayEnabled = process.env.PAID_PLAY_ENABLED === "true";
 
 function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): string[] {
   const reasons: string[] = [];
@@ -36,9 +39,19 @@ function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): 
 }
 
 export function getComplianceStatus(): ComplianceStatus {
+  const provider = getStripeProviderStatus();
+  const providerConfigured = provider.providerReady && provider.webhookReady;
+  const paidPlayEnabled =
+    process.env.PAID_PLAY_ENABLED === "true"
+    && providerConfigured
+    && provider.backfillReady
+    && provider.sandboxReconciliationPassed;
   return {
     paidPlayEnabled,
-    providerConfigured: Boolean(providerName && webhookSecretConfigured),
+    providerConfigured,
+    providerName,
+    webhookReady: provider.webhookReady,
+    sandboxReconciliationPassed: provider.sandboxReconciliationPassed,
     counselReviewRequired: approvedStates.length === 0,
     minAge: 18,
     approvedStates,
@@ -77,6 +90,7 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
   if (existing) {
     return {
       checkoutId: String(existing.metadata.checkoutId ?? ""),
+      checkoutUrl: String(existing.metadata.checkoutUrl ?? ""),
       status: "requires_action" as const,
       provider: providerName,
       ledgerEntryId: existing.id,
@@ -100,7 +114,8 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
   }
   if (!Number.isInteger(input.amountCents)) throw new Error("Money amounts must be whole cents.");
 
-  const checkoutId = `checkout_${randomUUID()}`;
+  const checkout = await createStripeCheckout(user, challenge, input.amountCents, input.idempotencyKey);
+  if (!checkout.url) throw new Error("Stripe did not return a hosted checkout URL.");
   const [entry] = await db.insert(walletLedgerEntriesTable).values({
     id: `ledger_${randomUUID()}`,
     userId,
@@ -111,13 +126,15 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
     providerEventId: null,
     challengeId: input.challengeId,
     metadata: {
-      checkoutId,
+      checkoutId: checkout.id,
+      checkoutUrl: checkout.url,
       idempotencyKey: input.idempotencyKey,
       auditRule: "provider webhook required before funds are committed",
     },
   }).returning();
   return {
-    checkoutId,
+    checkoutId: checkout.id,
+    checkoutUrl: checkout.url,
     status: "requires_action" as const,
     provider: providerName,
     ledgerEntryId: entry.id,
@@ -133,11 +150,17 @@ export async function startPayoutOnboarding(userId: string, input: PayoutOnboard
   if (existing) {
     return {
       onboardingId: String(existing.metadata.onboardingId ?? ""),
+      onboardingUrl: String(existing.metadata.onboardingUrl ?? ""),
       status: "pending" as const,
       provider: providerName,
     };
   }
-  const onboardingId = `onboarding_${randomUUID()}`;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) throw new Error("Account was not found.");
+  const { accountId, accountLink } = await createStripePayoutOnboarding(
+    user,
+    input.idempotencyKey,
+  );
   await db.insert(walletLedgerEntriesTable).values({
     id: `ledger_${randomUUID()}`,
     userId,
@@ -148,12 +171,18 @@ export async function startPayoutOnboarding(userId: string, input: PayoutOnboard
     providerEventId: null,
     challengeId: null,
     metadata: {
-      onboardingId,
+      onboardingId: accountId,
+      onboardingUrl: accountLink.url,
       idempotencyKey: input.idempotencyKey,
       auditRule: "provider onboarding must complete before withdrawal",
     },
   });
-  return { onboardingId, status: "pending" as const, provider: providerName };
+  return {
+    onboardingId: accountId,
+    onboardingUrl: accountLink.url,
+    status: "pending" as const,
+    provider: providerName,
+  };
 }
 
 export async function recordProviderWebhook(input: ProviderWebhookInput) {
@@ -200,14 +229,6 @@ export async function getLedger(userId: string): Promise<LedgerEntry[]> {
 }
 
 export function isProviderConfigured() {
-  return Boolean(providerName && webhookSecretConfigured);
-}
-
-export function verifyProviderWebhookSignature(payload: string, signature: string) {
-  const secret = process.env.PAYMENT_PROVIDER_WEBHOOK_SECRET;
-  if (!secret || !signature) return false;
-  const expected = createHmac("sha256", secret).update(payload).digest("hex");
-  const expectedBuffer = Buffer.from(expected, "utf8");
-  const signatureBuffer = Buffer.from(signature, "utf8");
-  return expectedBuffer.length === signatureBuffer.length && timingSafeEqual(expectedBuffer, signatureBuffer);
+  const provider = getStripeProviderStatus();
+  return provider.providerReady && provider.webhookReady;
 }

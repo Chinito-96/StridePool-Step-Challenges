@@ -30,6 +30,7 @@ async function buildAll() {
     external: [
       "*.node",
       "sharp",
+      "stripe-replit-sync",
       "better-sqlite3",
       "sqlite3",
       "canvas",

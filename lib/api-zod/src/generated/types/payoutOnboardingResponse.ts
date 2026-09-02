@@ -9,6 +9,7 @@ import type { PayoutOnboardingResponseStatus } from './payoutOnboardingResponseS
 
 export interface PayoutOnboardingResponse {
   onboardingId: string;
+  onboardingUrl: string;
   status: PayoutOnboardingResponseStatus;
   provider: string;
 }

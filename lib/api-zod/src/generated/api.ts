@@ -24,6 +24,9 @@ export const HealthCheckResponse = zod.object({
 export const GetComplianceStatusResponse = zod.object({
   "paidPlayEnabled": zod.boolean(),
   "providerConfigured": zod.boolean(),
+  "providerName": zod.string(),
+  "webhookReady": zod.boolean(),
+  "sandboxReconciliationPassed": zod.boolean(),
   "counselReviewRequired": zod.boolean(),
   "minAge": zod.int(),
   "approvedStates": zod.array(zod.string()),
@@ -74,6 +77,7 @@ export const CreateCheckoutBody = zod.object({
 
 export const CreateCheckoutResponse = zod.object({
   "checkoutId": zod.string(),
+  "checkoutUrl": zod.url(),
   "status": zod.enum(['requires_provider', 'requires_action', 'succeeded']),
   "provider": zod.string(),
   "ledgerEntryId": zod.string()
@@ -93,6 +97,7 @@ export const StartPayoutOnboardingBody = zod.object({
 
 export const StartPayoutOnboardingResponse = zod.object({
   "onboardingId": zod.string(),
+  "onboardingUrl": zod.url(),
   "status": zod.enum(['requires_provider', 'pending', 'complete']),
   "provider": zod.string()
 })
@@ -117,33 +122,15 @@ export const GetLedgerResponse = zod.array(GetLedgerResponseItem)
 
 
 /**
- * @summary Receive a signed provider money event
+ * @summary Receive a signed Stripe event
  */
-export const ReceiveProviderWebhookHeader = zod.object({
-  "x-provider-signature": zod.string()
+export const ReceiveStripeWebhookHeader = zod.object({
+  "stripe-signature": zod.string()
 })
 
+export const ReceiveStripeWebhookBody = zod.record(zod.string(), zod.unknown())
 
-
-export const receiveProviderWebhookBodyAmountCentsMin = 0;
-
-
-
-export const ReceiveProviderWebhookBody = zod.object({
-  "providerEventId": zod.string().min(1),
-  "eventType": zod.enum(['payment_succeeded', 'payment_failed', 'payout_succeeded', 'payout_failed', 'refund_issued', 'dispute_opened', 'dispute_closed']),
-  "userId": zod.string().min(1),
-  "amountCents": zod.number().min(receiveProviderWebhookBodyAmountCentsMin),
-  "currency": zod.enum(['usd']),
-  "challengeId": zod.string().nullable(),
-  "metadata": zod.record(zod.string(), zod.unknown())
-})
-
-export const ReceiveProviderWebhookResponse = zod.object({
-  "accepted": zod.boolean(),
-  "duplicate": zod.boolean(),
-  "ledgerEntryId": zod.string()
-})
+export const ReceiveStripeWebhookResponse = zod.record(zod.string(), zod.unknown())
 
 
 /**

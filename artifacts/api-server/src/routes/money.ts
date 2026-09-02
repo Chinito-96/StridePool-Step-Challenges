@@ -1,16 +1,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   CreateCheckoutBody,
-  ReceiveProviderWebhookBody,
   StartPayoutOnboardingBody,
 } from "@workspace/api-zod";
 import {
   createCheckout,
   getLedger,
   isProviderConfigured,
-  recordProviderWebhook,
   startPayoutOnboarding,
-  verifyProviderWebhookSignature,
 } from "../services/ledger";
 
 const router: IRouter = Router();
@@ -61,24 +58,6 @@ router.get("/money/ledger", async (req, res): Promise<void> => {
   const userId = requireUser(req, res);
   if (!userId) return;
   res.json(await getLedger(userId));
-});
-
-router.post("/money/provider-webhook", async (req, res): Promise<void> => {
-  if (!isProviderConfigured()) {
-    res.status(401).json({ error: "Provider webhook verification is not configured." });
-    return;
-  }
-  const signature = req.header("x-provider-signature") ?? "";
-  if (!verifyProviderWebhookSignature(JSON.stringify(req.body), signature)) {
-    res.status(401).json({ error: "Provider webhook signature is invalid." });
-    return;
-  }
-  const parsed = ReceiveProviderWebhookBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Provider event is invalid." });
-    return;
-  }
-  res.status(202).json(await recordProviderWebhook(parsed.data));
 });
 
 export default router;

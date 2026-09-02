@@ -313,6 +313,9 @@ export interface ErrorResponse {
 export interface ComplianceStatus {
   paidPlayEnabled: boolean;
   providerConfigured: boolean;
+  providerName: string;
+  webhookReady: boolean;
+  sandboxReconciliationPassed: boolean;
   counselReviewRequired: boolean;
   minAge: number;
   approvedStates: string[];
@@ -375,6 +378,7 @@ export const CheckoutResponseStatus = {
 
 export interface CheckoutResponse {
   checkoutId: string;
+  checkoutUrl: string;
   status: CheckoutResponseStatus;
   provider: string;
   ledgerEntryId: string;
@@ -396,6 +400,7 @@ export const PayoutOnboardingResponseStatus = {
 
 export interface PayoutOnboardingResponse {
   onboardingId: string;
+  onboardingUrl: string;
   status: PayoutOnboardingResponseStatus;
   provider: string;
 }
@@ -453,6 +458,8 @@ export interface ProviderWebhookInput {
   metadata: ProviderWebhookInputMetadata;
 }
 
+export interface StripeWebhookPayload { [key: string]: unknown }
+
 export interface WebhookResponse {
   accepted: boolean;
   duplicate: boolean;
@@ -460,6 +467,8 @@ export interface WebhookResponse {
 }
 
 export type AuthorizationSessionHeaderParameter = string;
+
+export type ReceiveStripeWebhook200 = { [key: string]: unknown };
 
 export type BeginBrowserLoginParams = {
 returnTo?: string;

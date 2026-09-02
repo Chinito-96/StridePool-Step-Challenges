@@ -9,6 +9,9 @@
 export interface ComplianceStatus {
   paidPlayEnabled: boolean;
   providerConfigured: boolean;
+  providerName: string;
+  webhookReady: boolean;
+  sandboxReconciliationPassed: boolean;
   counselReviewRequired: boolean;
   minAge: number;
   approvedStates: string[];

@@ -137,13 +137,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /money/provider-webhook:
+  /stripe/webhook:
     post:
-      operationId: receiveProviderWebhook
+      operationId: receiveStripeWebhook
       tags: [money]
-      summary: Receive a signed provider money event
+      summary: Receive a signed Stripe event
       parameters:
-        - name: x-provider-signature
+        - name: stripe-signature
           in: header
           required: true
           schema:
@@ -153,16 +153,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProviderWebhookInput"
+              $ref: "#/components/schemas/StripeWebhookPayload"
       responses:
-        "202":
-          description: Provider event accepted or recognized as a duplicate
+        "200":
+          description: Stripe event verified and accepted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebhookResponse"
-        "401":
-          description: Invalid provider signature
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid Stripe signature or event
           content:
             application/json:
               schema:
@@ -718,10 +719,13 @@ components:
         error: { type: string }
     ComplianceStatus:
       type: object
-      required: [paidPlayEnabled, providerConfigured, counselReviewRequired, minAge, approvedStates, requirements, settlementPolicy]
+      required: [paidPlayEnabled, providerConfigured, providerName, webhookReady, sandboxReconciliationPassed, counselReviewRequired, minAge, approvedStates, requirements, settlementPolicy]
       properties:
         paidPlayEnabled: { type: boolean }
         providerConfigured: { type: boolean }
+        providerName: { type: string }
+        webhookReady: { type: boolean }
+        sandboxReconciliationPassed: { type: boolean }
         counselReviewRequired: { type: boolean }
         minAge: { type: integer }
         approvedStates:
@@ -762,10 +766,11 @@ components:
       type: object
       properties:
         checkoutId: { type: string }
+        checkoutUrl: { type: string, format: uri }
         status: { type: string, enum: [requires_provider, requires_action, succeeded] }
         provider: { type: string }
         ledgerEntryId: { type: string }
-      required: [checkoutId, status, provider, ledgerEntryId]
+      required: [checkoutId, checkoutUrl, status, provider, ledgerEntryId]
     PayoutOnboardingInput:
       type: object
       properties:
@@ -775,9 +780,10 @@ components:
       type: object
       properties:
         onboardingId: { type: string }
+        onboardingUrl: { type: string, format: uri }
         status: { type: string, enum: [requires_provider, pending, complete] }
         provider: { type: string }
-      required: [onboardingId, status, provider]
+      required: [onboardingId, onboardingUrl, status, provider]
     LedgerEntry:
       type: object
       properties:
@@ -803,6 +809,9 @@ components:
         challengeId: { type: [string, "null"] }
         metadata: { type: object, additionalProperties: true }
       required: [providerEventId, eventType, userId, amountCents, currency, challengeId, metadata]
+    StripeWebhookPayload:
+      type: object
+      additionalProperties: true
     WebhookResponse:
       type: object
       properties:

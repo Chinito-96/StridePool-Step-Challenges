@@ -42,14 +42,14 @@ import type {
   PayoutOnboardingResponse,
   ProfileSettings,
   ProfileUpdate,
-  ProviderWebhookInput,
+  ReceiveStripeWebhook200,
   RecoveryCase,
   RecoveryCasesResponse,
   RecoveryRequestBody,
   StridePoolBootstrap,
+  StripeWebhookPayload,
   SyncStepsResponse,
-  WalletSummary,
-  WebhookResponse
+  WalletSummary
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -525,25 +525,25 @@ export function useGetLedger<TData = Awaited<ReturnType<typeof getLedger>>, TErr
 
 
 
-export const getReceiveProviderWebhookUrl = () => {
+export const getReceiveStripeWebhookUrl = () => {
 
 
 
 
-  return `/api/money/provider-webhook`
+  return `/api/stripe/webhook`
 }
 
 /**
- * @summary Receive a signed provider money event
+ * @summary Receive a signed Stripe event
  */
-export const receiveProviderWebhook = async (providerWebhookInput: ProviderWebhookInput, options?: Parameters<typeof customFetch>[1]): Promise<WebhookResponse> => {
+export const receiveStripeWebhook = async (stripeWebhookPayload: StripeWebhookPayload, options?: Parameters<typeof customFetch>[1]): Promise<ReceiveStripeWebhook200> => {
 
-  return customFetch<WebhookResponse>(getReceiveProviderWebhookUrl(),
+  return customFetch<ReceiveStripeWebhook200>(getReceiveStripeWebhookUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(providerWebhookInput)
+    body: JSON.stringify(stripeWebhookPayload)
   }
 );}
 
@@ -551,11 +551,11 @@ export const receiveProviderWebhook = async (providerWebhookInput: ProviderWebho
 
 
 
-export const getReceiveProviderWebhookMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveProviderWebhook>>, TError,{data: BodyType<ProviderWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof receiveProviderWebhook>>, TError,{data: BodyType<ProviderWebhookInput>}, TContext> => {
+export const getReceiveStripeWebhookMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveStripeWebhook>>, TError,{data: BodyType<StripeWebhookPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveStripeWebhook>>, TError,{data: BodyType<StripeWebhookPayload>}, TContext> => {
 
-const mutationKey = ['receiveProviderWebhook'];
+const mutationKey = ['receiveStripeWebhook'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -565,10 +565,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveProviderWebhook>>, {data: BodyType<ProviderWebhookInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveStripeWebhook>>, {data: BodyType<StripeWebhookPayload>}> = (props) => {
           const {data} = props ?? {};
 
-          return  receiveProviderWebhook(data,requestOptions)
+          return  receiveStripeWebhook(data,requestOptions)
         }
 
 
@@ -578,22 +578,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type ReceiveProviderWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveProviderWebhook>>>
-    export type ReceiveProviderWebhookMutationBody = BodyType<ProviderWebhookInput>
-    export type ReceiveProviderWebhookMutationError = ErrorType<ErrorResponse>
+    export type ReceiveStripeWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveStripeWebhook>>>
+    export type ReceiveStripeWebhookMutationBody = BodyType<StripeWebhookPayload>
+    export type ReceiveStripeWebhookMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Receive a signed provider money event
+ * @summary Receive a signed Stripe event
  */
-export const useReceiveProviderWebhook = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveProviderWebhook>>, TError,{data: BodyType<ProviderWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useReceiveStripeWebhook = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveStripeWebhook>>, TError,{data: BodyType<StripeWebhookPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof receiveProviderWebhook>>,
+        Awaited<ReturnType<typeof receiveStripeWebhook>>,
         TError,
-        {data: BodyType<ProviderWebhookInput>},
+        {data: BodyType<StripeWebhookPayload>},
         TContext
       > => {
-      return useMutation(getReceiveProviderWebhookMutationOptions(options));
+      return useMutation(getReceiveStripeWebhookMutationOptions(options));
     }
 
 export const getGetCurrentAuthUserUrl = () => {

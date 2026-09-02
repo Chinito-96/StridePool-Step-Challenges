@@ -67,7 +67,7 @@ function AppProvider({ children }: { children: ReactNode }) {
   const healthSources = bootstrap?.healthSources ?? [];
   const recoveryCases = bootstrap?.recoveryCases ?? [];
   const eligibility: EligibilityProfile = { age: profile.eligibilityAge, state: profile.eligibilityState, identityStatus: profile.identityStatus, acceptedTerms: profile.acceptedTerms };
-  const compliance = complianceData ?? { paidPlayEnabled: false, providerConfigured: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
+  const compliance = complianceData ?? { paidPlayEnabled: false, providerConfigured: false, providerName: 'Stripe', webhookReady: false, sandboxReconciliationPassed: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
   const invalidateBootstrap = () => queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
   const loginIfNeeded = () => { if (!auth.isAuthenticated) auth.login(); };
 
@@ -272,7 +272,10 @@ function ChallengeDetail() {
     const selected = challenges.find((item) => item.id === challengeId);
     if (!selected || selected.entryFee === 0) return joinFreeChallenge(challengeId);
     checkout.mutate({ data: { challengeId, amountCents: Math.round(selected.entryFee * 100), currency: 'usd', idempotencyKey: `entry-${challengeId}-${Date.now()}` } }, {
-      onSuccess: () => setCheckoutMessage('Provider checkout created. The challenge will appear after a signed payment event is reconciled.'),
+      onSuccess: (result) => {
+        setCheckoutMessage('Opening Stripe checkout. The challenge will appear only after a signed payment event is reconciled.');
+        window.location.assign(result.checkoutUrl);
+      },
       onError: () => setCheckoutMessage('Secure checkout is unavailable. No money was moved and the challenge was not joined.')
     });
     return false;
@@ -301,7 +304,11 @@ function WalletPage() {
   const startPayoutOnboarding = () => {
     setMessage('');
     payoutOnboarding.mutate({ data: { idempotencyKey: `payout-${Date.now()}` } }, {
-      onSuccess: (result) => setMessage(result.status === 'pending' ? 'Payout onboarding started with the provider.' : 'Payout onboarding is not complete yet.'),
+      onSuccess: (result) => {
+        setMessage('Opening Stripe onboarding. Withdrawals remain locked until provider verification is complete.');
+        queryClient.invalidateQueries({ queryKey: getGetLedgerQueryKey() });
+        window.location.assign(result.onboardingUrl);
+      },
       onError: () => setMessage('Payout onboarding is unavailable. No withdrawal was requested and no money moved.')
     });
   };

@@ -9,6 +9,7 @@ import type { CheckoutResponseStatus } from './checkoutResponseStatus';
 
 export interface CheckoutResponse {
   checkoutId: string;
+  checkoutUrl: string;
   status: CheckoutResponseStatus;
   provider: string;
   ledgerEntryId: string;
