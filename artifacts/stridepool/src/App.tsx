@@ -1,16 +1,17 @@
-import { type ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useCheckEligibility, useCreateCheckout, useGetComplianceStatus, useGetLedger, useStartPayoutOnboarding, type ComplianceStatus, type EligibilityInput } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, CircleUserRound, Clock3, Compass, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
 import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
-import type { ProfileUpdate, StridePoolBootstrap } from '@workspace/api-client-react';
+import type { ProfileUpdate } from '@workspace/api-client-react';
 
 type Challenge = {
   id: string;
   name: string;
   theme: string;
-  level: string;
+  level: 'Gentle' | 'Steady' | 'Brisk';
   startDate: string;
   endDate: string;
   days: number;
@@ -21,13 +22,14 @@ type Challenge = {
   finishers: number;
   color: string;
   joined: boolean;
-  goalType?: string;
+  goalType?: 'fixed' | 'personalized';
   community?: boolean;
   graceDays?: number;
 };
 type Activity = { id: string; type: string; title: string; meta: string; timestamp: string };
 type WalletSummary = { balance: number; pending: number; totalEarned: number };
-type ProfileSettings = { displayName: string; goalBaseline: number; reminders: boolean; weeklyDigest: boolean; publicProgress: boolean; healthConnected: boolean };
+type ProfileSettings = { reminders: boolean; weeklyDigest: boolean; publicProgress: boolean; healthConnected: boolean };
+type EligibilityProfile = EligibilityInput;
 type AppState = {
   challenges: Challenge[];
   joinedIds: string[];
@@ -35,8 +37,12 @@ type AppState = {
   activities: Activity[];
   wallet: WalletSummary;
   profile: ProfileSettings;
-  joinChallenge: (id: string) => void;
-  leaveChallenge: (id: string) => void;
+  eligibility: EligibilityProfile;
+  compliance: ComplianceStatus;
+  complianceLoading: boolean;
+  joinChallenge: (id: string) => boolean;
+  leaveChallenge: (id: string) => boolean;
+  updateEligibility: (eligibility: EligibilityProfile) => void;
   syncSteps: () => void;
   addFunds: () => void;
   toggleSetting: (key: keyof ProfileSettings) => void;
@@ -48,7 +54,7 @@ const queryClient = new QueryClient();
 const today = new Date();
 const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 const seededChallenges: Challenge[] = [
-  { id: 'sunrise-steps', name: 'Sunrise Steps', theme: 'Start soft, finish proud.', level: 'Gentle', startDate: 'Jun 18', endDate: 'Jun 24', days: 7, dailyGoal: 6500, entryFee: 8, prizePool: 640, participantCount: 82, finishers: 54, color: '#f58b73', joined: true, goalType: 'personalized', graceDays: 1 },
+  { id: 'sunrise-steps', name: 'Sunrise Steps', theme: 'Start soft, finish proud.', level: 'Gentle', startDate: 'Jun 18', endDate: 'Jun 24', days: 7, dailyGoal: 6500, entryFee: 8, prizePool: 640, participantCount: 82, finishers: 54, color: '#f58b73', joined: false, goalType: 'personalized', graceDays: 1 },
   { id: 'city-loop', name: 'City Loop', theme: 'A little further every day.', level: 'Steady', startDate: 'Jun 20', endDate: 'Jun 29', days: 10, dailyGoal: 9000, entryFee: 14, prizePool: 1_260, participantCount: 118, finishers: 71, color: '#65bdb4', joined: false, goalType: 'fixed' },
   { id: 'green-mile', name: 'The Green Mile', theme: 'Make room for outside.', level: 'Brisk', startDate: 'Jun 22', endDate: 'Jul 5', days: 14, dailyGoal: 11_000, entryFee: 22, prizePool: 2_890, participantCount: 131, finishers: 88, color: '#bdcf57', joined: false, goalType: 'fixed' },
   { id: 'lunch-break', name: 'Lunch Break League', theme: 'Twenty minutes counts.', level: 'Gentle', startDate: 'Jun 23', endDate: 'Jun 27', days: 5, dailyGoal: 5000, entryFee: 6, prizePool: 410, participantCount: 64, finishers: 39, color: '#d8a35d', joined: false, goalType: 'personalized', graceDays: 1 },
@@ -62,6 +68,18 @@ const defaultActivities: Activity[] = [
   { id: 'a3', type: 'milestone', title: 'Three-day rhythm unlocked', meta: 'Sunrise Steps · 3 day streak', timestamp: 'Yesterday' },
 ];
 
+function usePersistentState<T>(key: string, initial: T | (() => T)) {
+  const [value, setValue] = useState<T>(() => {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try { return JSON.parse(saved) as T; } catch { /* use seed */ }
+    }
+    return typeof initial === 'function' ? (initial as () => T)() : initial;
+  });
+  useEffect(() => { localStorage.setItem(key, JSON.stringify(value)); }, [key, value]);
+  return [value, setValue] as const;
+}
+
 const AppContext = createContext<AppState | null>(null);
 function useApp() {
   const context = useContext(AppContext);
@@ -71,76 +89,45 @@ function useApp() {
 
 function AppProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const [serverState, setServerState] = useState<StridePoolBootstrap | null>(null);
-  const [anonymousFreeIds, setAnonymousFreeIds] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('stridepool-free-joined') ?? '[]') as string[]; } catch { return []; }
-  });
-  const refresh = useCallback(async () => {
-    const response = await fetch('/api/stridepool/bootstrap', { credentials: 'include' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    setServerState(await response.json() as StridePoolBootstrap);
-  }, []);
-  useEffect(() => {
-    if (!auth.isLoading) void refresh().catch(() => setServerState(null));
-  }, [auth.isLoading, auth.user?.id, refresh]);
-  useEffect(() => {
-    localStorage.setItem('stridepool-free-joined', JSON.stringify(anonymousFreeIds));
-  }, [anonymousFreeIds]);
-
-  const baseChallenges = serverState?.challenges ?? seededChallenges;
-  const joinedIds = serverState?.joinedIds ?? anonymousFreeIds;
-  const challenges = useMemo(() => baseChallenges.map((challenge) => ({ ...challenge, joined: serverState?.joinedIds.includes(challenge.id) ?? anonymousFreeIds.includes(challenge.id) })), [anonymousFreeIds, baseChallenges, serverState?.joinedIds]);
-  const steps = serverState?.steps ?? 7284;
-  const activities = serverState?.activities ?? defaultActivities;
-  const wallet = serverState?.wallet ?? { balance: 42.5, pending: 18, totalEarned: 156.75 };
-  const profile = serverState?.profile ?? { reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, displayName: 'Alex Morgan' };
+  const { data: complianceData, isLoading: complianceLoading } = useGetComplianceStatus();
+  const [joinedIds, setJoinedIds] = usePersistentState<string[]>('stridepool-joined', []);
+  const [steps, setSteps] = usePersistentState('stridepool-steps', 7284);
+  const [activities, setActivities] = usePersistentState<Activity[]>('stridepool-activities', defaultActivities);
+  const [wallet] = usePersistentState<WalletSummary>('stridepool-wallet', { balance: 0, pending: 0, totalEarned: 0 });
+  const [profile, setProfile] = usePersistentState<ProfileSettings>('stridepool-profile', { reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true });
+  const [eligibility, setEligibility] = usePersistentState<EligibilityProfile>('stridepool-eligibility', { age: 0, state: '', identityStatus: 'not_started', acceptedTerms: false });
+  const compliance = complianceData ?? { paidPlayEnabled: false, providerConfigured: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
+  const challenges = useMemo(() => seededChallenges.map((challenge) => ({ ...challenge, joined: joinedIds.includes(challenge.id) })), [joinedIds]);
   const loginIfNeeded = () => { if (!auth.isAuthenticated) auth.login(); };
+
   const joinChallenge = (id: string) => {
-    const challenge = challenges.find((item) => item.id === id);
-    if (!challenge || challenge.joined) return;
-    if (!auth.isAuthenticated) {
-      if (challenge.community && challenge.entryFee === 0) setAnonymousFreeIds((current) => current.includes(id) ? current : [...current, id]);
-      else loginIfNeeded();
-      return;
-    }
-    void fetch(`/api/stridepool/challenges/${id}/join`, { method: 'POST', credentials: 'include' }).then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await refresh();
-    }).catch(() => undefined);
+    if (joinedIds.includes(id)) return false;
+    const challenge = seededChallenges.find((item) => item.id === id);
+    if (!challenge || challenge.entryFee > 0) return false;
+    if (!auth.isAuthenticated && !challenge.community) { loginIfNeeded(); return false; }
+    setJoinedIds((current) => [...current, id]);
+    setActivities((current) => [{ id: `join-${Date.now()}`, type: 'challenge', title: `You joined ${challenge.name}`, meta: `$${challenge.entryFee} committed · starts ${challenge.startDate}`, timestamp: 'Just now' }, ...current]);
+    return true;
   };
   const leaveChallenge = (id: string) => {
-    if (!auth.isAuthenticated) {
-      setAnonymousFreeIds((current) => current.filter((item) => item !== id));
-      return;
-    }
-    void fetch(`/api/stridepool/challenges/${id}/leave`, { method: 'POST', credentials: 'include' }).then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await refresh();
-    }).catch(() => undefined);
+    const challenge = seededChallenges.find((item) => item.id === id);
+    if (!challenge || !joinedIds.includes(id) || challenge.entryFee > 0) return false;
+    setJoinedIds((current) => current.filter((item) => item !== id));
+    setActivities((current) => [{ id: `leave-${Date.now()}`, type: 'challenge', title: `You left ${challenge.name}`, meta: `$${challenge.entryFee} returned to your balance`, timestamp: 'Just now' }, ...current]);
+    return true;
   };
   const syncSteps = () => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    void fetch('/api/stridepool/sync', { method: 'POST', credentials: 'include' }).then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await refresh();
-    }).catch(() => undefined);
+    setSteps((current) => current + 628);
+    setActivities((current) => [{ id: `sync-${Date.now()}`, type: 'sync', title: 'Verified steps synced', meta: '+628 steps · rhythm is building', timestamp: 'Just now' }, ...current]);
   };
+  const updateEligibility = (next: EligibilityProfile) => setEligibility(next);
   const addFunds = () => {
-    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    void fetch('/api/stridepool/wallet/demo-funds', { method: 'POST', credentials: 'include' }).then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await refresh();
-    }).catch(() => undefined);
+    if (!auth.isAuthenticated) loginIfNeeded();
   };
-  const updateProfile = (updates: ProfileUpdate) => {
-    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    void fetch('/api/stridepool/profile', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await refresh();
-    }).catch(() => undefined);
-  };
-  const toggleSetting = (key: keyof ProfileSettings) => updateProfile({ [key]: !profile[key] });
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, joinChallenge, leaveChallenge, syncSteps, addFunds, toggleSetting, updateProfile, auth }), [activities, auth, challenges, joinedIds, profile, serverState, steps, updateProfile, wallet]);
+  const updateProfile = (_updates: ProfileUpdate) => { if (!auth.isAuthenticated) loginIfNeeded(); };
+  const toggleSetting = (key: keyof ProfileSettings) => setProfile((current) => ({ ...current, [key]: !current[key] }));
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, joinChallenge, leaveChallenge, updateEligibility, syncSteps, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -148,6 +135,7 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', icon: Home },
   { href: '/challenges', label: 'Challenges', icon: Compass },
   { href: '/wallet', label: 'Wallet', icon: WalletCards },
+  { href: '/safety', label: 'Safety', icon: ShieldCheck },
   { href: '/profile', label: 'Profile', icon: CircleUserRound },
 ];
 
@@ -162,7 +150,6 @@ function Logo() {
 }
 
 function AppShell({ children }: { children: ReactNode }) {
-  const { auth } = useApp();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -193,7 +180,7 @@ function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md sm:px-8 lg:px-12">
         <div className="flex items-center gap-3 lg:hidden"><button className="icon-button rounded-lg p-2 hover:bg-muted" onClick={() => setMobileOpen(true)} aria-label="Open navigation" data-testid="button-open-navigation"><Menu size={21} /></button><Logo /></div>
         <div className="hidden lg:block"><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-muted-foreground">StridePool / {pageName}</p></div>
-         <div className="flex items-center gap-3"><div className="relative"><button onClick={() => setNotificationOpen((value) => !value)} className="icon-button relative rounded-lg p-2.5 hover:bg-muted" aria-label="View notifications" aria-expanded={notificationOpen} data-testid="button-notifications"><Bell size={19} /><span className="pulse-dot absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" /></button>{notificationOpen && <div className="absolute right-0 top-12 z-40 w-[290px] rounded-2xl border border-border bg-card p-4 shadow-2xl" role="status" data-testid="panel-notifications"><div className="flex items-center justify-between"><p className="font-display text-sm font-bold">A note for your rhythm</p><button onClick={() => setNotificationOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Close notifications" data-testid="button-close-notifications"><X size={14} /></button></div><p className="mt-2 text-xs leading-5 text-muted-foreground">You are 2,716 steps from today's goal. A quick loop after lunch would get you there.</p><Link href="/challenges" onClick={() => setNotificationOpen(false)} className="mt-3 block text-xs font-bold text-primary" data-testid="link-notification-challenges">See open challenges <ArrowUpRight size={13} className="ml-1 inline" /></Link></div>}</div>{auth.isAuthenticated ? <Link href="/profile" className="flex items-center gap-2.5 rounded-xl p-1.5 pr-2 transition hover:bg-muted" data-testid="link-header-profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-display text-xs font-bold text-secondary-foreground">{(auth.user?.firstName?.[0] ?? 'A')}{(auth.user?.lastName?.[0] ?? 'M')}</span><span className="hidden text-sm font-semibold sm:block">{auth.user?.firstName || auth.user?.email || 'Your profile'}</span><ChevronDown size={15} className="hidden text-muted-foreground sm:block" /></Link> : <button onClick={auth.login} className="rounded-xl bg-foreground px-3.5 py-2 text-xs font-bold text-background transition hover:bg-primary hover:text-primary-foreground" data-testid="button-login">Log in</button>}</div>
+        <div className="flex items-center gap-3"><div className="relative"><button onClick={() => setNotificationOpen((value) => !value)} className="icon-button relative rounded-lg p-2.5 hover:bg-muted" aria-label="View notifications" aria-expanded={notificationOpen} data-testid="button-notifications"><Bell size={19} /><span className="pulse-dot absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" /></button>{notificationOpen && <div className="absolute right-0 top-12 z-40 w-[290px] rounded-2xl border border-border bg-card p-4 shadow-2xl" role="status" data-testid="panel-notifications"><div className="flex items-center justify-between"><p className="font-display text-sm font-bold">A note for your rhythm</p><button onClick={() => setNotificationOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Close notifications" data-testid="button-close-notifications"><X size={14} /></button></div><p className="mt-2 text-xs leading-5 text-muted-foreground">You are 2,716 steps from today's goal. A quick loop after lunch would get you there.</p><Link href="/challenges" onClick={() => setNotificationOpen(false)} className="mt-3 block text-xs font-bold text-primary" data-testid="link-notification-challenges">See open challenges <ArrowUpRight size={13} className="ml-1 inline" /></Link></div>}</div><Link href="/profile" className="flex items-center gap-2.5 rounded-xl p-1.5 pr-2 transition hover:bg-muted" data-testid="link-header-profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-display text-xs font-bold text-secondary-foreground">AM</span><span className="hidden text-sm font-semibold sm:block">Alex Morgan</span><ChevronDown size={15} className="hidden text-muted-foreground sm:block" /></Link></div>
       </header>
       <main className="page-enter min-h-[calc(100dvh-72px)] px-5 pb-28 pt-8 sm:px-8 lg:px-12 lg:pb-12">{children}</main>
     </div>
@@ -224,12 +211,12 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities, syncSteps, profile } = useApp();
+  const { challenges, steps, activities, syncSteps } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const goal = 10_000;
+  const percent = Math.min(100, Math.round((steps / goal) * 100));
   const spotlight = challenges.find((item) => item.joined) ?? challenges[0];
   const upcoming = challenges.find((item) => !item.joined) ?? challenges[1];
-  const goal = spotlight?.goalType === 'personalized' ? profile.goalBaseline : 10_000;
-  const percent = Math.min(100, Math.round((steps / goal) * 100));
   return <div className="mx-auto max-w-[1280px]">
     <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="rise-in"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">{dateLabel}</p><h1 className="font-display text-[clamp(2.15rem,5vw,3.7rem)] font-bold leading-[.97] tracking-[-.06em]">Keep your <span className="text-primary">rhythm.</span></h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">A little movement today keeps tomorrow feeling lighter.</p></div><Button onClick={syncSteps} data-testid="button-sync-steps"><RefreshCw size={16} /> Sync steps</Button></div>
     <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
@@ -268,20 +255,56 @@ function EmptyChallenges({ clear }: { clear: () => void }) { return <div classNa
 
 function ChallengeDetail() {
   const { id } = useParams<{ id: string }>();
-  const { challenges, joinChallenge, leaveChallenge } = useApp();
+  const { challenges, joinChallenge: joinFreeChallenge, leaveChallenge, eligibility, compliance } = useApp();
   const challenge = challenges.find((item) => item.id === id);
   const [confirming, setConfirming] = useState(false);
+  const [checkoutMessage, setCheckoutMessage] = useState('');
+  const checkout = useCreateCheckout();
   if (!challenge) return <NotFound />;
   const feeTotal = challenge.entryFee * challenge.participantCount;
   const winnerShare = Math.round(challenge.prizePool / Math.max(1, challenge.finishers || challenge.participantCount));
+  const paidEligible = eligibility.age >= 18 && eligibility.state.length === 2 && eligibility.identityStatus === 'verified' && eligibility.acceptedTerms && compliance.paidPlayEnabled;
+  const joinChallenge = (challengeId: string) => {
+    const selected = challenges.find((item) => item.id === challengeId);
+    if (!selected || selected.entryFee === 0) return joinFreeChallenge(challengeId);
+    checkout.mutate({ data: { userId: 'demo-user', challengeId, amountCents: Math.round(selected.entryFee * 100), currency: 'usd', idempotencyKey: `entry-${challengeId}-${Date.now()}`, eligibility } }, {
+      onSuccess: () => setCheckoutMessage('Provider checkout created. The challenge will appear after a signed payment event is reconciled.'),
+      onError: () => setCheckoutMessage('Secure checkout is unavailable. No money was moved and the challenge was not joined.')
+    });
+    return false;
+  };
    const goalLabel = challenge.goalType === 'personalized' ? 'Your daily goal' : 'Daily target';
    const poolLabel = challenge.community ? 'Community challenge' : 'Shared prize pool';
    return <div className="mx-auto max-w-[1050px]"><Link href="/challenges" className="mb-7 inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground" data-testid="link-back-challenges"><ArrowLeft size={16} /> All challenges</Link><div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><section><div className="relative overflow-hidden rounded-[24px] p-7 sm:p-10" style={{ backgroundColor: challenge.color }}><div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border-[32px] border-foreground/10" /><div className="absolute bottom-[-72px] left-[-30px] h-48 w-48 rounded-full border-[22px] border-background/20" /><div className="relative"><div className="flex items-center justify-between"><Badge tone="neutral">{challenge.community ? 'Community pace' : `${challenge.level} pace`}</Badge><span className="font-mono-app text-[10px] uppercase tracking-widest text-foreground/55">{challenge.startDate} — {challenge.endDate}</span></div><h1 className="mt-12 max-w-lg font-display text-[clamp(2.5rem,6vw,5.2rem)] font-bold leading-[.92] tracking-[-.08em]">{challenge.name}</h1><p className="mt-5 max-w-md text-base leading-7 text-foreground/70">{challenge.theme} The point is to show up, not to be the fastest person in the room.</p></div></div><div className="mt-6 rounded-2xl border border-border bg-card p-6 sm:p-8"><SectionHeading eyebrow="The agreement" title="Simple rules, clear finish line" /><div className="grid gap-5 sm:grid-cols-2"><Rule icon={<Target size={18} />} title={`${challenge.dailyGoal.toLocaleString()} steps each day`} text={challenge.goalType === 'personalized' ? 'Your target is calibrated from your baseline, so the finish line fits your real life.' : 'Your daily target is measured against your connected source.'} /><Rule icon={<CalendarDays size={18} />} title={`${challenge.days} days together${challenge.graceDays ? ` · ${challenge.graceDays} grace day` : ''}`} text={`Runs from ${challenge.startDate} through ${challenge.endDate}.`} /><Rule icon={<ShieldCheck size={18} />} title="Verified movement only" text="We check for implausible bursts and keep the original source record for review." /><Rule icon={<Users size={18} />} title={challenge.community ? 'Free community lane' : 'A shared pool'} text={challenge.community ? 'No entry fee and no payout pressure—just a circle to keep you moving.' : 'Everyone who completes the challenge shares the pool.'} /></div></div></section><aside className="space-y-5"><div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]"><div className="flex items-center justify-between"><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-muted-foreground">{poolLabel}</p><Sparkles size={17} className="text-primary" /></div><div className="mt-5 flex items-end justify-between"><div><p className="font-display text-4xl font-bold tracking-[-.06em]">{challenge.community ? 'Free' : `$${challenge.prizePool.toLocaleString()}`}</p><p className="mt-1 text-xs text-muted-foreground">{challenge.community ? 'no money required' : 'current prize pool'}</p></div><div className="text-right"><p className="font-display text-2xl font-bold">{challenge.participantCount}</p><p className="text-xs text-muted-foreground">walking together</p></div></div><div className="mt-6 h-2 rounded-full bg-muted"><div className="h-full w-[68%] rounded-full" style={{ backgroundColor: challenge.color }} /></div><div className="mt-2 flex justify-between text-[11px] text-muted-foreground"><span>{challenge.finishers || 0} finished so far</span><span>68% rhythm</span></div><div className="mt-6 space-y-3 border-t border-border pt-5"><StatLine icon={<Target size={16} />} label={goalLabel} value={`${challenge.dailyGoal.toLocaleString()} steps`} /><StatLine icon={<CreditCard size={16} />} label="Your entry" value={challenge.entryFee ? `$${challenge.entryFee}` : 'Free'} />{!challenge.community && <><StatLine icon={<Award size={16} />} label="Est. finisher share" value={`~$${winnerShare}`} /><StatLine icon={<Info size={16} />} label="Pool at capacity" value={`$${feeTotal.toLocaleString()}`} /></>}</div>{challenge.joined ? <div className="mt-6 space-y-2"><div className="flex items-center justify-center gap-2 rounded-xl bg-accent/35 py-3 text-sm font-bold text-accent-foreground"><Check size={16} /> You are in this pool</div><Button variant="quiet" className="w-full text-xs" onClick={() => setConfirming(true)} data-testid={`button-leave-${challenge.id}`}>Leave challenge</Button></div> : <Button className="mt-6 w-full py-3" onClick={() => setConfirming(true)} data-testid={`button-open-join-${challenge.id}`}>{challenge.community ? 'Join for free' : `Join for $${challenge.entryFee}`} <ArrowUpRight size={16} /></Button>}</div>{!challenge.community && <div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">No-finisher promise</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">If nobody finishes, every entry is refunded. No surprise rollover, donation, or house win.</p></div></div></div>}<div className="rounded-2xl border border-border bg-secondary/55 p-5"><div className="flex gap-3"><HeartPulse size={19} className="mt-0.5 shrink-0 text-secondary-foreground" /><div><p className="text-sm font-bold text-secondary-foreground">A kinder kind of competition</p><p className="mt-1 text-xs leading-5 text-secondary-foreground/75">Your progress is yours. The pool simply gives the walk a little more company.</p></div></div></div></aside></div>{confirming && <JoinDialog challenge={challenge} onClose={() => setConfirming(false)} onConfirm={() => { if (challenge.joined) leaveChallenge(challenge.id); else joinChallenge(challenge.id); setConfirming(false); }} />}</div>;
 }
 function Rule({ icon, title, text }: { icon: ReactNode; title: string; text: string }) { return <div className="flex gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-primary">{icon}</span><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p></div></div>; }
-function JoinDialog({ challenge, onClose, onConfirm }: { challenge: Challenge; onClose: () => void; onConfirm: () => void }) { const leaving = challenge.joined; const free = challenge.entryFee === 0; return <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="join-title"><div className="w-full max-w-md rounded-t-[24px] bg-card p-6 shadow-2xl sm:rounded-[24px] sm:p-7"><div className="flex items-start justify-between"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">{leaving ? 'One last check' : free ? 'No wallet needed' : 'You are almost in'}</p><h2 id="join-title" className="mt-2 font-display text-2xl font-bold tracking-[-.04em]">{leaving ? `Leave ${challenge.name}?` : `Join ${challenge.name}?`}</h2></div><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog" data-testid="button-close-join-dialog"><X size={18} /></button></div>{leaving ? <p className="mt-5 text-sm leading-6 text-muted-foreground">Your ${challenge.entryFee} entry will return to your balance. You can rejoin while registration is open.</p> : <><p className="mt-5 text-sm leading-6 text-muted-foreground">{free ? 'A free community challenge for showing up together. No payment method or payout rules—just a shared rhythm.' : `A transparent commitment for ${challenge.days} days of showing up. Nothing is charged beyond the entry below.`}</p><div className="mt-5 rounded-xl bg-muted p-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Entry commitment</span><span className="font-bold">{free ? 'Free' : `$${challenge.entryFee}.00`}</span></div>{!free && <><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Platform fee</span><span className="font-bold text-primary">$0.00</span></div><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Current pool</span><span className="font-bold">${challenge.prizePool.toLocaleString()}</span></div><p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-muted-foreground"><LockKeyhole size={13} className="mt-0.5 shrink-0" /> Your entry stays held until the challenge finishes. Finishers share the pool.</p></>}</div></>}<div className="mt-6 flex gap-3"><Button variant="secondary" className="flex-1" onClick={onClose} data-testid="button-cancel-join">Not yet</Button><Button variant={leaving ? 'danger' : 'primary'} className="flex-1" onClick={onConfirm} data-testid="button-confirm-join">{leaving ? 'Leave pool' : free ? 'Join for free' : 'Confirm entry'}</Button></div></div></div>; }
+function JoinDialog({ challenge, onClose, onConfirm }: { challenge: Challenge; onClose: () => void; onConfirm: () => void }) {
+  const { eligibility, compliance } = useApp();
+  const leaving = challenge.joined;
+  const free = challenge.entryFee === 0;
+  const paidEligible = eligibility.age >= compliance.minAge && eligibility.state.length === 2 && eligibility.identityStatus === 'verified' && eligibility.acceptedTerms && compliance.paidPlayEnabled && compliance.providerConfigured;
+  const blocked = !leaving && !free && !paidEligible;
+  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="join-title"><div className="w-full max-w-md rounded-t-[24px] bg-card p-6 shadow-2xl sm:rounded-[24px] sm:p-7"><div className="flex items-start justify-between"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">{leaving ? 'One last check' : free ? 'No wallet needed' : 'Safety check first'}</p><h2 id="join-title" className="mt-2 font-display text-2xl font-bold tracking-[-.04em]">{leaving ? `Leave ${challenge.name}?` : `Join ${challenge.name}?`}</h2></div><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog" data-testid="button-close-join-dialog"><X size={18} /></button></div>{leaving ? <p className="mt-5 text-sm leading-6 text-muted-foreground">{challenge.entryFee ? 'Paid entries can only be refunded through a provider-confirmed event.' : 'This free challenge can be left while registration is open.'}</p> : <><p className="mt-5 text-sm leading-6 text-muted-foreground">{free ? 'A free community challenge for showing up together.' : 'No money is moved from this screen. Age, state, identity, terms, and provider checkout must all pass first.'}</p><div className="mt-5 rounded-xl bg-muted p-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Entry commitment</span><span className="font-bold">{free ? 'Free' : `$${challenge.entryFee}.00`}</span></div>{!free && <><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Platform fee</span><span className="font-bold text-primary">$0.00</span></div><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Current pool</span><span className="font-bold">${challenge.prizePool.toLocaleString()}</span></div><p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-muted-foreground"><LockKeyhole size={13} className="mt-0.5 shrink-0" /> Finishers share the pool; no-finisher refunds are recorded as provider events.</p></>}</div>{blocked && <p className="mt-4 rounded-xl border border-primary/20 bg-primary/10 p-3 text-xs leading-5 text-primary">Paid entry is locked until every eligibility check passes and the provider is connected. <Link href="/safety" onClick={onClose} className="font-bold underline underline-offset-2" data-testid="link-join-safety">Review safety checks</Link></p>}</>}<div className="mt-6 flex gap-3"><Button variant="secondary" className="flex-1" onClick={onClose} data-testid="button-cancel-join">Not yet</Button><Button variant={leaving ? 'danger' : 'primary'} className="flex-1" onClick={onConfirm} disabled={blocked} data-testid="button-confirm-join">{leaving ? 'Leave pool' : free ? 'Join for free' : 'Continue to checkout'}</Button></div></div></div>;
+}
+
+function LegacyJoinDialog({ challenge, onClose, onConfirm }: { challenge: Challenge; onClose: () => void; onConfirm: () => void }) { const leaving = challenge.joined; const free = challenge.entryFee === 0; return <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="join-title"><div className="w-full max-w-md rounded-t-[24px] bg-card p-6 shadow-2xl sm:rounded-[24px] sm:p-7"><div className="flex items-start justify-between"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">{leaving ? 'One last check' : free ? 'No wallet needed' : 'You are almost in'}</p><h2 id="join-title" className="mt-2 font-display text-2xl font-bold tracking-[-.04em]">{leaving ? `Leave ${challenge.name}?` : `Join ${challenge.name}?`}</h2></div><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog" data-testid="button-close-join-dialog"><X size={18} /></button></div>{leaving ? <p className="mt-5 text-sm leading-6 text-muted-foreground">Your ${challenge.entryFee} entry will return to your balance. You can rejoin while registration is open.</p> : <><p className="mt-5 text-sm leading-6 text-muted-foreground">{free ? 'A free community challenge for showing up together. No payment method or payout rules—just a shared rhythm.' : `A transparent commitment for ${challenge.days} days of showing up. Nothing is charged beyond the entry below.`}</p><div className="mt-5 rounded-xl bg-muted p-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Entry commitment</span><span className="font-bold">{free ? 'Free' : `$${challenge.entryFee}.00`}</span></div>{!free && <><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Platform fee</span><span className="font-bold text-primary">$0.00</span></div><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Current pool</span><span className="font-bold">${challenge.prizePool.toLocaleString()}</span></div><p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-muted-foreground"><LockKeyhole size={13} className="mt-0.5 shrink-0" /> Your entry stays held until the challenge finishes. Finishers share the pool.</p></>}</div></>}<div className="mt-6 flex gap-3"><Button variant="secondary" className="flex-1" onClick={onClose} data-testid="button-cancel-join">Not yet</Button><Button variant={leaving ? 'danger' : 'primary'} className="flex-1" onClick={onConfirm} data-testid="button-confirm-join">{leaving ? 'Leave pool' : free ? 'Join for free' : 'Confirm entry'}</Button></div></div></div>; }
 
 function WalletPage() {
+  const { wallet, compliance } = useApp();
+  const { data: ledger = [] } = useGetLedger({ userId: 'demo-user' });
+  const payoutOnboarding = useStartPayoutOnboarding();
+  const [message, setMessage] = useState('');
+  const startPayoutOnboarding = () => {
+    setMessage('');
+    payoutOnboarding.mutate({ data: { userId: 'demo-user', idempotencyKey: `payout-${Date.now()}` } }, {
+      onSuccess: (result) => setMessage(result.status === 'pending' ? 'Payout onboarding started with the provider.' : 'Payout onboarding is not complete yet.'),
+      onError: () => setMessage('Payout onboarding is unavailable. No withdrawal was requested and no money moved.')
+    });
+  };
+  return <div className="mx-auto max-w-[1100px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Provider-backed money</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Wallet</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Your balance only changes after a signed provider event. This build has no demo deposits, browser-held funds, or instant withdrawals.</p></div><section className="grid gap-4 md:grid-cols-[1.4fr_.8fr_.8fr]"><div className="rounded-2xl bg-foreground p-6 text-background shadow-[var(--shadow-soft)]"><div className="flex items-center justify-between text-background/55"><span className="font-mono-app text-[10px] uppercase tracking-[.16em]">Available balance</span><WalletCards size={18} /></div><p className="mt-8 font-display text-5xl font-bold tracking-[-.07em]" data-testid="text-wallet-balance">${wallet.balance.toFixed(2)}</p><p className="mt-2 text-xs text-background/55">{compliance.providerConfigured ? 'Provider events pending' : 'No provider connected'}</p></div><WalletStat label="Pending in pools" value={`$${wallet.pending.toFixed(2)}`} detail="Released only after settlement" icon={<Clock3 size={17} />} /><WalletStat label="Total earned" value={`$${wallet.totalEarned.toFixed(2)}`} detail="Audited provider credits" icon={<TrendingUp size={17} />} /></section><section className="mt-10 grid gap-8 lg:grid-cols-[1fr_330px]"><div><SectionHeading eyebrow="Immutable event history" title="Money ledger" /><div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">{ledger.length ? ledger.map((entry) => <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0" key={entry.id} data-testid={`ledger-entry-${entry.id}`}><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-primary"><ShieldCheck size={16} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{entry.eventType.replaceAll('_', ' ')}</p><p className="mt-0.5 text-xs text-muted-foreground">{entry.status} · {new Date(entry.createdAt).toLocaleString()}</p></div><span className="font-mono-app text-sm font-bold">${(entry.amountCents / 100).toFixed(2)}</span></div>) : <div className="p-10 text-center"><ShieldCheck size={21} className="mx-auto text-primary" /><p className="mt-3 text-sm font-bold">No provider events yet</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Payment, refund, dispute, and payout events will appear here with their provider reference.</p></div>}</div></div><div><SectionHeading eyebrow="Payouts" title="Payout onboarding" /><div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"><div className="flex items-start gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><CreditCard size={19} /></span><div><p className="text-sm font-bold">Provider account</p><p className="text-xs leading-5 text-muted-foreground">{compliance.providerConfigured ? 'Complete onboarding before withdrawing.' : 'Connect a provider before withdrawals are offered.'}</p></div></div><Button variant="secondary" className="mt-5 w-full" onClick={startPayoutOnboarding} disabled={payoutOnboarding.isPending} data-testid="button-start-payout-onboarding">{payoutOnboarding.isPending ? 'Starting…' : 'Start secure onboarding'} <ChevronRight size={15} /></Button>{message && <p className="mt-4 rounded-xl bg-muted p-3 text-[11px] leading-5" role="status" data-testid="status-payout-onboarding">{message}</p>}<p className="mt-4 flex gap-2 text-[11px] leading-4 text-muted-foreground"><ShieldCheck size={14} className="shrink-0 text-primary" /> Withdrawals are retried and reconciled from provider events, never by changing a browser balance.</p></div></div></section></div>;
+}
+
+function LegacyWalletPage() {
   const { wallet, activities, addFunds } = useApp();
   const [tab, setTab] = useState('All activity');
   const walletActivities = activities.filter((item) => tab === 'All activity' || (tab === 'Entries' ? item.title.includes('joined') || item.title.includes('left') : item.type === 'milestone'));
@@ -291,17 +314,43 @@ function WalletStat({ label, value, detail, icon }: { label: string; value: stri
 function WalletRow({ activity }: { activity: Activity }) { const positive = activity.type === 'milestone'; return <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${positive ? 'bg-accent/35 text-accent-foreground' : 'bg-muted text-primary'}`}>{positive ? <Award size={16} /> : <ArrowUpRight size={16} />}</span><div className="flex-1"><p className="text-sm font-bold">{positive ? 'Earnings credited' : activity.title.replace('You ', '')}</p><p className="mt-0.5 text-xs text-muted-foreground">{activity.timestamp}</p></div><span className={`font-mono-app text-sm font-bold ${positive ? 'text-primary' : 'text-foreground'}`}>{positive ? '+$12.50' : `-$${activity.title.includes('Sunrise') ? '8.00' : '0.00'}`}</span></div>; }
 
 function ProfilePage() {
-  const { profile, toggleSetting, updateProfile, auth } = useApp();
+  const { profile, toggleSetting } = useApp();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(profile.displayName);
-  useEffect(() => setName(profile.displayName), [profile.displayName]);
-  return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => { updateProfile({ displayName: name }); setEditing(false); }} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{profile.displayName}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Challenges completed</span><span className="font-bold">7</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Longest rhythm</span><span className="font-bold">12 days</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Steps this month</span><span className="font-bold">184,620</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}{auth.isAuthenticated && <button onClick={auth.logout} className="mt-4 flex items-center gap-2 text-xs font-bold text-secondary-foreground/70 underline underline-offset-4" data-testid="button-logout">Log out</button>}</section><section className="space-y-5"><SettingsGroup eyebrow="Connected source" title="Where your steps come from"><div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background"><HeartPulse size={19} /></span><div><p className="text-sm font-bold">Apple Health</p><p className="mt-0.5 text-xs text-muted-foreground">{profile.healthConnected ? 'Connected · syncing automatically' : 'Not connected'}</p></div><span className={`ml-auto flex items-center gap-1.5 text-xs font-bold ${profile.healthConnected ? 'text-primary' : 'text-muted-foreground'}`}><span className={`h-2 w-2 rounded-full ${profile.healthConnected ? 'bg-primary' : 'bg-muted-foreground'}`} /> {profile.healthConnected ? 'Active' : 'Paused'}</span></div><Button variant="secondary" className="mt-3 w-full" onClick={() => toggleSetting('healthConnected')} data-testid="button-toggle-health">{profile.healthConnected ? 'Pause connection' : 'Reconnect Apple Health'}</Button></SettingsGroup><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weeklyDigest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
+  const [name, setName] = useState('Alex Morgan');
+  return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => setEditing(false)} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{name}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Challenges completed</span><span className="font-bold">7</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Longest rhythm</span><span className="font-bold">12 days</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Steps this month</span><span className="font-bold">184,620</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}</section><section className="space-y-5"><SettingsGroup eyebrow="Connected source" title="Where your steps come from"><div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background"><HeartPulse size={19} /></span><div><p className="text-sm font-bold">Apple Health</p><p className="mt-0.5 text-xs text-muted-foreground">{profile.healthConnected ? 'Connected · syncing automatically' : 'Not connected'}</p></div><span className={`ml-auto flex items-center gap-1.5 text-xs font-bold ${profile.healthConnected ? 'text-primary' : 'text-muted-foreground'}`}><span className={`h-2 w-2 rounded-full ${profile.healthConnected ? 'bg-primary' : 'bg-muted-foreground'}`} /> {profile.healthConnected ? 'Active' : 'Paused'}</span></div><Button variant="secondary" className="mt-3 w-full" onClick={() => toggleSetting('healthConnected')} data-testid="button-toggle-health">{profile.healthConnected ? 'Pause connection' : 'Reconnect Apple Health'}</Button></SettingsGroup><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weeklyDigest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
 }
 function SettingsGroup({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) { return <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6"><p className="font-mono-app text-[10px] uppercase tracking-[.17em] text-primary">{eyebrow}</p><h2 className="mt-1 font-display text-xl font-bold tracking-[-.035em]">{title}</h2><div className="mt-5">{children}</div></div>; }
 function ToggleRow({ label, description, checked, onToggle, testId }: { label: string; description: string; checked: boolean; onToggle: () => void; testId: string }) { return <button onClick={onToggle} className="flex w-full items-center gap-4 border-b border-border/70 py-4 text-left last:border-0 last:pb-0 first:pt-0" role="switch" aria-checked={checked} data-testid={testId}><span className={`relative h-6 w-11 shrink-0 rounded-full transition ${checked ? 'bg-primary' : 'bg-muted'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} /></span><span><span className="block text-sm font-bold">{label}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{description}</span></span></button>; }
 
+function EligibilityNotice({ eligibility, compliance }: { eligibility: EligibilityProfile; compliance: ComplianceStatus }) {
+  const checks = [
+    { label: '18+ age check', pass: eligibility.age >= compliance.minAge },
+    { label: 'State availability', pass: Boolean(eligibility.state) && compliance.approvedStates.includes(eligibility.state.toUpperCase()) },
+    { label: 'Identity verification', pass: eligibility.identityStatus === 'verified' },
+    { label: 'Terms and refund policy', pass: eligibility.acceptedTerms },
+  ];
+  return <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]" data-testid="card-paid-play-eligibility"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-primary"><ShieldCheck size={18} /></span><div><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Before paid entry</p><h2 className="mt-1 font-display text-xl font-bold">Eligibility is checked first</h2></div></div><div className="mt-4 space-y-2.5">{checks.map((check) => <div className="flex items-center gap-2 text-xs" key={check.label}><span className={`h-2 w-2 rounded-full ${check.pass ? 'bg-primary' : 'bg-muted-foreground/35'}`} /><span className={check.pass ? 'font-semibold' : 'text-muted-foreground'}>{check.label}</span>{check.pass && <Check size={13} className="text-primary" />}</div>)}</div><p className="mt-4 border-t border-border/70 pt-4 text-[11px] leading-5 text-muted-foreground">{compliance.counselReviewRequired ? 'Paid play is paused until qualified counsel confirms state availability and the challenge/refund model.' : 'Paid play is available only after every check passes.'}</p><Link href="/safety" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-primary" data-testid="link-complete-eligibility">Review eligibility <ArrowUpRight size={13} /></Link></div>;
+}
+
+function SafetyPage() {
+  const { eligibility, compliance, updateEligibility } = useApp();
+  const checkEligibility = useCheckEligibility();
+  const [draft, setDraft] = useState<EligibilityProfile>(eligibility);
+  const [serviceMessage, setServiceMessage] = useState('');
+  const update = <K extends keyof EligibilityProfile>(key: K, value: EligibilityProfile[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setServiceMessage('');
+    checkEligibility.mutate({ data: { ...draft, age: Number(draft.age), state: draft.state.toUpperCase() } }, {
+      onSuccess: (result) => { updateEligibility({ ...draft, age: Number(draft.age), state: draft.state.toUpperCase() }); setServiceMessage(result.eligible ? 'All checks passed. Paid entry can continue when provider checkout is connected.' : result.reasons.join(' ')); },
+      onError: () => setServiceMessage('Eligibility service is unavailable. No paid entry can be accepted until it responds.')
+    });
+  };
+  return <div className="mx-auto max-w-[1050px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Money with guardrails</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Paid play, on purpose.</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">StridePool does not accept real-money entries in this build. We will only open paid play after counsel review, identity checks, state eligibility, and provider onboarding are complete.</p></div><div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]"><section className="space-y-5"><div className="rounded-2xl border border-primary/25 bg-primary/10 p-5" role="status" data-testid="status-paid-play"><div className="flex gap-3"><LockKeyhole size={19} className="mt-0.5 shrink-0 text-primary" /><div><p className="font-bold text-primary">{compliance.paidPlayEnabled ? 'Paid play is gated by eligibility' : 'Paid play is currently unavailable'}</p><p className="mt-1 text-xs leading-5 text-primary/80">{compliance.providerConfigured ? 'Provider connection detected, but every participant still needs a successful eligibility decision.' : 'No payment or payout provider is connected. Nothing in the browser can move money.'}</p></div></div></div><div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]"><SectionHeading eyebrow="Your checks" title="Tell us what applies" /><form className="space-y-4" onSubmit={handleSubmit}><label className="block text-sm font-bold">Age<input type="number" min="0" value={draft.age || ''} onChange={(event) => update('age', Number(event.target.value))} className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" data-testid="input-eligibility-age" /></label><label className="block text-sm font-bold">State or territory<input maxLength={2} value={draft.state} onChange={(event) => update('state', event.target.value.toUpperCase())} placeholder="e.g. CA" className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm uppercase outline-none focus:border-primary" data-testid="input-eligibility-state" /></label><label className="block text-sm font-bold">Identity status<select value={draft.identityStatus} onChange={(event) => update('identityStatus', event.target.value as EligibilityProfile['identityStatus'])} className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" data-testid="select-identity-status"><option value="not_started">Not started</option><option value="pending">Pending review</option><option value="verified">Verified by provider</option></select></label><label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={draft.acceptedTerms} onChange={(event) => update('acceptedTerms', event.target.checked)} className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]" data-testid="checkbox-paid-terms" /><span>I accept the paid-challenge terms and published no-finisher refund policy. This records consent; it does not enable paid entry on its own.</span></label><Button type="submit" disabled={checkEligibility.isPending} data-testid="button-check-eligibility">{checkEligibility.isPending ? 'Checking…' : 'Check eligibility'}</Button>{serviceMessage && <p className="rounded-xl bg-muted p-3 text-xs leading-5" role="status" data-testid="status-eligibility-result">{serviceMessage}</p>}</form></div></section><aside className="space-y-5"><EligibilityNotice eligibility={eligibility} compliance={compliance} /><div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Required before launch</p><h2 className="mt-1 font-display text-xl font-bold">Counsel and controls</h2><ul className="mt-4 space-y-3 text-xs leading-5 text-muted-foreground">{compliance.requirements.map((requirement) => <li className="flex gap-2" key={requirement}><Check size={14} className="mt-0.5 shrink-0 text-primary" />{requirement}</li>)}</ul><div className="mt-5 border-t border-border/70 pt-4 text-xs leading-5"><p className="font-bold">Approved states</p><p className="mt-1 text-muted-foreground">{compliance.approvedStates.length ? compliance.approvedStates.join(', ') : 'None yet — qualified counsel review required.'}</p></div></div></aside></div></div>;
+}
+
 function NotFound() { return <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary"><Footprints size={25} /></div><h1 className="mt-5 font-display text-3xl font-bold">This path wandered off.</h1><p className="mt-2 text-sm text-muted-foreground">That page is not part of today's route.</p><Link href="/" className="mt-6 rounded-xl bg-foreground px-5 py-3 text-sm font-bold text-background" data-testid="link-back-home">Back to today</Link></div>; }
 
-function Router() { const [location] = useLocation(); return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Dashboard} /><Route path="/challenges" component={ChallengesPage} /><Route path="/challenge/:id" component={ChallengeDetail} /><Route path="/wallet" component={WalletPage} /><Route path="/profile" component={ProfilePage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>; }
+function Router() { const [location] = useLocation(); return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Dashboard} /><Route path="/challenges" component={ChallengesPage} /><Route path="/challenge/:id" component={ChallengeDetail} /><Route path="/wallet" component={WalletPage} /><Route path="/safety" component={SafetyPage} /><Route path="/profile" component={ProfilePage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>; }
 function App() { return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><AppProvider><Router /></AppProvider></WouterRouter></QueryClientProvider>; }
 export default App;

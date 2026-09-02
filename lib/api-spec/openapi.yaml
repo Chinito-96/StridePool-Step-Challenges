@@ -14,6 +14,10 @@ tags:
     description: Browser and mobile authentication endpoints.
   - name: stridepool
     description: StridePool persistence and challenge operations.
+  - name: compliance
+    description: Paid-play eligibility and launch controls
+  - name: money
+    description: Provider-backed money movement and audit events
 paths:
   /healthz:
     get:
@@ -28,6 +32,148 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /compliance/status:
+    get:
+      operationId: getComplianceStatus
+      tags: [compliance]
+      summary: Get paid-play launch controls
+      description: Returns the server-side controls that must pass before a paid entry can be offered.
+      responses:
+        "200":
+          description: Current compliance controls
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplianceStatus"
+  /compliance/eligibility:
+    post:
+      operationId: checkEligibility
+      tags: [compliance]
+      summary: Check a participant's paid-play eligibility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EligibilityInput"
+      responses:
+        "200":
+          description: Eligibility decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EligibilityDecision"
+        "400":
+          description: Invalid eligibility input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /money/checkout:
+    post:
+      operationId: createCheckout
+      tags: [money]
+      summary: Create a provider checkout for a paid challenge entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutInput"
+      responses:
+        "201":
+          description: Provider checkout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "409":
+          description: Paid play is unavailable or the request is not eligible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /money/payout-onboarding:
+    post:
+      operationId: startPayoutOnboarding
+      tags: [money]
+      summary: Start provider payout onboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayoutOnboardingInput"
+      responses:
+        "201":
+          description: Provider payout onboarding created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayoutOnboardingResponse"
+        "409":
+          description: Payout provider is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /money/ledger:
+    get:
+      operationId: getLedger
+      tags: [money]
+      summary: Get auditable money events
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: User money ledger
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LedgerEntry"
+        "400":
+          description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /money/provider-webhook:
+    post:
+      operationId: receiveProviderWebhook
+      tags: [money]
+      summary: Receive a signed provider money event
+      parameters:
+        - name: x-provider-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderWebhookInput"
+      responses:
+        "202":
+          description: Provider event accepted or recognized as a duplicate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "401":
+          description: Invalid provider signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /auth/user:
     get:
       tags: [Auth]
@@ -375,4 +521,106 @@ components:
       properties:
         steps: { type: integer }
         activity: { $ref: "#/components/schemas/Activity" }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    ComplianceStatus:
+      type: object
+      required: [paidPlayEnabled, providerConfigured, counselReviewRequired, minAge, approvedStates, requirements, settlementPolicy]
+      properties:
+        paidPlayEnabled: { type: boolean }
+        providerConfigured: { type: boolean }
+        counselReviewRequired: { type: boolean }
+        minAge: { type: integer }
+        approvedStates:
+          type: array
+          items: { type: string }
+        requirements:
+          type: array
+          items: { type: string }
+        settlementPolicy:
+          type: array
+          items: { type: string }
+    EligibilityInput:
+      type: object
+      properties:
+        age: { type: number, minimum: 0 }
+        state: { type: string, minLength: 2, maxLength: 2 }
+        identityStatus: { type: string, enum: [not_started, pending, verified] }
+        acceptedTerms: { type: boolean }
+      required: [age, state, identityStatus, acceptedTerms]
+    EligibilityDecision:
+      type: object
+      properties:
+        eligible: { type: boolean }
+        reasons:
+          type: array
+          items: { type: string }
+        checkedAt: { type: string, format: date-time }
+      required: [eligible, reasons, checkedAt]
+    CheckoutInput:
+      type: object
+      properties:
+        userId: { type: string, minLength: 1 }
+        challengeId: { type: string, minLength: 1 }
+        amountCents: { type: number, minimum: 1 }
+        currency: { type: string, enum: [usd] }
+        idempotencyKey: { type: string, minLength: 8 }
+        eligibility: { $ref: "#/components/schemas/EligibilityInput" }
+      required: [userId, challengeId, amountCents, currency, idempotencyKey, eligibility]
+    CheckoutResponse:
+      type: object
+      properties:
+        checkoutId: { type: string }
+        status: { type: string, enum: [requires_provider, requires_action, succeeded] }
+        provider: { type: string }
+        ledgerEntryId: { type: string }
+      required: [checkoutId, status, provider, ledgerEntryId]
+    PayoutOnboardingInput:
+      type: object
+      properties:
+        userId: { type: string, minLength: 1 }
+        idempotencyKey: { type: string, minLength: 8 }
+      required: [userId, idempotencyKey]
+    PayoutOnboardingResponse:
+      type: object
+      properties:
+        onboardingId: { type: string }
+        status: { type: string, enum: [requires_provider, pending, complete] }
+        provider: { type: string }
+      required: [onboardingId, status, provider]
+    LedgerEntry:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        eventType: { type: string }
+        status: { type: string }
+        amountCents: { type: number }
+        currency: { type: string }
+        providerEventId: { type: [string, "null"] }
+        challengeId: { type: [string, "null"] }
+        metadata: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+      required: [id, userId, eventType, status, amountCents, currency, providerEventId, challengeId, metadata, createdAt]
+    ProviderWebhookInput:
+      type: object
+      properties:
+        providerEventId: { type: string, minLength: 1 }
+        eventType: { type: string, enum: [payment_succeeded, payment_failed, payout_succeeded, payout_failed, refund_issued, dispute_opened, dispute_closed] }
+        userId: { type: string, minLength: 1 }
+        amountCents: { type: number, minimum: 0 }
+        currency: { type: string, enum: [usd] }
+        challengeId: { type: [string, "null"] }
+        metadata: { type: object, additionalProperties: true }
+      required: [providerEventId, eventType, userId, amountCents, currency, challengeId, metadata]
+    WebhookResponse:
+      type: object
+      properties:
+        accepted: { type: boolean }
+        duplicate: { type: boolean }
+        ledgerEntryId: { type: string }
+      required: [accepted, duplicate, ledgerEntryId]
 

@@ -18,6 +18,157 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * Returns the server-side controls that must pass before a paid entry can be offered.
+ * @summary Get paid-play launch controls
+ */
+export const GetComplianceStatusResponse = zod.object({
+  "paidPlayEnabled": zod.boolean(),
+  "providerConfigured": zod.boolean(),
+  "counselReviewRequired": zod.boolean(),
+  "minAge": zod.number(),
+  "approvedStates": zod.array(zod.string()),
+  "requirements": zod.array(zod.string()),
+  "settlementPolicy": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Check a participant's paid-play eligibility
+ */
+export const checkEligibilityBodyAgeMin = 0;
+
+export const checkEligibilityBodyStateMin = 2;
+export const checkEligibilityBodyStateMax = 2;
+
+
+
+export const CheckEligibilityBody = zod.object({
+  "age": zod.number().min(checkEligibilityBodyAgeMin),
+  "state": zod.string().min(checkEligibilityBodyStateMin).max(checkEligibilityBodyStateMax),
+  "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
+  "acceptedTerms": zod.boolean()
+})
+
+export const CheckEligibilityResponse = zod.object({
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "checkedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Create a provider checkout for a paid challenge entry
+ */
+
+
+
+export const createCheckoutBodyIdempotencyKeyMin = 8;
+
+export const createCheckoutBodyEligibilityAgeMin = 0;
+
+export const createCheckoutBodyEligibilityStateMin = 2;
+export const createCheckoutBodyEligibilityStateMax = 2;
+
+
+
+export const CreateCheckoutBody = zod.object({
+  "userId": zod.string().min(1),
+  "challengeId": zod.string().min(1),
+  "amountCents": zod.number().min(1),
+  "currency": zod.enum(['usd']),
+  "idempotencyKey": zod.string().min(createCheckoutBodyIdempotencyKeyMin),
+  "eligibility": zod.object({
+  "age": zod.number().min(createCheckoutBodyEligibilityAgeMin),
+  "state": zod.string().min(createCheckoutBodyEligibilityStateMin).max(createCheckoutBodyEligibilityStateMax),
+  "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
+  "acceptedTerms": zod.boolean()
+})
+})
+
+export const CreateCheckoutResponse = zod.object({
+  "checkoutId": zod.string(),
+  "status": zod.enum(['requires_provider', 'requires_action', 'succeeded']),
+  "provider": zod.string(),
+  "ledgerEntryId": zod.string()
+})
+
+
+/**
+ * @summary Start provider payout onboarding
+ */
+
+export const startPayoutOnboardingBodyIdempotencyKeyMin = 8;
+
+
+
+export const StartPayoutOnboardingBody = zod.object({
+  "userId": zod.string().min(1),
+  "idempotencyKey": zod.string().min(startPayoutOnboardingBodyIdempotencyKeyMin)
+})
+
+export const StartPayoutOnboardingResponse = zod.object({
+  "onboardingId": zod.string(),
+  "status": zod.enum(['requires_provider', 'pending', 'complete']),
+  "provider": zod.string()
+})
+
+
+/**
+ * @summary Get auditable money events
+ */
+
+
+
+export const GetLedgerQueryParams = zod.object({
+  "userId": zod.coerce.string().min(1)
+})
+
+export const GetLedgerResponseItem = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "eventType": zod.string(),
+  "status": zod.string(),
+  "amountCents": zod.number(),
+  "currency": zod.string(),
+  "providerEventId": zod.string().nullable(),
+  "challengeId": zod.string().nullable(),
+  "metadata": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date()
+})
+export const GetLedgerResponse = zod.array(GetLedgerResponseItem)
+
+
+/**
+ * @summary Receive a signed provider money event
+ */
+export const ReceiveProviderWebhookHeader = zod.object({
+  "x-provider-signature": zod.string()
+})
+
+
+
+export const receiveProviderWebhookBodyAmountCentsMin = 0;
+
+
+
+export const ReceiveProviderWebhookBody = zod.object({
+  "providerEventId": zod.string().min(1),
+  "eventType": zod.enum(['payment_succeeded', 'payment_failed', 'payout_succeeded', 'payout_failed', 'refund_issued', 'dispute_opened', 'dispute_closed']),
+  "userId": zod.string().min(1),
+  "amountCents": zod.number().min(receiveProviderWebhookBodyAmountCentsMin),
+  "currency": zod.enum(['usd']),
+  "challengeId": zod.string().nullable(),
+  "metadata": zod.record(zod.string(), zod.unknown())
+})
+
+export const ReceiveProviderWebhookResponse = zod.object({
+  "accepted": zod.boolean(),
+  "duplicate": zod.boolean(),
+  "ledgerEntryId": zod.string()
+})
+
+
+/**
  * @summary Get the currently authenticated user
  */
 export const GetCurrentAuthUserHeader = zod.object({
@@ -118,20 +269,20 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "level": zod.string(),
   "startDate": zod.string(),
   "endDate": zod.string(),
-  "days": zod.int(),
-  "dailyGoal": zod.int(),
+  "days": zod.number(),
+  "dailyGoal": zod.number(),
   "entryFee": zod.number(),
   "prizePool": zod.number(),
-  "participantCount": zod.int(),
-  "finishers": zod.int(),
+  "participantCount": zod.number(),
+  "finishers": zod.number(),
   "color": zod.string(),
   "goalType": zod.string(),
   "community": zod.boolean(),
-  "graceDays": zod.int(),
+  "graceDays": zod.number(),
   "joined": zod.boolean()
 })),
   "joinedIds": zod.array(zod.string()),
-  "steps": zod.int(),
+  "steps": zod.number(),
   "activities": zod.array(zod.object({
   "id": zod.string(),
   "type": zod.string(),
@@ -150,7 +301,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "weeklyDigest": zod.boolean(),
   "publicProgress": zod.boolean(),
   "healthConnected": zod.boolean(),
-  "goalBaseline": zod.int()
+  "goalBaseline": zod.number()
 })
 })
 
@@ -205,7 +356,7 @@ export const SyncStridePoolStepsHeader = zod.object({
 })
 
 export const SyncStridePoolStepsResponse = zod.object({
-  "steps": zod.int(),
+  "steps": zod.number(),
   "activity": zod.object({
   "id": zod.string(),
   "type": zod.string(),
@@ -255,5 +406,7 @@ export const UpdateStridePoolProfileResponse = zod.object({
   "weeklyDigest": zod.boolean(),
   "publicProgress": zod.boolean(),
   "healthConnected": zod.boolean(),
-  "goalBaseline": zod.int()
+  "goalBaseline": zod.number()
 })
+
+

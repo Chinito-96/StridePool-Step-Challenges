@@ -22,17 +22,29 @@ import type {
 import type {
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  CheckoutInput,
+  CheckoutResponse,
+  ComplianceStatus,
+  EligibilityDecision,
+  EligibilityInput,
   EntryMutationResponse,
+  ErrorResponse,
+  GetLedgerParams,
   HealthStatus,
+  LedgerEntry,
   LogoutBrowserSessionParams,
   LogoutSuccess,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
+  PayoutOnboardingInput,
+  PayoutOnboardingResponse,
   ProfileSettings,
   ProfileUpdate,
+  ProviderWebhookInput,
   StridePoolBootstrap,
   SyncStepsResponse,
-  WalletSummary
+  WalletSummary,
+  WebhookResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -139,6 +151,452 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getGetComplianceStatusUrl = () => {
+
+
+
+
+  return `/api/compliance/status`
+}
+
+/**
+ * Returns the server-side controls that must pass before a paid entry can be offered.
+ * @summary Get paid-play launch controls
+ */
+export const getComplianceStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<ComplianceStatus> => {
+
+  return customFetch<ComplianceStatus>(getGetComplianceStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetComplianceStatusQueryKey = () => {
+    return [
+    `/api/compliance/status`
+    ] as const;
+    }
+
+
+export const getGetComplianceStatusQueryOptions = <TData = Awaited<ReturnType<typeof getComplianceStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getComplianceStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetComplianceStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getComplianceStatus>>> = ({ signal }) => getComplianceStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getComplianceStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetComplianceStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getComplianceStatus>>>
+export type GetComplianceStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get paid-play launch controls
+ */
+
+export function useGetComplianceStatus<TData = Awaited<ReturnType<typeof getComplianceStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getComplianceStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetComplianceStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCheckEligibilityUrl = () => {
+
+
+
+
+  return `/api/compliance/eligibility`
+}
+
+/**
+ * @summary Check a participant's paid-play eligibility
+ */
+export const checkEligibility = async (eligibilityInput: EligibilityInput, options?: Parameters<typeof customFetch>[1]): Promise<EligibilityDecision> => {
+
+  return customFetch<EligibilityDecision>(getCheckEligibilityUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(eligibilityInput)
+  }
+);}
+
+
+
+
+
+export const getCheckEligibilityMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkEligibility>>, TError,{data: BodyType<EligibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkEligibility>>, TError,{data: BodyType<EligibilityInput>}, TContext> => {
+
+const mutationKey = ['checkEligibility'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkEligibility>>, {data: BodyType<EligibilityInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkEligibility(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckEligibilityMutationResult = NonNullable<Awaited<ReturnType<typeof checkEligibility>>>
+    export type CheckEligibilityMutationBody = BodyType<EligibilityInput>
+    export type CheckEligibilityMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Check a participant's paid-play eligibility
+ */
+export const useCheckEligibility = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkEligibility>>, TError,{data: BodyType<EligibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkEligibility>>,
+        TError,
+        {data: BodyType<EligibilityInput>},
+        TContext
+      > => {
+      return useMutation(getCheckEligibilityMutationOptions(options));
+    }
+
+export const getCreateCheckoutUrl = () => {
+
+
+
+
+  return `/api/money/checkout`
+}
+
+/**
+ * @summary Create a provider checkout for a paid challenge entry
+ */
+export const createCheckout = async (checkoutInput: CheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<CheckoutResponse> => {
+
+  return customFetch<CheckoutResponse>(getCreateCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(checkoutInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCheckoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<CheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<CheckoutInput>}, TContext> => {
+
+const mutationKey = ['createCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCheckout>>, {data: BodyType<CheckoutInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createCheckout>>>
+    export type CreateCheckoutMutationBody = BodyType<CheckoutInput>
+    export type CreateCheckoutMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create a provider checkout for a paid challenge entry
+ */
+export const useCreateCheckout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<CheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCheckout>>,
+        TError,
+        {data: BodyType<CheckoutInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCheckoutMutationOptions(options));
+    }
+
+export const getStartPayoutOnboardingUrl = () => {
+
+
+
+
+  return `/api/money/payout-onboarding`
+}
+
+/**
+ * @summary Start provider payout onboarding
+ */
+export const startPayoutOnboarding = async (payoutOnboardingInput: PayoutOnboardingInput, options?: Parameters<typeof customFetch>[1]): Promise<PayoutOnboardingResponse> => {
+
+  return customFetch<PayoutOnboardingResponse>(getStartPayoutOnboardingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(payoutOnboardingInput)
+  }
+);}
+
+
+
+
+
+export const getStartPayoutOnboardingMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startPayoutOnboarding>>, TError,{data: BodyType<PayoutOnboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startPayoutOnboarding>>, TError,{data: BodyType<PayoutOnboardingInput>}, TContext> => {
+
+const mutationKey = ['startPayoutOnboarding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startPayoutOnboarding>>, {data: BodyType<PayoutOnboardingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startPayoutOnboarding(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartPayoutOnboardingMutationResult = NonNullable<Awaited<ReturnType<typeof startPayoutOnboarding>>>
+    export type StartPayoutOnboardingMutationBody = BodyType<PayoutOnboardingInput>
+    export type StartPayoutOnboardingMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Start provider payout onboarding
+ */
+export const useStartPayoutOnboarding = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startPayoutOnboarding>>, TError,{data: BodyType<PayoutOnboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startPayoutOnboarding>>,
+        TError,
+        {data: BodyType<PayoutOnboardingInput>},
+        TContext
+      > => {
+      return useMutation(getStartPayoutOnboardingMutationOptions(options));
+    }
+
+export const getGetLedgerUrl = (params: GetLedgerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/money/ledger?${stringifiedParams}` : `/api/money/ledger`
+}
+
+/**
+ * @summary Get auditable money events
+ */
+export const getLedger = async (params: GetLedgerParams, options?: Parameters<typeof customFetch>[1]): Promise<LedgerEntry[]> => {
+
+  return customFetch<LedgerEntry[]>(getGetLedgerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLedgerQueryKey = (params?: GetLedgerParams,) => {
+    return [
+    `/api/money/ledger`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLedgerQueryOptions = <TData = Awaited<ReturnType<typeof getLedger>>, TError = ErrorType<ErrorResponse>>(params: GetLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLedgerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLedger>>> = ({ signal }) => getLedger(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLedger>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLedgerQueryResult = NonNullable<Awaited<ReturnType<typeof getLedger>>>
+export type GetLedgerQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get auditable money events
+ */
+
+export function useGetLedger<TData = Awaited<ReturnType<typeof getLedger>>, TError = ErrorType<ErrorResponse>>(
+ params: GetLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLedgerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReceiveProviderWebhookUrl = () => {
+
+
+
+
+  return `/api/money/provider-webhook`
+}
+
+/**
+ * @summary Receive a signed provider money event
+ */
+export const receiveProviderWebhook = async (providerWebhookInput: ProviderWebhookInput, options?: Parameters<typeof customFetch>[1]): Promise<WebhookResponse> => {
+
+  return customFetch<WebhookResponse>(getReceiveProviderWebhookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(providerWebhookInput)
+  }
+);}
+
+
+
+
+
+export const getReceiveProviderWebhookMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveProviderWebhook>>, TError,{data: BodyType<ProviderWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveProviderWebhook>>, TError,{data: BodyType<ProviderWebhookInput>}, TContext> => {
+
+const mutationKey = ['receiveProviderWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveProviderWebhook>>, {data: BodyType<ProviderWebhookInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  receiveProviderWebhook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveProviderWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveProviderWebhook>>>
+    export type ReceiveProviderWebhookMutationBody = BodyType<ProviderWebhookInput>
+    export type ReceiveProviderWebhookMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Receive a signed provider money event
+ */
+export const useReceiveProviderWebhook = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveProviderWebhook>>, TError,{data: BodyType<ProviderWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveProviderWebhook>>,
+        TError,
+        {data: BodyType<ProviderWebhookInput>},
+        TContext
+      > => {
+      return useMutation(getReceiveProviderWebhookMutationOptions(options));
+    }
 
 export const getGetCurrentAuthUserUrl = () => {
 
@@ -1035,3 +1493,4 @@ export const useUpdateStridePoolProfile = <TError = ErrorType<void>,
       > => {
       return useMutation(getUpdateStridePoolProfileMutationOptions(options));
     }
+

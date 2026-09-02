@@ -122,7 +122,172 @@ export interface SyncStepsResponse {
   activity: Activity;
 }
 
+export interface ErrorResponse {
+  error: string;
+}
+
+export interface ComplianceStatus {
+  paidPlayEnabled: boolean;
+  providerConfigured: boolean;
+  counselReviewRequired: boolean;
+  minAge: number;
+  approvedStates: string[];
+  requirements: string[];
+  settlementPolicy: string[];
+}
+
+export type EligibilityInputIdentityStatus = typeof EligibilityInputIdentityStatus[keyof typeof EligibilityInputIdentityStatus];
+
+
+export const EligibilityInputIdentityStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  verified: 'verified',
+} as const;
+
+export interface EligibilityInput {
+  /** @minimum 0 */
+  age: number;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  state: string;
+  identityStatus: EligibilityInputIdentityStatus;
+  acceptedTerms: boolean;
+}
+
+export interface EligibilityDecision {
+  eligible: boolean;
+  reasons: string[];
+  checkedAt: string;
+}
+
+export type CheckoutInputCurrency = typeof CheckoutInputCurrency[keyof typeof CheckoutInputCurrency];
+
+
+export const CheckoutInputCurrency = {
+  usd: 'usd',
+} as const;
+
+export interface CheckoutInput {
+  /** @minLength 1 */
+  userId: string;
+  /** @minLength 1 */
+  challengeId: string;
+  /** @minimum 1 */
+  amountCents: number;
+  currency: CheckoutInputCurrency;
+  /** @minLength 8 */
+  idempotencyKey: string;
+  eligibility: EligibilityInput;
+}
+
+export type CheckoutResponseStatus = typeof CheckoutResponseStatus[keyof typeof CheckoutResponseStatus];
+
+
+export const CheckoutResponseStatus = {
+  requires_provider: 'requires_provider',
+  requires_action: 'requires_action',
+  succeeded: 'succeeded',
+} as const;
+
+export interface CheckoutResponse {
+  checkoutId: string;
+  status: CheckoutResponseStatus;
+  provider: string;
+  ledgerEntryId: string;
+}
+
+export interface PayoutOnboardingInput {
+  /** @minLength 1 */
+  userId: string;
+  /** @minLength 8 */
+  idempotencyKey: string;
+}
+
+export type PayoutOnboardingResponseStatus = typeof PayoutOnboardingResponseStatus[keyof typeof PayoutOnboardingResponseStatus];
+
+
+export const PayoutOnboardingResponseStatus = {
+  requires_provider: 'requires_provider',
+  pending: 'pending',
+  complete: 'complete',
+} as const;
+
+export interface PayoutOnboardingResponse {
+  onboardingId: string;
+  status: PayoutOnboardingResponseStatus;
+  provider: string;
+}
+
+export type LedgerEntryMetadata = { [key: string]: unknown };
+
+export interface LedgerEntry {
+  id: string;
+  userId: string;
+  eventType: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+  /** @nullable */
+  providerEventId: string | null;
+  /** @nullable */
+  challengeId: string | null;
+  metadata: LedgerEntryMetadata;
+  createdAt: string;
+}
+
+export type ProviderWebhookInputEventType = typeof ProviderWebhookInputEventType[keyof typeof ProviderWebhookInputEventType];
+
+
+export const ProviderWebhookInputEventType = {
+  payment_succeeded: 'payment_succeeded',
+  payment_failed: 'payment_failed',
+  payout_succeeded: 'payout_succeeded',
+  payout_failed: 'payout_failed',
+  refund_issued: 'refund_issued',
+  dispute_opened: 'dispute_opened',
+  dispute_closed: 'dispute_closed',
+} as const;
+
+export type ProviderWebhookInputCurrency = typeof ProviderWebhookInputCurrency[keyof typeof ProviderWebhookInputCurrency];
+
+
+export const ProviderWebhookInputCurrency = {
+  usd: 'usd',
+} as const;
+
+export type ProviderWebhookInputMetadata = { [key: string]: unknown };
+
+export interface ProviderWebhookInput {
+  /** @minLength 1 */
+  providerEventId: string;
+  eventType: ProviderWebhookInputEventType;
+  /** @minLength 1 */
+  userId: string;
+  /** @minimum 0 */
+  amountCents: number;
+  currency: ProviderWebhookInputCurrency;
+  /** @nullable */
+  challengeId: string | null;
+  metadata: ProviderWebhookInputMetadata;
+}
+
+export interface WebhookResponse {
+  accepted: boolean;
+  duplicate: boolean;
+  ledgerEntryId: string;
+}
+
 export type AuthorizationSessionHeaderParameter = string;
+
+export type GetLedgerParams = {
+/**
+ * @minLength 1
+ */
+userId: string;
+};
 
 export type BeginBrowserLoginParams = {
 returnTo?: string;
@@ -131,3 +296,4 @@ returnTo?: string;
 export type LogoutBrowserSessionParams = {
 returnTo?: string;
 };
+

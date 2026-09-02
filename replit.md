@@ -35,7 +35,9 @@ StridePool is a responsive step-challenge web app where people build consistency
 
 - The web client loads authenticated challenges, wallets, profiles, entries, and daily steps from the API; the API owns all Postgres access.
 - Replit Auth identifies users and persists sessions in Postgres. Paid and personalized entries require login; free community participation remains limited to the anonymous browser until a user signs in.
-- Demo state can be reset with the seed script. It intentionally uses simulated verified steps and demo wallet funds; it is not a payment or health-platform integration.
+- Demo state can be reset with the seed script. It intentionally uses simulated verified steps, while money balances remain zero until signed provider events are reconciled.
+- Paid play is server-gated behind counsel-approved states, provider configuration, and eligibility checks.
+- The API exposes provider-shaped checkout, payout onboarding, signed webhook, and append-only ledger routes; the current file ledger is a development adapter, not a production money store.
 - The experience uses an original StridePool identity and copy; Steppa is treated as a mechanics benchmark, not a visual or content source.
 - The product emphasizes transparent pool math, human recovery paths, and social accountability as the main opportunities over the benchmark.
 
@@ -45,7 +47,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 - Searchable and filterable challenge discovery with challenge detail and join confirmation flow
 - Payout math with entry fee, current pool, estimated share, and platform fee shown before confirmation
 - Simulated step syncing that updates daily progress and activity
-- Wallet balance, pending funds, earnings history, and payout method demo
+- Wallet balance, pending funds, provider ledger events, and payout onboarding readiness
 - Profile editing, health-source connection demo, notifications, and privacy controls
 - Responsive desktop navigation and mobile bottom navigation
 
@@ -55,9 +57,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 
 ## Gotchas
 
-- Real payment processing, health-platform integrations, KYC, and compliance review are intentionally not wired up.
-- Entry rows reserve provider/reference/settlement fields for a future payment integration, but the current wallet mutations are demo-only and must not accept real money.
-- Before enabling paid production play, add a transactional money ledger, select a payment provider, and obtain counsel sign-off on the challenge/state availability matrix.
+- Paid play is intentionally disabled until qualified counsel signs off on the challenge/refund model and state matrix, a payment/payout provider is connected, and production ledger persistence is transactional.
 
 ## Pointers
 

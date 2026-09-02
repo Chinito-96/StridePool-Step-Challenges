@@ -1,5 +1,4 @@
 import {
-  AddStridePoolDemoFundsResponse,
   GetStridePoolBootstrapResponse,
   JoinStridePoolChallengeParams,
   JoinStridePoolChallengeResponse,
@@ -24,7 +23,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 
 const router: IRouter = Router();
 const DEFAULT_PROFILE = { displayName: "Alex Morgan", reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500 };
-const DEFAULT_WALLET = { balance: 42.5, pending: 18, totalEarned: 156.75 };
+const DEFAULT_WALLET = { balance: 0, pending: 0, totalEarned: 0 };
 
 function dateLabel(value: string): string {
   return new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -164,10 +163,7 @@ router.post("/stridepool/sync", async (req, res): Promise<void> => {
 });
 
 router.post("/stridepool/wallet/demo-funds", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const [user] = await db.update(usersTable).set({ walletBalance: sql`${usersTable.walletBalance} + 25` }).where(eq(usersTable.id, userId)).returning();
-  res.json(AddStridePoolDemoFundsResponse.parse(walletFor(user)));
+  res.status(409).json({ error: "Demo wallet funding is disabled. Use a configured payment provider and signed ledger events." });
 });
 
 router.patch("/stridepool/profile", async (req, res): Promise<void> => {
