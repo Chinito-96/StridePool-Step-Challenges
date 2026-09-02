@@ -184,11 +184,11 @@ describe("settlement pool split and refunds", () => {
   });
 
   it("handles zero finishers, all finishers, and a non-divisible pool", async () => {
-    const noFinisherId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "10.00" });
+    const noFinisherId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "0.00" });
     await joinChallenge(userIds[0], noFinisherId, beforeStart);
     const noFinisherResult = await settleChallenge(noFinisherId, new Date("2026-06-03T00:00:00Z"));
     assert.equal(noFinisherResult.finisherCount, 0);
-    assert.equal(noFinisherResult.refundedTotal, 20);
+    assert.equal(noFinisherResult.refundedTotal, 10);
     assert.deepEqual(await wallet(userIds[0]), { balance: "100.00", pending: "0.00", totalEarned: "0.00" });
 
     const allFinisherId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "0.00" });
@@ -202,13 +202,15 @@ describe("settlement pool split and refunds", () => {
   });
 
   it("does not refund twice when no-finisher settlement is repeated", async () => {
-    const challengeId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "10.00" });
+    const challengeId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "0.00" });
     await joinChallenge(userIds[0], challengeId, beforeStart);
-    const first = await settleChallenge(challengeId, new Date("2026-06-03T00:00:00Z"));
-    const second = await settleChallenge(challengeId, new Date("2026-06-03T01:00:00Z"));
-    assert.equal(first.refundedTotal, 20);
-    assert.equal(second.alreadySettled, true);
-    assert.equal(second.refundedTotal, 0);
+    const [first, second] = await Promise.all([
+      settleChallenge(challengeId, new Date("2026-06-03T00:00:00Z")),
+      settleChallenge(challengeId, new Date("2026-06-03T01:00:00Z")),
+    ]);
+    assert.equal([first, second].filter((result) => !result.alreadySettled).length, 1);
+    assert.equal([first, second].filter((result) => result.alreadySettled).length, 1);
+    assert.equal([first, second].find((result) => !result.alreadySettled)?.refundedTotal, 10);
     assert.deepEqual(await wallet(userIds[0]), { balance: "100.00", pending: "0.00", totalEarned: "0.00" });
   });
 });

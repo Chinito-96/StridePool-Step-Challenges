@@ -134,19 +134,36 @@ export async function leaveChallenge(userId: string, challengeId: string, now = 
 
 export async function settleChallenge(challengeId: string, now = new Date()): Promise<SettlementResult> {
   return db.transaction(async (tx) => {
-    const [challenge] = await tx.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
-    if (!challenge) throw new MoneyLogicError("NOT_FOUND");
-    if (challenge.settlementStatus === "settled") {
-      const poolTotal = cents(challenge.settledPool);
+    const [existingChallenge] = await tx.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
+    if (!existingChallenge) throw new MoneyLogicError("NOT_FOUND");
+    if (existingChallenge.settlementStatus === "settled") {
+      const poolTotal = cents(existingChallenge.settledPool);
       return {
         challengeId,
         poolTotal: dollars(poolTotal),
-        finisherCount: challenge.finishers,
-        perFinisherBase: challenge.finishers ? dollars(Math.floor(poolTotal / challenge.finishers)) : 0,
-        roundingRemainder: challenge.finishers ? poolTotal % challenge.finishers : 0,
+        finisherCount: existingChallenge.finishers,
+        perFinisherBase: existingChallenge.finishers ? dollars(Math.floor(poolTotal / existingChallenge.finishers)) : 0,
+        roundingRemainder: existingChallenge.finishers ? poolTotal % existingChallenge.finishers : 0,
         refundedTotal: 0,
         alreadySettled: true,
       };
+    }
+    const [challenge] = await tx.update(challengesTable).set({ settlementStatus: "settling" }).where(and(eq(challengesTable.id, challengeId), eq(challengesTable.settlementStatus, "open"))).returning();
+    if (!challenge) {
+      const [settled] = await tx.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
+      if (settled?.settlementStatus === "settled") {
+        const poolTotal = cents(settled.settledPool);
+        return {
+          challengeId,
+          poolTotal: dollars(poolTotal),
+          finisherCount: settled.finishers,
+          perFinisherBase: settled.finishers ? dollars(Math.floor(poolTotal / settled.finishers)) : 0,
+          roundingRemainder: settled.finishers ? poolTotal % settled.finishers : 0,
+          refundedTotal: 0,
+          alreadySettled: true,
+        };
+      }
+      throw new MoneyLogicError("ALREADY_SETTLED");
     }
     if (challenge.community || cents(challenge.entryFee) === 0) {
       await tx.update(entriesTable).set({ settlementStatus: "free-complete", settlementAmount: "0.00", settledAt: now }).where(and(eq(entriesTable.challengeId, challengeId), eq(entriesTable.status, "active")));
