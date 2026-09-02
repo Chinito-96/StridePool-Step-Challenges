@@ -3,10 +3,13 @@ import {
   GetAdminFlaggedStepRecordsResponse,
   GetAdminSettlementHistoryResponse,
   GetAdminUserResponse,
+  OverrideAdminChallengeParticipantBody,
+  OverrideAdminChallengeParticipantResponse,
   SearchAdminUsersResponse,
 } from "@workspace/api-zod";
 import {
   challengesTable,
+  challengeParticipantOverridesTable,
   dailyStepRecordsTable,
   db,
   entriesTable,
@@ -16,6 +19,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
+import { getParticipantStatus, type ParticipantStatus } from "../services/stridepool-status";
 
 const router: IRouter = Router();
 
@@ -181,6 +185,14 @@ router.get("/admin/users/:id", async (req, res): Promise<void> => {
     entry: entriesTable,
     challenge: challengesTable,
   }).from(entriesTable).innerJoin(challengesTable, eq(entriesTable.challengeId, challengesTable.id)).where(eq(entriesTable.userId, user.id)).orderBy(desc(entriesTable.joinedAt));
+  const overrides = await db.select({
+    override: challengeParticipantOverridesTable,
+    challengeName: challengesTable.name,
+  }).from(challengeParticipantOverridesTable)
+    .innerJoin(challengesTable, eq(challengeParticipantOverridesTable.challengeId, challengesTable.id))
+    .where(eq(challengeParticipantOverridesTable.userId, user.id))
+    .orderBy(desc(challengeParticipantOverridesTable.createdAt))
+    .limit(50);
   res.json(GetAdminUserResponse.parse({
     user: {
       id: user.id,
@@ -202,6 +214,89 @@ router.get("/admin/users/:id", async (req, res): Promise<void> => {
       joinedAt: entry.joinedAt.toISOString(),
       settledAt: entry.settledAt?.toISOString() ?? null,
     })),
+    overrides: overrides.map(({ override, challengeName }) => ({
+      id: String(override.id),
+      challengeId: override.challengeId,
+      challengeName,
+      userId: override.userId,
+      adminUserId: override.adminUserId,
+      status: override.status,
+      previousStatus: override.previousStatus,
+      reason: override.reason,
+      createdAt: override.createdAt.toISOString(),
+    })),
+  }));
+});
+
+router.post("/admin/challenges/:challengeId/participants/:userId/override", async (req, res): Promise<void> => {
+  const adminUserId = await requireAdmin(req, res);
+  if (!adminUserId) return;
+  const challengeId = typeof req.params.challengeId === "string" ? req.params.challengeId : "";
+  const userId = typeof req.params.userId === "string" ? req.params.userId : "";
+  const parsed = OverrideAdminChallengeParticipantBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Choose on-track or finished and provide a reason of at least 8 characters." });
+    return;
+  }
+  const reason = parsed.data.reason.trim();
+  if (reason.length < 8) {
+    res.status(400).json({ error: "Provide a reason of at least 8 non-whitespace characters." });
+    return;
+  }
+  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
+  if (!challenge) {
+    res.status(404).json({ error: "Challenge not found." });
+    return;
+  }
+  if (!challenge.community || numberValue(challenge.entryFee) !== 0) {
+    res.status(400).json({ error: "Participant overrides are available only in the free community lane." });
+    return;
+  }
+  const [entry] = await db.select().from(entriesTable).where(and(
+    eq(entriesTable.challengeId, challengeId),
+    eq(entriesTable.userId, userId),
+    eq(entriesTable.status, "active"),
+  ));
+  if (!entry) {
+    res.status(404).json({ error: "Active challenge participant not found." });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found." });
+    return;
+  }
+  const records = await db.select().from(dailyStepRecordsTable).where(and(
+    eq(dailyStepRecordsTable.challengeId, challengeId),
+    eq(dailyStepRecordsTable.userId, userId),
+    eq(dailyStepRecordsTable.verified, true),
+  ));
+  const [latest] = await db.select().from(challengeParticipantOverridesTable)
+    .where(and(eq(challengeParticipantOverridesTable.challengeId, challengeId), eq(challengeParticipantOverridesTable.userId, userId)))
+    .orderBy(desc(challengeParticipantOverridesTable.createdAt))
+    .limit(1);
+  const dailyGoal = challenge.goalType === "personalized" ? numberValue(user.goalBaseline) || challenge.dailyGoal : challenge.dailyGoal;
+  const previousStatus = getParticipantStatus(challenge, records, dailyGoal, latest?.status === "on_track" || latest?.status === "finished" ? latest.status : undefined).status;
+  const [override] = await db.insert(challengeParticipantOverridesTable).values({
+    challengeId,
+    userId,
+    adminUserId,
+    status: parsed.data.status,
+    previousStatus,
+    reason,
+  }).returning();
+  res.json(OverrideAdminChallengeParticipantResponse.parse({
+    override: {
+      id: String(override.id),
+      challengeId: override.challengeId,
+      challengeName: challenge.name,
+      userId: override.userId,
+      adminUserId: override.adminUserId,
+      status: override.status,
+      previousStatus: override.previousStatus,
+      reason: override.reason,
+      createdAt: override.createdAt.toISOString(),
+    },
   }));
 });
 

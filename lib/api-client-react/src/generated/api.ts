@@ -18,10 +18,11 @@ import type {
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
-
 import type {
   AdminChallengesResponse,
   AdminFlaggedStepRecordsResponse,
+  AdminParticipantOverrideBody,
+  AdminParticipantOverrideResponse,
   AdminSettlementHistoryResponse,
   AdminUserResponse,
   AdminUserSearchResponse,
@@ -46,6 +47,7 @@ import type {
   IngestStepSamplesResponse,
   InviteAcceptResponse,
   LedgerEntry,
+  LifetimeLeaderboardResponse,
   LogoutBrowserSessionParams,
   LogoutSuccess,
   MobileTokenExchangeRequest,
@@ -68,7 +70,7 @@ import type {
   UserSearchResponse,
   WalletSummary
 } from './api.schemas';
-
+// End of generated API hooks.
 import { customFetch } from '../custom-fetch';
 import type { ErrorType , BodyType } from '../custom-fetch';
 
@@ -102,8 +104,7 @@ export const getHealthCheckUrl = () => {
 
 
   return `/api/healthz`
-}
-
+     }
 /**
  * Returns server health status
  * @summary Health check
@@ -167,6 +168,11 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
 
 
 export const getGetComplianceStatusUrl = () => {
@@ -240,6 +246,13 @@ export function useGetComplianceStatus<TData = Awaited<ReturnType<typeof getComp
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getCheckEligibilityUrl = () => {
 
 
@@ -523,6 +536,13 @@ export function useGetLedger<TData = Awaited<ReturnType<typeof getLedger>>, TErr
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getReceiveStripeWebhookUrl = () => {
 
 
@@ -1510,6 +1530,83 @@ export function useGetStridePoolChallengeLeaderboard<TData = Awaited<ReturnType<
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStridePoolChallengeLeaderboardQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStridePoolLifetimeLeaderboardUrl = () => {
+
+
+
+
+  return `/api/stridepool/lifetime-leaderboard`
+}
+
+/**
+ * @summary Get the free-lane lifetime step leaderboard
+ */
+export const getStridePoolLifetimeLeaderboard = async ( options?: Parameters<typeof customFetch>[1]): Promise<LifetimeLeaderboardResponse> => {
+
+  return customFetch<LifetimeLeaderboardResponse>(getGetStridePoolLifetimeLeaderboardUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolLifetimeLeaderboardQueryKey = () => {
+    return [
+    `/api/stridepool/lifetime-leaderboard`
+    ] as const;
+    }
+
+
+export const getGetStridePoolLifetimeLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolLifetimeLeaderboard>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolLifetimeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolLifetimeLeaderboardQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolLifetimeLeaderboard>>> = ({ signal }) => getStridePoolLifetimeLeaderboard({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolLifetimeLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolLifetimeLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolLifetimeLeaderboard>>>
+export type GetStridePoolLifetimeLeaderboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the free-lane lifetime step leaderboard
+ */
+
+export function useGetStridePoolLifetimeLeaderboard<TData = Awaited<ReturnType<typeof getStridePoolLifetimeLeaderboard>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolLifetimeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolLifetimeLeaderboardQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2714,3 +2811,83 @@ export function useGetAdminUser<TData = Awaited<ReturnType<typeof getAdminUser>>
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
+export const getOverrideAdminChallengeParticipantUrl = (challengeId: string,
+    userId: string,) => {
+
+
+
+
+  return `/api/admin/challenges/${challengeId}/participants/${userId}/override`
+}
+
+/**
+ * @summary Override a free challenge participant status
+ */
+export const overrideAdminChallengeParticipant = async (challengeId: string,
+    userId: string,
+    adminParticipantOverrideBody: AdminParticipantOverrideBody, options?: Parameters<typeof customFetch>[1]): Promise<AdminParticipantOverrideResponse> => {
+
+  return customFetch<AdminParticipantOverrideResponse>(getOverrideAdminChallengeParticipantUrl(challengeId,userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminParticipantOverrideBody)
+  }
+);}
+
+
+
+
+
+export const getOverrideAdminChallengeParticipantMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideAdminChallengeParticipant>>, TError,{challengeId: string;userId: string;data: BodyType<AdminParticipantOverrideBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof overrideAdminChallengeParticipant>>, TError,{challengeId: string;userId: string;data: BodyType<AdminParticipantOverrideBody>}, TContext> => {
+
+const mutationKey = ['overrideAdminChallengeParticipant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof overrideAdminChallengeParticipant>>, {challengeId: string;userId: string;data: BodyType<AdminParticipantOverrideBody>}> = (props) => {
+          const {challengeId,userId,data} = props ?? {};
+
+          return  overrideAdminChallengeParticipant(challengeId,userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OverrideAdminChallengeParticipantMutationResult = NonNullable<Awaited<ReturnType<typeof overrideAdminChallengeParticipant>>>
+    export type OverrideAdminChallengeParticipantMutationBody = BodyType<AdminParticipantOverrideBody>
+    export type OverrideAdminChallengeParticipantMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Override a free challenge participant status
+ */
+export const useOverrideAdminChallengeParticipant = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof overrideAdminChallengeParticipant>>, TError,{challengeId: string;userId: string;data: BodyType<AdminParticipantOverrideBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof overrideAdminChallengeParticipant>>,
+        TError,
+        {challengeId: string;userId: string;data: BodyType<AdminParticipantOverrideBody>},
+        TContext
+      > => {
+      return useMutation(getOverrideAdminChallengeParticipantMutationOptions(options));
+    }// End of generated API hooks.

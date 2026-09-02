@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChallengeChallengeType } from './challengeChallengeType';
 import type { ChallengeSettlementStatus } from './challengeSettlementStatus';
 
 export interface Challenge {
@@ -21,6 +22,7 @@ export interface Challenge {
   participantCount: number;
   finishers: number;
   color: string;
+  challengeType: ChallengeChallengeType;
   goalType: string;
   community: boolean;
   graceDays: number;

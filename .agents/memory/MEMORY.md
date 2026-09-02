@@ -2,3 +2,4 @@
 - [Orval integer schema compatibility](zod-orval-compatibility.md) — generated `z.int()` requires the workspace’s Zod 4 API.
 - [Free community identity boundary](free-community-identity.md) — anonymous free joins persist per browser, while invites, streaks, and step history stay account-bound.
 - [Admin operations boundary](admin-operations-boundary.md) — internal support reads require a database user role of admin; public sessions receive no operational data.
+- [API preview refresh](api-preview-refresh.md) — the API dev workflow builds once at startup, so restart it after server-side changes before runtime checks.

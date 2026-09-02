@@ -3,6 +3,7 @@ import {
   CreateStridePoolChallengeInviteBody,
   GetStridePoolChallengeLeaderboardResponse,
   GetStridePoolCommunityChallengesResponse,
+  GetStridePoolLifetimeLeaderboardResponse,
   CreateStridePoolChallengeInviteResponse,
   GetStridePoolBootstrapResponse,
   GetStridePoolHealthSourcesResponse,
@@ -42,9 +43,11 @@ import {
   walletLedgerEntriesTable,
   type Challenge,
 } from "@workspace/db";
+import { challengeParticipantOverridesTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
+import { buildLifetimeLeaderboard, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
 
 const router: IRouter = Router();
 const ANONYMOUS_WALKER_COOKIE = "stridepool_anon";
@@ -122,6 +125,7 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
     participantCount: challenge.participantCount,
     finishers: challenge.finishers,
     color: challenge.color,
+    challengeType: challenge.challengeType === "elimination" ? "elimination" as const : "goal" as const,
     goalType: challenge.goalType,
     community: challenge.community,
     graceDays: challenge.graceDays,
@@ -431,16 +435,27 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
     eq(entriesTable.challengeId, challenge.id),
     eq(entriesTable.status, "active"),
   ));
+  const records = await db.select().from(dailyStepRecordsTable).where(and(
+    eq(dailyStepRecordsTable.challengeId, challenge.id),
+    eq(dailyStepRecordsTable.verified, true),
+  ));
+  const overrides = await db.select().from(challengeParticipantOverridesTable)
+    .where(eq(challengeParticipantOverridesTable.challengeId, challenge.id))
+    .orderBy(desc(challengeParticipantOverridesTable.createdAt));
+  const latestOverrides = new Map<string, ParticipantStatus>();
+  for (const override of overrides) {
+    if (!latestOverrides.has(override.userId) && (override.status === "on_track" || override.status === "finished")) {
+      latestOverrides.set(override.userId, override.status);
+    }
+  }
   const currentUserId = req.isAuthenticated() ? req.user.id : null;
   const leaderboard = await Promise.all(entries.map(async ({ entry, user }) => {
-    const records = await db.select().from(dailyStepRecordsTable).where(and(
-      eq(dailyStepRecordsTable.userId, entry.userId),
-      eq(dailyStepRecordsTable.challengeId, challenge.id),
-      eq(dailyStepRecordsTable.verified, true),
-    ));
-    const steps = records.reduce((total, record) => total + record.steps, 0);
-    const completedDays = records.filter((record) => record.steps >= challenge.dailyGoal).length;
-    return { userId: user.id, displayName: publicUser(user).displayName, steps, completedDays, completionPercent: Math.round((completedDays / challenge.days) * 100), isCurrentUser: user.id === currentUserId };
+    const userRecords = records.filter((record) => record.userId === entry.userId);
+    const dailyGoal = challenge.goalType === "personalized" ? numberValue(user.goalBaseline) || challenge.dailyGoal : challenge.dailyGoal;
+    const steps = userRecords.filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate).reduce((total, record) => total + record.steps, 0);
+    const completedDays = userRecords.filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate && record.steps >= dailyGoal).length;
+    const participant = getParticipantStatus(challenge, userRecords, dailyGoal, latestOverrides.get(entry.userId));
+    return { userId: user.id, displayName: publicUser(user).displayName, steps, completedDays, completionPercent: Math.min(100, Math.round((completedDays / challenge.days) * 100)), status: participant.status, isCurrentUser: user.id === currentUserId };
   }));
   leaderboard.sort((a, b) => b.steps - a.steps || b.completedDays - a.completedDays || a.displayName.localeCompare(b.displayName));
   res.json(GetStridePoolChallengeLeaderboardResponse.parse({
@@ -449,6 +464,28 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
     days: challenge.days,
     leaderboard: leaderboard.map((entry, index) => ({ rank: index + 1, ...entry })),
   }));
+});
+
+router.get("/stridepool/lifetime-leaderboard", async (req, res): Promise<void> => {
+  const rows = await db.select({
+    userId: usersTable.id,
+    displayName: usersTable.displayName,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    recordDate: dailyStepRecordsTable.recordDate,
+    steps: dailyStepRecordsTable.steps,
+  }).from(dailyStepRecordsTable)
+    .innerJoin(usersTable, eq(dailyStepRecordsTable.userId, usersTable.id))
+    .innerJoin(challengesTable, eq(dailyStepRecordsTable.challengeId, challengesTable.id))
+    .where(and(
+      eq(dailyStepRecordsTable.verified, true),
+      eq(challengesTable.community, true),
+      eq(challengesTable.entryFee, "0"),
+      sql`${usersTable.id} NOT LIKE 'anon_%'`,
+    ));
+  const currentUserId = req.isAuthenticated() ? req.user.id : null;
+  const leaderboard = buildLifetimeLeaderboard(rows as LifetimeLeaderboardRow[], currentUserId);
+  res.json(GetStridePoolLifetimeLeaderboardResponse.parse({ leaderboard }));
 });
 
 router.post("/stridepool/challenges/:id/invites", async (req, res): Promise<void> => {

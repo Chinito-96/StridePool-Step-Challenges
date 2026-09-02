@@ -20,6 +20,7 @@ export const challengesTable = pgTable("challenges", {
   settledAt: timestamp("settled_at", { withTimezone: true }),
   settledPool: numeric("settled_pool", { precision: 12, scale: 2 }),
   color: varchar("color").notNull(),
+  challengeType: varchar("challenge_type").notNull().default("goal"),
   goalType: varchar("goal_type").notNull().default("fixed"),
   community: boolean("community").notNull().default(false),
   graceDays: integer("grace_days").notNull().default(0),
@@ -125,6 +126,24 @@ export const challengeRecoveryCasesTable = pgTable(
   (table) => [
     index("challenge_recovery_cases_user_idx").on(table.userId, table.updatedAt),
     index("challenge_recovery_cases_challenge_idx").on(table.challengeId),
+  ],
+);
+
+export const challengeParticipantOverridesTable = pgTable(
+  "challenge_participant_overrides",
+  {
+    id: serial("id").primaryKey(),
+    challengeId: varchar("challenge_id").notNull().references(() => challengesTable.id, { onDelete: "cascade" }),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    adminUserId: varchar("admin_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    status: varchar("status").notNull(),
+    previousStatus: varchar("previous_status").notNull(),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("challenge_participant_overrides_user_idx").on(table.userId, table.createdAt),
+    index("challenge_participant_overrides_challenge_idx").on(table.challengeId, table.createdAt),
   ],
 );
 
@@ -254,6 +273,7 @@ export type DailyStepRecord = typeof dailyStepRecordsTable.$inferSelect;
 export type HealthSourceConnection = typeof healthSourceConnectionsTable.$inferSelect;
 export type StepSourceSample = typeof stepSourceSamplesTable.$inferSelect;
 export type ChallengeRecoveryCase = typeof challengeRecoveryCasesTable.$inferSelect;
+export type ChallengeParticipantOverride = typeof challengeParticipantOverridesTable.$inferSelect;
 export type ChallengeInvite = typeof challengeInvitesTable.$inferSelect;
 export type WalletLedgerEntry = typeof walletLedgerEntriesTable.$inferSelect;
 export type ProviderMoneyEvent = typeof providerMoneyEventsTable.$inferSelect;

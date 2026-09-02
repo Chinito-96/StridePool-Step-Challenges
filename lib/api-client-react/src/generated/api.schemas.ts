@@ -47,6 +47,14 @@ export const LogoutSuccessValue = {
 } as const;
 export type LogoutSuccess = typeof LogoutSuccessValue;
 
+export type ChallengeChallengeType = typeof ChallengeChallengeType[keyof typeof ChallengeChallengeType];
+
+
+export const ChallengeChallengeType = {
+  goal: 'goal',
+  elimination: 'elimination',
+} as const;
+
 export type ChallengeSettlementStatus = typeof ChallengeSettlementStatus[keyof typeof ChallengeSettlementStatus];
 
 
@@ -70,6 +78,7 @@ export interface Challenge {
   participantCount: number;
   finishers: number;
   color: string;
+  challengeType: ChallengeChallengeType;
   goalType: string;
   community: boolean;
   graceDays: number;
@@ -279,6 +288,15 @@ export interface UserSearchResponse {
   users: UserSearchResult[];
 }
 
+export type LeaderboardEntryStatus = typeof LeaderboardEntryStatus[keyof typeof LeaderboardEntryStatus];
+
+
+export const LeaderboardEntryStatus = {
+  on_track: 'on_track',
+  eliminated: 'eliminated',
+  finished: 'finished',
+} as const;
+
 export interface LeaderboardEntry {
   rank: number;
   userId: string;
@@ -286,6 +304,7 @@ export interface LeaderboardEntry {
   steps: number;
   completedDays: number;
   completionPercent: number;
+  status: LeaderboardEntryStatus;
   isCurrentUser: boolean;
 }
 
@@ -294,6 +313,19 @@ export interface ChallengeLeaderboardResponse {
   dailyGoal: number;
   days: number;
   leaderboard: LeaderboardEntry[];
+}
+
+export interface LifetimeLeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string;
+  steps: number;
+  daysLogged: number;
+  isCurrentUser: boolean;
+}
+
+export interface LifetimeLeaderboardResponse {
+  leaderboard: LifetimeLeaderboardEntry[];
 }
 
 export interface ChallengeInviteInput {
@@ -723,9 +755,60 @@ export interface AdminUserChallenge {
   settledAt: string | null;
 }
 
+export type AdminParticipantOverrideStatus = typeof AdminParticipantOverrideStatus[keyof typeof AdminParticipantOverrideStatus];
+
+
+export const AdminParticipantOverrideStatus = {
+  on_track: 'on_track',
+  finished: 'finished',
+} as const;
+
+export type AdminParticipantOverridePreviousStatus = typeof AdminParticipantOverridePreviousStatus[keyof typeof AdminParticipantOverridePreviousStatus];
+
+
+export const AdminParticipantOverridePreviousStatus = {
+  on_track: 'on_track',
+  eliminated: 'eliminated',
+  finished: 'finished',
+} as const;
+
+export interface AdminParticipantOverride {
+  id: string;
+  challengeId: string;
+  challengeName: string;
+  userId: string;
+  adminUserId: string;
+  status: AdminParticipantOverrideStatus;
+  previousStatus: AdminParticipantOverridePreviousStatus;
+  reason: string;
+  createdAt: string;
+}
+
 export interface AdminUserResponse {
   user: AdminUser;
   challenges: AdminUserChallenge[];
+  overrides: AdminParticipantOverride[];
+}
+
+export type AdminParticipantOverrideBodyStatus = typeof AdminParticipantOverrideBodyStatus[keyof typeof AdminParticipantOverrideBodyStatus];
+
+
+export const AdminParticipantOverrideBodyStatus = {
+  on_track: 'on_track',
+  finished: 'finished',
+} as const;
+
+export interface AdminParticipantOverrideBody {
+  status: AdminParticipantOverrideBodyStatus;
+  /**
+     * @minLength 8
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface AdminParticipantOverrideResponse {
+  override: AdminParticipantOverride;
 }
 
 export type AuthorizationSessionHeaderParameter = string;

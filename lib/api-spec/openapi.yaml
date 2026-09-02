@@ -360,6 +360,18 @@ paths:
                 $ref: "#/components/schemas/ChallengeLeaderboardResponse"
         "404":
           description: Free community challenge not found.
+  /stridepool/lifetime-leaderboard:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolLifetimeLeaderboard
+      summary: Get the free-lane lifetime step leaderboard
+      responses:
+        "200":
+          description: Global ranking of verified free-lane steps.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LifetimeLeaderboardResponse"
   /stridepool/challenges/{id}/invites:
     post:
       tags: [stridepool]
@@ -714,6 +726,47 @@ paths:
           description: Admin access required.
         "404":
           description: User not found.
+  /admin/challenges/{challengeId}/participants/{userId}/override:
+    post:
+      tags: [admin]
+      operationId: overrideAdminChallengeParticipant
+      summary: Override a free challenge participant status
+      parameters:
+        - name: challengeId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminParticipantOverrideBody"
+      responses:
+        "200":
+          description: Participant status override recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminParticipantOverrideResponse"
+        "400":
+          description: Invalid override or paid challenge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+        "404":
+          description: Challenge or participant not found.
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -785,7 +838,7 @@ components:
         success: { type: boolean, const: true }
     Challenge:
       type: object
-      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, goalType, community, graceDays, settlementStatus, joined]
+      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, challengeType, goalType, community, graceDays, settlementStatus, joined]
       properties:
         id: { type: string }
         name: { type: string }
@@ -800,6 +853,7 @@ components:
         participantCount: { type: integer }
         finishers: { type: integer }
         color: { type: string }
+        challengeType: { type: string, enum: [goal, elimination] }
         goalType: { type: string }
         community: { type: boolean }
         graceDays: { type: integer }
@@ -919,7 +973,7 @@ components:
           items: { $ref: "#/components/schemas/LeaderboardEntry" }
     LeaderboardEntry:
       type: object
-      required: [rank, userId, displayName, steps, completedDays, completionPercent, isCurrentUser]
+      required: [rank, userId, displayName, steps, completedDays, completionPercent, status, isCurrentUser]
       properties:
         rank: { type: integer }
         userId: { type: string }
@@ -927,6 +981,24 @@ components:
         steps: { type: integer }
         completedDays: { type: integer }
         completionPercent: { type: integer }
+        status: { type: string, enum: [on_track, eliminated, finished] }
+        isCurrentUser: { type: boolean }
+    LifetimeLeaderboardResponse:
+      type: object
+      required: [leaderboard]
+      properties:
+        leaderboard:
+          type: array
+          items: { $ref: "#/components/schemas/LifetimeLeaderboardEntry" }
+    LifetimeLeaderboardEntry:
+      type: object
+      required: [rank, userId, displayName, steps, daysLogged, isCurrentUser]
+      properties:
+        rank: { type: integer }
+        userId: { type: string }
+        displayName: { type: string }
+        steps: { type: integer }
+        daysLogged: { type: integer }
         isCurrentUser: { type: boolean }
     ChallengeInviteInput:
       type: object
@@ -1310,6 +1382,7 @@ components:
       required: [challengeId, challengeName, entryStatus, entryFee, settlementStatus, settlementAmount, joinedAt, settledAt]
     AdminUserResponse:
       type: object
+      required: [user, challenges, overrides]
       properties:
         user:
           $ref: "#/components/schemas/AdminUser"
@@ -1317,5 +1390,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AdminUserChallenge"
-      required: [user, challenges]
+        overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminParticipantOverride"
+    AdminParticipantOverrideBody:
+      type: object
+      required: [status, reason]
+      properties:
+        status: { type: string, enum: [on_track, finished] }
+        reason: { type: string, minLength: 8, maxLength: 1000 }
+    AdminParticipantOverride:
+      type: object
+      required: [id, challengeId, challengeName, userId, adminUserId, status, previousStatus, reason, createdAt]
+      properties:
+        id: { type: string }
+        challengeId: { type: string }
+        challengeName: { type: string }
+        userId: { type: string }
+        adminUserId: { type: string }
+        status: { type: string, enum: [on_track, finished] }
+        previousStatus: { type: string, enum: [on_track, eliminated, finished] }
+        reason: { type: string }
+        createdAt: { type: string, format: date-time }
+    AdminParticipantOverrideResponse:
+      type: object
+      required: [override]
+      properties:
+        override:
+          $ref: "#/components/schemas/AdminParticipantOverride"
 

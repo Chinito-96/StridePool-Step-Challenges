@@ -1,0 +1,64 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { Challenge, DailyStepRecord } from "@workspace/db";
+import { buildLifetimeLeaderboard, getParticipantStatus } from "./stridepool-status";
+
+const challenge = (overrides: Partial<Challenge> = {}) => ({
+  id: "test",
+  name: "Test",
+  theme: "Test",
+  level: "Steady",
+  startDate: "2026-09-01",
+  endDate: "2026-09-05",
+  days: 5,
+  dailyGoal: 8000,
+  entryFee: "0.00",
+  prizePool: "0.00",
+  participantCount: 0,
+  finishers: 0,
+  settlementStatus: "open",
+  settledAt: null,
+  settledPool: null,
+  color: "#000000",
+  challengeType: "elimination",
+  goalType: "fixed",
+  community: true,
+  graceDays: 1,
+  createdAt: new Date("2026-08-01T00:00:00Z"),
+  ...overrides,
+}) as Challenge;
+
+const record = (recordDate: string, steps: number) => ({ userId: "walker", challengeId: "test", recordDate, steps, verified: true } as DailyStepRecord);
+
+test("allows the configured grace day and eliminates after it is exceeded", () => {
+  assert.equal(getParticipantStatus(challenge(), [record("2026-09-02", 8000)], 8000, undefined, "2026-09-02").status, "on_track");
+  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, "2026-09-02").status, "eliminated");
+});
+
+test("finishes a goal-format challenge when its grace allowance is met", () => {
+  assert.equal(getParticipantStatus(challenge({ challengeType: "goal", graceDays: 2 }), [record("2026-09-01", 8000), record("2026-09-02", 8000), record("2026-09-03", 8000)], 8000, undefined, "2026-09-06").status, "finished");
+  assert.equal(getParticipantStatus(challenge({ challengeType: "goal", graceDays: 2 }), [record("2026-09-01", 8000)], 8000, undefined, "2026-09-06").status, "eliminated");
+});
+
+test("late-arriving verified records can restore an active elimination status", () => {
+  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, "2026-09-02").status, "eliminated");
+  assert.equal(getParticipantStatus(challenge(), [record("2026-09-02", 8000)], 8000, undefined, "2026-09-02").status, "on_track");
+});
+
+test("manual overrides supersede computed status", () => {
+  assert.equal(getParticipantStatus(challenge(), [], 8000, "on_track", "2026-09-02").status, "on_track");
+  assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, "finished", "2026-09-02").status, "finished");
+});
+
+test("lifetime ranking counts mirrored free rows once per user and date", () => {
+  const leaderboard = buildLifetimeLeaderboard([
+    { userId: "a", displayName: "Alex", recordDate: "2026-09-01", steps: 8000 },
+    { userId: "a", displayName: "Alex", recordDate: "2026-09-01", steps: 9000 },
+    { userId: "a", displayName: "Alex", recordDate: "2026-09-02", steps: 7000 },
+    { userId: "b", displayName: "Bea", recordDate: "2026-09-01", steps: 15000 },
+  ], "a");
+  assert.deepEqual(leaderboard.map((entry) => ({ userId: entry.userId, steps: entry.steps, daysLogged: entry.daysLogged, isCurrentUser: entry.isCurrentUser })), [
+    { userId: "a", steps: 16000, daysLogged: 2, isCurrentUser: true },
+    { userId: "b", steps: 15000, daysLogged: 1, isCurrentUser: false },
+  ]);
+});

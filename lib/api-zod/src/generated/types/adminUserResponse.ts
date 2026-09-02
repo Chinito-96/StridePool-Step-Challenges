@@ -5,10 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminParticipantOverride } from './adminParticipantOverride';
 import type { AdminUser } from './adminUser';
 import type { AdminUserChallenge } from './adminUserChallenge';
 
 export interface AdminUserResponse {
   user: AdminUser;
   challenges: AdminUserChallenge[];
+  overrides: AdminParticipantOverride[];
 }

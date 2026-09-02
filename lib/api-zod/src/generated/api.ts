@@ -247,6 +247,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "graceDays": zod.int(),
@@ -329,6 +330,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "graceDays": zod.int(),
@@ -413,6 +415,7 @@ export const GetStridePoolCommunityChallengesResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "graceDays": zod.int(),
@@ -469,6 +472,22 @@ export const GetStridePoolChallengeLeaderboardResponse = zod.object({
   "steps": zod.int(),
   "completedDays": zod.int(),
   "completionPercent": zod.int(),
+  "status": zod.enum(['on_track', 'eliminated', 'finished']),
+  "isCurrentUser": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Get the free-lane lifetime step leaderboard
+ */
+export const GetStridePoolLifetimeLeaderboardResponse = zod.object({
+  "leaderboard": zod.array(zod.object({
+  "rank": zod.int(),
+  "userId": zod.string(),
+  "displayName": zod.string(),
+  "steps": zod.int(),
+  "daysLogged": zod.int(),
   "isCurrentUser": zod.boolean()
 }))
 })
@@ -526,6 +545,7 @@ export const GetStridePoolPendingInvitesResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "graceDays": zod.int(),
@@ -570,6 +590,7 @@ export const GetStridePoolInviteResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "graceDays": zod.int(),
@@ -616,6 +637,7 @@ export const AcceptStridePoolInviteResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "graceDays": zod.int(),
@@ -956,7 +978,55 @@ export const GetAdminUserResponse = zod.object({
   "settlementAmount": zod.number().nullable(),
   "joinedAt": zod.coerce.date(),
   "settledAt": zod.coerce.date().nullable()
+})),
+  "overrides": zod.array(zod.object({
+  "id": zod.string(),
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "userId": zod.string(),
+  "adminUserId": zod.string(),
+  "status": zod.enum(['on_track', 'finished']),
+  "previousStatus": zod.enum(['on_track', 'eliminated', 'finished']),
+  "reason": zod.string(),
+  "createdAt": zod.coerce.date()
 }))
+})
+
+
+/**
+ * @summary Override a free challenge participant status
+ */
+export const OverrideAdminChallengeParticipantParams = zod.object({
+  "challengeId": zod.coerce.string(),
+  "userId": zod.coerce.string()
+})
+
+export const OverrideAdminChallengeParticipantHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const overrideAdminChallengeParticipantBodyReasonMin = 8;
+export const overrideAdminChallengeParticipantBodyReasonMax = 1000;
+
+
+
+export const OverrideAdminChallengeParticipantBody = zod.object({
+  "status": zod.enum(['on_track', 'finished']),
+  "reason": zod.string().min(overrideAdminChallengeParticipantBodyReasonMin).max(overrideAdminChallengeParticipantBodyReasonMax)
+})
+
+export const OverrideAdminChallengeParticipantResponse = zod.object({
+  "override": zod.object({
+  "id": zod.string(),
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "userId": zod.string(),
+  "adminUserId": zod.string(),
+  "status": zod.enum(['on_track', 'finished']),
+  "previousStatus": zod.enum(['on_track', 'eliminated', 'finished']),
+  "reason": zod.string(),
+  "createdAt": zod.coerce.date()
+})
 })
 
 

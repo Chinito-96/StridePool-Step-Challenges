@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LeaderboardEntryStatus } from './leaderboardEntryStatus';
 
 export interface LeaderboardEntry {
   rank: number;
@@ -13,5 +14,6 @@ export interface LeaderboardEntry {
   steps: number;
   completedDays: number;
   completionPercent: number;
+  status: LeaderboardEntryStatus;
   isCurrentUser: boolean;
 }
