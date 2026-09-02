@@ -35,7 +35,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 
 - The web client loads authenticated challenges, wallets, profiles, entries, and daily steps from the API; the API owns all Postgres access.
 - Replit Auth identifies users and persists sessions in Postgres. Paid and personalized entries require login; free community participation remains limited to the anonymous browser until a user signs in.
-- Demo state can be reset with the seed script. It intentionally uses simulated verified steps, while money balances remain zero until signed provider events are reconciled.
+- Demo state can be reset with the seed script. Web step data supports demo, manual daily totals, and CSV import; native Apple Health and Health Connect require a future mobile companion. Money balances remain zero until signed provider events are reconciled.
 - Paid play is server-gated behind counsel-approved states, provider configuration, and eligibility checks.
 - The API exposes provider-shaped checkout, payout onboarding, signed webhook, and append-only ledger routes; the current file ledger is a development adapter, not a production money store.
 - The experience uses an original StridePool identity and copy; Steppa is treated as a mechanics benchmark, not a visual or content source.
@@ -48,7 +48,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 - Payout math with entry fee, current pool, estimated share, and platform fee shown before confirmation
 - Simulated step syncing that updates daily progress and activity
 - Wallet balance, pending funds, provider ledger events, and payout onboarding readiness
-- Profile editing, health-source connection demo, notifications, and privacy controls
+- Profile editing, web step-source controls, source review visibility, notifications, and privacy controls
 - Responsive desktop navigation and mobile bottom navigation
 
 ## User preferences

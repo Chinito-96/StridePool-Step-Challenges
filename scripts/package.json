@@ -6,7 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "seed:stridepool": "tsx ./src/seed-stridepool.ts",
-    "test:stridepool": "tsx --test ./src/stridepool-money.test.ts",
+    "test:stridepool": "tsx --test ./src/stridepool-money.test.ts ./src/stridepool-step-sources.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -146,6 +146,9 @@ export type HealthSourceSource = typeof HealthSourceSource[keyof typeof HealthSo
 
 
 export const HealthSourceSource = {
+  demo: 'demo',
+  manual: 'manual',
+  csv_import: 'csv_import',
   apple_health: 'apple_health',
   health_connect: 'health_connect',
 } as const;
@@ -198,6 +201,35 @@ export interface RecoveryCase {
   requestedAt: string;
 }
 
+export type StepReviewSource = typeof StepReviewSource[keyof typeof StepReviewSource];
+
+
+export const StepReviewSource = {
+  demo: 'demo',
+  manual: 'manual',
+  csv_import: 'csv_import',
+  apple_health: 'apple_health',
+  health_connect: 'health_connect',
+} as const;
+
+export type StepReviewVerificationStatus = typeof StepReviewVerificationStatus[keyof typeof StepReviewVerificationStatus];
+
+
+export const StepReviewVerificationStatus = {
+  pending_review: 'pending_review',
+} as const;
+
+export interface StepReview {
+  id: string;
+  source: StepReviewSource;
+  sourceSampleId: string;
+  recordDate: string;
+  steps: number;
+  verificationStatus: StepReviewVerificationStatus;
+  reviewFlags: string[];
+  createdAt: string;
+}
+
 export interface StridePoolBootstrap {
   user: AuthUser | null;
   challenges: Challenge[];
@@ -208,6 +240,7 @@ export interface StridePoolBootstrap {
   profile: ProfileSettings;
   healthSources: HealthSource[];
   recoveryCases: RecoveryCase[];
+  stepReviews: StepReview[];
 }
 
 export interface EntryMutationResponse {
@@ -215,9 +248,51 @@ export interface EntryMutationResponse {
   wallet: WalletSummary;
 }
 
+export type SyncStepsResponseSource = typeof SyncStepsResponseSource[keyof typeof SyncStepsResponseSource];
+
+
+export const SyncStepsResponseSource = {
+  demo: 'demo',
+  manual: 'manual',
+} as const;
+
+export type SyncStepsResponseVerificationStatus = typeof SyncStepsResponseVerificationStatus[keyof typeof SyncStepsResponseVerificationStatus];
+
+
+export const SyncStepsResponseVerificationStatus = {
+  verified: 'verified',
+  pending_review: 'pending_review',
+} as const;
+
 export interface SyncStepsResponse {
   steps: number;
   activity: Activity;
+  source: SyncStepsResponseSource;
+  verificationStatus: SyncStepsResponseVerificationStatus;
+  reviewFlags: string[];
+}
+
+export type SyncStepsBodySource = typeof SyncStepsBodySource[keyof typeof SyncStepsBodySource];
+
+
+export const SyncStepsBodySource = {
+  demo: 'demo',
+  manual: 'manual',
+} as const;
+
+export interface SyncStepsBody {
+  source?: SyncStepsBodySource;
+  recordDate?: string;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  steps?: number;
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  sourceSampleId?: string;
 }
 
 export interface HealthSourcesResponse {
@@ -271,6 +346,9 @@ export type IngestStepSamplesResponseSource = typeof IngestStepSamplesResponseSo
 
 
 export const IngestStepSamplesResponseSource = {
+  demo: 'demo',
+  manual: 'manual',
+  csv_import: 'csv_import',
   apple_health: 'apple_health',
   health_connect: 'health_connect',
 } as const;

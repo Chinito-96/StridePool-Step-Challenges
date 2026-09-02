@@ -6,8 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Activity } from './activity';
+import type { SyncStepsResponseSource } from './syncStepsResponseSource';
+import type { SyncStepsResponseVerificationStatus } from './syncStepsResponseVerificationStatus';
 
 export interface SyncStepsResponse {
   steps: number;
   activity: Activity;
+  source: SyncStepsResponseSource;
+  verificationStatus: SyncStepsResponseVerificationStatus;
+  reviewFlags: string[];
 }

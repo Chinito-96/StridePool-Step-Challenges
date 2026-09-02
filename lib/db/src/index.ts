@@ -16,3 +16,4 @@ export const db = drizzle(pool, { schema });
 export * from "./schema";
 export * from "./seed-data";
 export * from "./stridepool-money";
+export * from "./stridepool-step-sources";

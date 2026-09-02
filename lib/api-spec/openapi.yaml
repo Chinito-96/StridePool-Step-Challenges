@@ -306,10 +306,16 @@ paths:
     post:
       tags: [stridepool]
       operationId: syncStridePoolSteps
-      summary: Add a verified demo step record for the authenticated user
+      summary: Sync a daily step total for the authenticated user
       parameters:
         - $ref: "#/components/parameters/AuthorizationSessionHeader"
         - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncStepsBody"
       responses:
         "200":
           description: Steps synchronized.
@@ -340,14 +346,14 @@ paths:
     post:
       tags: [stridepool]
       operationId: ingestStridePoolSourceSamples
-      summary: Store and evaluate raw Apple Health or Health Connect samples
+      summary: Store and evaluate normalized step-source samples
       parameters:
         - name: source
           in: path
           required: true
           schema:
             type: string
-            enum: [apple_health, health_connect]
+            enum: [demo, manual, csv_import, apple_health, health_connect]
         - $ref: "#/components/parameters/AuthorizationSessionHeader"
         - $ref: "#/components/parameters/SessionCookie"
       requestBody:
@@ -593,7 +599,7 @@ components:
         acceptedTerms: { type: boolean }
     StridePoolBootstrap:
       type: object
-      required: [user, challenges, joinedIds, steps, activities, wallet, profile, healthSources, recoveryCases]
+      required: [user, challenges, joinedIds, steps, activities, wallet, profile, healthSources, recoveryCases, stepReviews]
       properties:
         user:
           oneOf:
@@ -617,6 +623,9 @@ components:
         recoveryCases:
           type: array
           items: { $ref: "#/components/schemas/RecoveryCase" }
+        stepReviews:
+          type: array
+          items: { $ref: "#/components/schemas/StepReview" }
     EntryMutationResponse:
       type: object
       required: [joined, wallet]
@@ -625,15 +634,27 @@ components:
         wallet: { $ref: "#/components/schemas/WalletSummary" }
     SyncStepsResponse:
       type: object
-      required: [steps, activity]
+      required: [steps, activity, source, verificationStatus, reviewFlags]
       properties:
         steps: { type: integer }
         activity: { $ref: "#/components/schemas/Activity" }
+        source: { type: string, enum: [demo, manual] }
+        verificationStatus: { type: string, enum: [verified, pending_review] }
+        reviewFlags:
+          type: array
+          items: { type: string }
+    SyncStepsBody:
+      type: object
+      properties:
+        source: { type: string, enum: [demo, manual] }
+        recordDate: { type: string, format: date }
+        steps: { type: integer, minimum: 0, maximum: 100000 }
+        sourceSampleId: { type: string, minLength: 1, maxLength: 180 }
     HealthSource:
       type: object
       required: [source, label, status, lastSyncedAt, verifiedSamples, pendingReview]
       properties:
-        source: { type: string, enum: [apple_health, health_connect] }
+        source: { type: string, enum: [demo, manual, csv_import, apple_health, health_connect] }
         label: { type: string }
         status: { type: string, enum: [available, connected] }
         lastSyncedAt: { type: [string, "null"], format: date-time }
@@ -679,13 +700,27 @@ components:
       type: object
       required: [source, acceptedCount, pendingReviewCount, steps, samples]
       properties:
-        source: { type: string, enum: [apple_health, health_connect] }
+        source: { type: string, enum: [demo, manual, csv_import, apple_health, health_connect] }
         acceptedCount: { type: integer }
         pendingReviewCount: { type: integer }
         steps: { type: integer }
         samples:
           type: array
           items: { $ref: "#/components/schemas/SourceSampleResult" }
+    StepReview:
+      type: object
+      required: [id, source, sourceSampleId, recordDate, steps, verificationStatus, reviewFlags, createdAt]
+      properties:
+        id: { type: string }
+        source: { type: string, enum: [demo, manual, csv_import, apple_health, health_connect] }
+        sourceSampleId: { type: string }
+        recordDate: { type: string, format: date }
+        steps: { type: integer }
+        verificationStatus: { type: string, enum: [pending_review] }
+        reviewFlags:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
     RecoveryRequestBody:
       type: object
       required: [challengeId, type, reason]

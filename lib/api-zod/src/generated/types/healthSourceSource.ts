@@ -10,6 +10,9 @@ export type HealthSourceSource = typeof HealthSourceSource[keyof typeof HealthSo
 
 
 export const HealthSourceSource = {
+  demo: 'demo',
+  manual: 'manual',
+  csv_import: 'csv_import',
   apple_health: 'apple_health',
   health_connect: 'health_connect',
 } as const;

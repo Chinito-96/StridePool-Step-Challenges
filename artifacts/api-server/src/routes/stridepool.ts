@@ -11,6 +11,8 @@ import {
   LeaveStridePoolChallengeResponse,
   RequestStridePoolRecoveryBody,
   RequestStridePoolRecoveryResponse,
+  SyncStridePoolStepsBody,
+  SyncStridePoolStepsResponse,
   UpdateStridePoolProfileBody,
   UpdateStridePoolProfileResponse,
 } from "@workspace/api-zod";
@@ -25,6 +27,8 @@ import {
   leaveChallenge as leaveMoneyChallenge,
   MoneyLogicError,
   stepSourceSamplesTable,
+  reviewStepSample,
+  type StepSourceId,
   usersTable,
   walletLedgerEntriesTable,
   type Challenge,
@@ -128,21 +132,110 @@ async function getRecoveryCases(userId: string) {
     requestedAt: recovery.requestedAt.toISOString(),
   }));
 }
+
+async function getStepReviews(userId: string) {
+  const rows = await db.select({
+    id: stepSourceSamplesTable.id,
+    source: stepSourceSamplesTable.source,
+    sourceSampleId: stepSourceSamplesTable.sourceSampleId,
+    recordDate: stepSourceSamplesTable.recordDate,
+    steps: stepSourceSamplesTable.steps,
+    verificationStatus: stepSourceSamplesTable.verificationStatus,
+    reviewFlags: stepSourceSamplesTable.reviewFlags,
+    createdAt: stepSourceSamplesTable.createdAt,
+  }).from(stepSourceSamplesTable).where(and(
+    eq(stepSourceSamplesTable.userId, userId),
+    eq(stepSourceSamplesTable.verificationStatus, "pending_review"),
+  )).orderBy(desc(stepSourceSamplesTable.createdAt)).limit(20);
+  return rows.map((row) => ({
+    id: String(row.id),
+    source: row.source,
+    sourceSampleId: row.sourceSampleId,
+    recordDate: row.recordDate,
+    steps: row.steps,
+    verificationStatus: "pending_review" as const,
+    reviewFlags: row.reviewFlags,
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
+async function upsertDailySteps(
+  userId: string,
+  challengeId: string | null,
+  recordDate: string,
+  steps: number,
+  source: string,
+  verified: boolean,
+) {
+  await db.insert(dailyStepRecordsTable).values({
+    userId,
+    challengeId,
+    recordDate,
+    steps,
+    source,
+    verified,
+  }).onConflictDoUpdate({
+    target: [dailyStepRecordsTable.userId, dailyStepRecordsTable.challengeId, dailyStepRecordsTable.recordDate],
+    set: { steps, source, verified },
+  });
+}
+
+async function mirrorFreeCommunitySteps(
+  userId: string,
+  recordDate: string,
+  steps: number,
+  source: string,
+  verified: boolean,
+) {
+  const freeEntries = await db.select({
+    challengeId: entriesTable.challengeId,
+  }).from(entriesTable).innerJoin(challengesTable, eq(entriesTable.challengeId, challengesTable.id)).where(and(
+    eq(entriesTable.userId, userId),
+    eq(entriesTable.status, "active"),
+    eq(challengesTable.community, true),
+  ));
+  await Promise.all(freeEntries.map(({ challengeId }) => upsertDailySteps(userId, challengeId, recordDate, steps, source, verified)));
+}
+
+function sampleReviewResult(source: StepSourceId, sample: {
+  sourceSampleId: string;
+  recordDate: Date;
+  steps: number;
+  startTime: Date;
+  endTime: Date;
+  recordedAt?: Date | null;
+  rawPayload: Record<string, unknown>;
+}) {
+  const reviewFlags = reviewStepSample(sample);
+  return {
+    source,
+    sourceSampleId: sample.sourceSampleId,
+    recordDate: sample.recordDate.toISOString().slice(0, 10),
+    steps: sample.steps,
+    startTime: sample.startTime,
+    endTime: sample.endTime,
+    recordedAt: sample.recordedAt ?? null,
+    rawPayload: sample.rawPayload,
+    reviewFlags,
+    verificationStatus: reviewFlags.length ? "pending_review" : "verified",
+  } as const;
+}
 async function getBootstrap(req: Request) {
   const challenges = await db.select().from(challengesTable).orderBy(challengesTable.createdAt);
   if (!req.isAuthenticated()) {
-    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [] };
+    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [] };
   }
   const user = await getUser(req.user.id);
-  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [] };
+  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [] };
   const entries = await db.select().from(entriesTable).where(and(eq(entriesTable.userId, user.id), eq(entriesTable.status, "active")));
   const joinedIds = new Set(entries.map((entry) => entry.challengeId));
   const today = new Date().toISOString().slice(0, 10);
-  const [stepTotal] = await db.select({ total: sql<number>`coalesce(sum(${dailyStepRecordsTable.steps}), 0)` }).from(dailyStepRecordsTable).where(and(eq(dailyStepRecordsTable.userId, user.id), eq(dailyStepRecordsTable.recordDate, today)));
+  const [stepTotal] = await db.select({ total: sql<number>`coalesce(sum(${dailyStepRecordsTable.steps}), 0)` }).from(dailyStepRecordsTable).where(and(eq(dailyStepRecordsTable.userId, user.id), isNull(dailyStepRecordsTable.challengeId), eq(dailyStepRecordsTable.recordDate, today)));
   const [todaySteps] = await db.select().from(dailyStepRecordsTable).where(and(eq(dailyStepRecordsTable.userId, user.id), isNull(dailyStepRecordsTable.challengeId), eq(dailyStepRecordsTable.recordDate, today)));
   const ledgerEntries = await db.select().from(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.userId, user.id)).orderBy(desc(walletLedgerEntriesTable.createdAt)).limit(20);
   const healthSources = await getHealthSources(user.id);
   const recoveryCases = await getRecoveryCases(user.id);
+  const stepReviews = await getStepReviews(user.id);
   const entryActivities = entries.slice().sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime()).map((entry) => {
     const challenge = challenges.find((item) => item.id === entry.challengeId);
     return { id: `entry-${entry.id}`, type: "challenge", title: `You joined ${challenge?.name ?? "a challenge"}`, meta: `${numberValue(entry.entryFee) ? `$${numberValue(entry.entryFee)} committed` : "Free entry"} · persisted to your account`, timestamp: entry.joinedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }) };
@@ -174,6 +267,7 @@ async function getBootstrap(req: Request) {
     profile: profileFor(user),
     healthSources,
     recoveryCases,
+    stepReviews,
   };
 }
 
@@ -207,16 +301,17 @@ router.post("/stridepool/sources/:source/samples", async (req, res): Promise<voi
     inArray(stepSourceSamplesTable.sourceSampleId, body.data.samples.map((sample) => sample.sourceSampleId)),
   ));
   const existingIds = new Set(existing.map((sample) => sample.sourceSampleId));
-  const candidates = body.data.samples.filter((sample) => !existingIds.has(sample.sourceSampleId));
+  const seenIds = new Set<string>();
+  const candidates = body.data.samples.filter((sample) => {
+    if (existingIds.has(sample.sourceSampleId) || seenIds.has(sample.sourceSampleId)) return false;
+    seenIds.add(sample.sourceSampleId);
+    return true;
+  });
   const dayTotals = new Map<string, number>();
   const results = candidates.map((sample) => {
-    const durationMinutes = (sample.endTime.getTime() - sample.startTime.getTime()) / 60000;
-    const flags: string[] = [];
-    if (durationMinutes <= 0) flags.push("invalid_interval");
-    if (durationMinutes > 0 && durationMinutes < 5 && sample.steps > 1500) flags.push("burst_rate");
-    if (sample.steps > 60000) flags.push("implausible_sample_total");
-    if (sample.recordedAt && sample.recordedAt.getTime() - sample.endTime.getTime() > 48 * 60 * 60 * 1000) flags.push("backfilled_data");
-    dayTotals.set(sample.recordDate.toISOString().slice(0, 10), (dayTotals.get(sample.recordDate.toISOString().slice(0, 10)) ?? 0) + sample.steps);
+    const flags = reviewStepSample(sample);
+    const recordDate = sample.recordDate.toISOString().slice(0, 10);
+    dayTotals.set(recordDate, (dayTotals.get(recordDate) ?? 0) + sample.steps);
     return { sample, flags };
   });
   for (const [recordDate, incomingTotal] of dayTotals) {
@@ -248,7 +343,7 @@ router.post("/stridepool/sources/:source/samples", async (req, res): Promise<voi
     reviewFlags: flags,
   }));
   if (sampleRows.length) {
-    await db.insert(stepSourceSamplesTable).values(sampleRows);
+    await db.insert(stepSourceSamplesTable).values(sampleRows).onConflictDoNothing();
   }
   await db.insert(healthSourceConnectionsTable).values({
     userId,
@@ -269,28 +364,9 @@ router.post("/stridepool/sources/:source/samples", async (req, res): Promise<voi
       eq(stepSourceSamplesTable.recordDate, recordDate),
       eq(stepSourceSamplesTable.verificationStatus, "verified"),
     ));
-    const [daily] = await db.select().from(dailyStepRecordsTable).where(and(
-      eq(dailyStepRecordsTable.userId, userId),
-      isNull(dailyStepRecordsTable.challengeId),
-      eq(dailyStepRecordsTable.recordDate, recordDate),
-    ));
     const verifiedSteps = Number(verifiedTotal?.total ?? 0);
-    if (daily) {
-      await db.update(dailyStepRecordsTable).set({
-        steps: verifiedSteps,
-        source: "health-source",
-        verified: verifiedSteps > 0,
-      }).where(eq(dailyStepRecordsTable.id, daily.id));
-    } else {
-      await db.insert(dailyStepRecordsTable).values({
-        userId,
-        challengeId: null,
-        recordDate,
-        steps: verifiedSteps,
-        source: "health-source",
-        verified: verifiedSteps > 0,
-      });
-    }
+    await upsertDailySteps(userId, null, recordDate, verifiedSteps, source, verifiedSteps > 0);
+    await mirrorFreeCommunitySteps(userId, recordDate, verifiedSteps, source, verifiedSteps > 0);
   }
 
   const today = now.toISOString().slice(0, 10);
@@ -426,15 +502,86 @@ router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> 
 router.post("/stridepool/sync", async (req, res): Promise<void> => {
   const userId = requireUser(req, res);
   if (!userId) return;
-  const today = new Date().toISOString().slice(0, 10);
-  const [existing] = await db.select().from(dailyStepRecordsTable).where(and(eq(dailyStepRecordsTable.userId, userId), isNull(dailyStepRecordsTable.challengeId), eq(dailyStepRecordsTable.recordDate, today)));
-  const steps = (existing?.steps ?? 0) + 628;
-  if (existing) {
-    await db.update(dailyStepRecordsTable).set({ steps, verified: true, source: "demo-verified" }).where(eq(dailyStepRecordsTable.id, existing.id));
-  } else {
-    await db.insert(dailyStepRecordsTable).values({ userId, challengeId: null, recordDate: today, steps, verified: true, source: "demo-verified" });
+  const parsed = SyncStridePoolStepsBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Send a valid daily step total." });
+    return;
   }
-  res.json({ steps, activity: { id: `sync-${Date.now()}`, type: "sync", title: "Verified steps synced", meta: "+628 steps · rhythm is building", timestamp: "Just now" } });
+  const now = new Date();
+  const source = parsed.data.source ?? "demo";
+  const recordDate = parsed.data.recordDate?.toISOString().slice(0, 10) ?? now.toISOString().slice(0, 10);
+  const steps = parsed.data.steps ?? 628;
+  const startTime = source === "manual" ? new Date(`${recordDate}T00:00:00.000Z`) : new Date(now.getTime() - 30 * 60 * 1000);
+  const endTime = source === "manual" ? new Date(`${recordDate}T23:59:59.999Z`) : now;
+  const sourceSampleId = parsed.data.sourceSampleId ?? `${source}-${userId}-${recordDate}-${now.getTime()}`;
+  const [existingSample] = await db.select().from(stepSourceSamplesTable).where(and(
+    eq(stepSourceSamplesTable.userId, userId),
+    eq(stepSourceSamplesTable.source, source),
+    eq(stepSourceSamplesTable.sourceSampleId, sourceSampleId),
+  ));
+  const [historicalTotal] = await db.select({
+    total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
+  }).from(stepSourceSamplesTable).where(and(
+    eq(stepSourceSamplesTable.userId, userId),
+    eq(stepSourceSamplesTable.recordDate, recordDate),
+    eq(stepSourceSamplesTable.verificationStatus, "verified"),
+    ...(existingSample ? [sql`${stepSourceSamplesTable.id} <> ${existingSample.id}`] : []),
+  ));
+  const flags = reviewStepSample({ steps, startTime, endTime, recordedAt: now });
+  if (Number(historicalTotal?.total ?? 0) + steps > 60_000) flags.push("implausible_daily_total");
+  const verificationStatus = flags.length ? "pending_review" : "verified";
+  if (existingSample) {
+    await db.update(stepSourceSamplesTable).set({
+      recordDate,
+      steps,
+      startTime,
+      endTime,
+      recordedAt: now,
+      rawPayload: { source, sync: "web" },
+      verificationStatus,
+      reviewFlags: flags,
+    }).where(eq(stepSourceSamplesTable.id, existingSample.id));
+  } else {
+    await db.insert(stepSourceSamplesTable).values({
+      userId,
+      source,
+      sourceSampleId,
+      recordDate,
+      steps,
+      startTime,
+      endTime,
+      recordedAt: now,
+      rawPayload: { source, sync: "web" },
+      verificationStatus,
+      reviewFlags: flags,
+    });
+  }
+  const [todayTotal] = await db.select({
+    total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
+  }).from(stepSourceSamplesTable).where(and(
+    eq(stepSourceSamplesTable.userId, userId),
+    eq(stepSourceSamplesTable.recordDate, recordDate),
+    eq(stepSourceSamplesTable.verificationStatus, "verified"),
+  ));
+  const verifiedSteps = Number(todayTotal?.total ?? 0);
+  await upsertDailySteps(userId, null, recordDate, verifiedSteps, source, verifiedSteps > 0);
+  await mirrorFreeCommunitySteps(userId, recordDate, verifiedSteps, source, verifiedSteps > 0);
+  const activityMeta = flags.length
+    ? `${steps.toLocaleString()} steps held for review · daily record unchanged`
+    : `${steps.toLocaleString()} steps · persisted to your account`;
+  res.json(SyncStridePoolStepsResponse.parse({
+    steps: verifiedSteps,
+    source,
+    verificationStatus,
+    reviewFlags: flags,
+    activity: {
+      id: `sync-${existingSample?.id ?? Date.now()}`,
+      type: flags.length ? "review" : "sync",
+      title: flags.length ? "Steps held for review" : "Verified steps synced",
+      meta: activityMeta,
+      timestamp: "Just now",
+    },
+  }));
 });
 
 router.post("/stridepool/wallet/demo-funds", async (req, res): Promise<void> => {

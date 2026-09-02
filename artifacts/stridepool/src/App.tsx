@@ -1,6 +1,6 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, useCheckEligibility, useCreateCheckout, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useRequestStridePoolRecovery, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type HealthSource, type RecoveryCase, type ProfileSettings as ApiProfileSettings } from '@workspace/api-client-react';
+import { getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, useCheckEligibility, useCreateCheckout, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useRequestStridePoolRecovery, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type HealthSource, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, CircleUserRound, Clock3, Compass, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
@@ -24,11 +24,12 @@ type AppState = {
   complianceLoading: boolean;
   healthSources: HealthSource[];
   recoveryCases: RecoveryCase[];
+  stepReviews: StepReview[];
   joinChallenge: (id: string) => boolean;
   leaveChallenge: (id: string) => boolean;
   updateEligibility: (eligibility: EligibilityProfile) => void;
-  syncSteps: () => void;
-  connectSource: (source: HealthSource['source']) => void;
+  syncSteps: (...args: any[]) => void;
+  importCsv: (samples: Array<{ sourceSampleId: string; recordDate: string; steps: number; startTime: string; endTime: string; recordedAt: string; rawPayload: Record<string, unknown> }>) => void;
   requestRecovery: (challengeId: string, type: RecoveryCase['type'], reason: string) => void;
   addFunds: () => void;
   toggleSetting: (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'>) => void;
@@ -66,6 +67,7 @@ function AppProvider({ children }: { children: ReactNode }) {
   const profile = bootstrap?.profile ?? defaultProfile;
   const healthSources = bootstrap?.healthSources ?? [];
   const recoveryCases = bootstrap?.recoveryCases ?? [];
+  const stepReviews = bootstrap?.stepReviews ?? [];
   const eligibility: EligibilityProfile = { age: profile.eligibilityAge, state: profile.eligibilityState, identityStatus: profile.identityStatus, acceptedTerms: profile.acceptedTerms };
   const compliance = complianceData ?? { paidPlayEnabled: false, providerConfigured: false, providerName: 'Stripe', webhookReady: false, sandboxReconciliationPassed: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
   const invalidateBootstrap = () => queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
@@ -82,14 +84,13 @@ function AppProvider({ children }: { children: ReactNode }) {
     leaveMutation.mutate({ id }, { onSuccess: invalidateBootstrap });
     return true;
   };
-  const syncSteps = () => {
+  const syncSteps = (source: 'demo' | 'manual' | object = 'demo', stepTotal?: number, recordDate?: string) => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    syncMutation.mutate(undefined, { onSuccess: invalidateBootstrap });
+    syncMutation.mutate({ data: { source: typeof source === 'string' ? source : 'demo', ...(stepTotal === undefined ? {} : { steps: stepTotal }), ...(recordDate ? { recordDate } : {}) } }, { onSuccess: invalidateBootstrap });
   };
-  const connectSource = (source: HealthSource['source']) => {
+  const importCsv = (samples: Array<{ sourceSampleId: string; recordDate: string; steps: number; startTime: string; endTime: string; recordedAt: string; rawPayload: Record<string, unknown> }>) => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    const now = new Date();
-    sourceMutation.mutate({ source, data: { samples: [{ sourceSampleId: `${source}-${now.getTime()}`, recordDate: now.toISOString().slice(0, 10), steps: 628, startTime: new Date(now.getTime() - 30 * 60000).toISOString(), endTime: now.toISOString(), recordedAt: now.toISOString(), rawPayload: { source, import: 'user-authorized-health-sync' } }] } }, { onSuccess: invalidateBootstrap });
+    sourceMutation.mutate({ source: 'csv_import', data: { samples } }, { onSuccess: invalidateBootstrap });
   };
   const requestRecovery = (challengeId: string, type: RecoveryCase['type'], reason: string) => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
@@ -104,7 +105,7 @@ function AppProvider({ children }: { children: ReactNode }) {
     profileMutation.mutate({ data: updates }, { onSuccess: invalidateBootstrap });
   };
   const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'>) => updateProfile({ [key]: !profile[key] });
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases, joinChallenge, leaveChallenge, updateEligibility, syncSteps, connectSource, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases]);
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases, stepReviews, joinChallenge, leaveChallenge, updateEligibility, syncSteps, importCsv, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases, stepReviews]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -212,16 +213,52 @@ function Dashboard() {
 }
 
 function SourceTrustPanel({ sources, recoveryCases }: { sources: HealthSource[]; recoveryCases: RecoveryCase[] }) {
-  const { connectSource, challenges, requestRecovery } = useApp();
+  const { challenges, requestRecovery, stepReviews } = useApp();
   const pendingCases = recoveryCases.filter((item) => item.status === 'requested' || item.status === 'approved');
   const recoveryChallenge = challenges.find((item) => item.joined);
   return <><section className="mt-8 grid gap-5 lg:grid-cols-[1.25fr_.75fr]" data-testid="panel-source-trust">
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
-      <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your sources, plainly</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Only samples from a connected source count toward settlement. We retain the original sample and pause anything that looks like a burst, backfill, or implausible total.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">{sources.map((source) => <div key={source.source} className="rounded-xl border border-border/80 bg-background p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-secondary-foreground"><HeartPulse size={17} /></span><div className="min-w-0"><p className="text-sm font-bold">{source.label}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{source.status === 'connected' ? `${source.verifiedSamples} verified samples` : 'Not connected yet'}</p></div><span className={`ml-auto h-2 w-2 rounded-full ${source.status === 'connected' ? 'bg-primary' : 'bg-muted-foreground/35'}`} /></div>{source.pendingReview > 0 && <p className="mt-3 rounded-lg bg-primary/10 p-2 text-[11px] leading-4 text-primary">{source.pendingReview} sample{source.pendingReview === 1 ? '' : 's'} pending support review</p>}<Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" onClick={() => connectSource(source.source)} data-testid={`button-connect-${source.source}`}>{source.status === 'connected' ? 'Sync latest sample' : `Connect ${source.label}`}</Button></div>)}</div>
+      <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your sources, plainly</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Free community progress accepts a daily total from a source you control. Every record is stored, checked for suspicious patterns, and kept separate from wallet and paid-challenge logic.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
+      <StepSyncControls />
+      <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-start gap-3"><HeartPulse size={17} className="mt-0.5 shrink-0 text-secondary-foreground" /><div><p className="text-sm font-bold text-secondary-foreground">Native health data needs a companion app</p><p className="mt-1 text-[11px] leading-5 text-secondary-foreground/75">A browser cannot request Apple HealthKit or Android Health Connect permissions. Those sources are listed below for a future mobile shell; nothing here pretends a browser connection exists.</p></div></div></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">{sources.map((source) => <div key={source.source} className="rounded-xl border border-border/80 bg-background p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-secondary-foreground"><HeartPulse size={17} /></span><div className="min-w-0"><p className="text-sm font-bold">{source.label}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{source.status === 'connected' ? `${source.verifiedSamples} verified samples` : 'Companion app required'}</p></div><span className="ml-auto h-2 w-2 rounded-full bg-muted-foreground/35" /></div>{source.pendingReview > 0 && <p className="mt-3 rounded-lg bg-primary/10 p-2 text-[11px] leading-4 text-primary">{source.pendingReview} sample{source.pendingReview === 1 ? '' : 's'} pending support review</p>}<Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" disabled data-testid={`button-connect-${source.source}`}>Available in mobile companion</Button></div>)}</div>
+      {stepReviews.length > 0 && <div className="mt-5 rounded-xl border border-primary/25 bg-primary/10 p-4" data-testid="panel-step-reviews"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-primary">Records held for review</p><Badge tone="coral">{stepReviews.length} flagged</Badge></div><div className="mt-3 space-y-2">{stepReviews.slice(0, 5).map((review) => <div className="rounded-lg bg-background/70 p-3" key={review.id}><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold">{review.steps.toLocaleString()} steps · {review.recordDate}</p><span className="font-mono-app text-[9px] uppercase text-primary">not counted</span></div><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{review.reviewFlags.map((flag) => flag.replaceAll('_', ' ')).join(' · ')} · {review.source.replaceAll('_', ' ')}</p></div>)}</div></div>}
     </div>
     <div className="rounded-2xl border border-border bg-secondary/55 p-5 sm:p-6"><div className="flex items-center gap-2 text-secondary-foreground"><HeartPulse size={18} /><p className="font-mono-app text-[10px] uppercase tracking-[.16em]">Fair recovery</p></div><h2 className="mt-2 font-display text-xl font-bold text-secondary-foreground">Life happens. The ledger waits.</h2><p className="mt-2 text-xs leading-5 text-secondary-foreground/75">Grace days, injury pauses, and support review keep a questionable day from deciding your payout without a human look.</p>{pendingCases.length ? <div className="mt-4 space-y-2">{pendingCases.slice(0, 2).map((item) => <div className="rounded-xl bg-background/60 p-3" key={item.id}><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">{item.challengeName}</p><Badge tone="teal">{item.status.replaceAll('_', ' ')}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">{item.type.replaceAll('_', ' ')}</p></div>)}</div> : <p className="mt-4 rounded-xl bg-background/60 p-3 text-[11px] leading-5 text-secondary-foreground/75">No recovery requests are open. Open a joined challenge to request one before settlement.</p>}</div>
   </section>{recoveryChallenge && <RecoveryPanel challenge={recoveryChallenge} cases={recoveryCases.filter((item) => item.challengeId === recoveryChallenge.id)} requestRecovery={requestRecovery} />}</>;
+}
+
+function StepSyncControls() {
+  const { syncSteps, importCsv } = useApp();
+  const [manualSteps, setManualSteps] = useState('');
+  const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10));
+  const [message, setMessage] = useState('');
+  const submitManual = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const steps = Number(manualSteps);
+    if (!Number.isInteger(steps) || steps < 0) return;
+    syncSteps('manual', steps, manualDate);
+    setMessage(`${steps.toLocaleString()} steps sent for verification.`);
+  };
+  const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const rows = (await file.text()).trim().split(/\r?\n/).slice(1).map((line) => line.split(',').map((cell) => cell.trim()));
+    const samples = rows.flatMap((cells, index) => {
+      const [recordDate, rawSteps] = cells;
+      const steps = Number(rawSteps);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(recordDate) || !Number.isInteger(steps) || steps < 0) return [];
+      return [{ sourceSampleId: `csv-${file.lastModified}-${recordDate}-${index}`, recordDate, steps, startTime: `${recordDate}T00:00:00.000Z`, endTime: `${recordDate}T23:59:59.999Z`, recordedAt: new Date().toISOString(), rawPayload: { import: 'csv', fileName: file.name } }];
+    });
+    if (samples.length) {
+      importCsv(samples);
+      setMessage(`${samples.length} CSV day${samples.length === 1 ? '' : 's'} sent for verification.`);
+    } else {
+      setMessage('Use a CSV with a header and rows in YYYY-MM-DD,steps format.');
+    }
+    event.target.value = '';
+  };
+  return <div className="mt-5 grid gap-4 rounded-xl border border-border/80 bg-background p-4 sm:grid-cols-[1fr_auto]"><form className="space-y-3" onSubmit={submitManual}><div><p className="text-sm font-bold">Manual daily total</p><p className="mt-1 text-[11px] leading-4 text-muted-foreground">A realistic web fallback when no native source is available.</p></div><div className="grid gap-2 sm:grid-cols-[1fr_145px_auto]"><input type="number" min="0" max="100000" value={manualSteps} onChange={(event) => setManualSteps(event.target.value)} placeholder="e.g. 7284" aria-label="Daily step total" className="h-10 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-manual-steps" /><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} aria-label="Step record date" className="h-10 rounded-lg border border-border bg-card px-3 text-xs outline-none focus:border-primary" data-testid="input-manual-step-date" /><Button type="submit" className="h-10 px-3 text-xs" data-testid="button-submit-manual-steps">Save total</Button></div></form><label className="flex cursor-pointer flex-col justify-end gap-2 border-t border-border pt-3 text-xs font-bold sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"><span>Import CSV</span><span className="font-normal text-muted-foreground">YYYY-MM-DD,steps</span><input type="file" accept=".csv,text/csv" onChange={importFile} className="block w-full text-[11px]" data-testid="input-steps-csv" /></label>{message && <p className="text-[11px] text-primary sm:col-span-2" role="status" data-testid="status-step-sync">{message}</p>}</div>;
 }
 
 function RecoveryPanel({ challenge, cases, requestRecovery }: { challenge: Challenge; cases: RecoveryCase[]; requestRecovery: (challengeId: string, type: RecoveryCase['type'], reason: string) => void }) {

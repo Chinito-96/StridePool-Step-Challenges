@@ -280,7 +280,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "acceptedTerms": zod.boolean()
 }),
   "healthSources": zod.array(zod.object({
-  "source": zod.enum(['apple_health', 'health_connect']),
+  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
   "label": zod.string(),
   "status": zod.enum(['available', 'connected']),
   "lastSyncedAt": zod.coerce.date().nullable(),
@@ -296,6 +296,16 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "reason": zod.string(),
   "reviewMessage": zod.string(),
   "requestedAt": zod.coerce.date()
+})),
+  "stepReviews": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
+  "sourceSampleId": zod.string(),
+  "recordDate": zod.coerce.date(),
+  "steps": zod.int(),
+  "verificationStatus": zod.enum(['pending_review']),
+  "reviewFlags": zod.array(zod.string()),
+  "createdAt": zod.coerce.date()
 }))
 })
 
@@ -343,10 +353,24 @@ export const LeaveStridePoolChallengeResponse = zod.object({
 
 
 /**
- * @summary Add a verified demo step record for the authenticated user
+ * @summary Sync a daily step total for the authenticated user
  */
 export const SyncStridePoolStepsHeader = zod.object({
   "Authorization": zod.string().optional()
+})
+
+export const syncStridePoolStepsBodyStepsMin = 0;
+export const syncStridePoolStepsBodyStepsMax = 100000;
+
+export const syncStridePoolStepsBodySourceSampleIdMax = 180;
+
+
+
+export const SyncStridePoolStepsBody = zod.object({
+  "source": zod.enum(['demo', 'manual']).optional(),
+  "recordDate": zod.coerce.date().optional(),
+  "steps": zod.int().min(syncStridePoolStepsBodyStepsMin).max(syncStridePoolStepsBodyStepsMax).optional(),
+  "sourceSampleId": zod.string().min(1).max(syncStridePoolStepsBodySourceSampleIdMax).optional()
 })
 
 export const SyncStridePoolStepsResponse = zod.object({
@@ -357,7 +381,10 @@ export const SyncStridePoolStepsResponse = zod.object({
   "title": zod.string(),
   "meta": zod.string(),
   "timestamp": zod.string()
-})
+}),
+  "source": zod.enum(['demo', 'manual']),
+  "verificationStatus": zod.enum(['verified', 'pending_review']),
+  "reviewFlags": zod.array(zod.string())
 })
 
 
@@ -370,7 +397,7 @@ export const GetStridePoolHealthSourcesHeader = zod.object({
 
 export const GetStridePoolHealthSourcesResponse = zod.object({
   "sources": zod.array(zod.object({
-  "source": zod.enum(['apple_health', 'health_connect']),
+  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
   "label": zod.string(),
   "status": zod.enum(['available', 'connected']),
   "lastSyncedAt": zod.coerce.date().nullable(),
@@ -381,10 +408,10 @@ export const GetStridePoolHealthSourcesResponse = zod.object({
 
 
 /**
- * @summary Store and evaluate raw Apple Health or Health Connect samples
+ * @summary Store and evaluate normalized step-source samples
  */
 export const IngestStridePoolSourceSamplesParams = zod.object({
-  "source": zod.enum(['apple_health', 'health_connect'])
+  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect'])
 })
 
 export const IngestStridePoolSourceSamplesHeader = zod.object({
@@ -413,7 +440,7 @@ export const IngestStridePoolSourceSamplesBody = zod.object({
 })
 
 export const IngestStridePoolSourceSamplesResponse = zod.object({
-  "source": zod.enum(['apple_health', 'health_connect']),
+  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
   "acceptedCount": zod.int(),
   "pendingReviewCount": zod.int(),
   "steps": zod.int(),

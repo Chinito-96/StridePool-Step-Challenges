@@ -11,6 +11,7 @@ import type { Challenge } from './challenge';
 import type { HealthSource } from './healthSource';
 import type { ProfileSettings } from './profileSettings';
 import type { RecoveryCase } from './recoveryCase';
+import type { StepReview } from './stepReview';
 import type { WalletSummary } from './walletSummary';
 
 export interface StridePoolBootstrap {
@@ -23,4 +24,5 @@ export interface StridePoolBootstrap {
   profile: ProfileSettings;
   healthSources: HealthSource[];
   recoveryCases: RecoveryCase[];
+  stepReviews: StepReview[];
 }
