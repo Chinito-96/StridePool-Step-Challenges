@@ -8,9 +8,17 @@ import type {
   PayoutOnboardingInput,
   ProviderWebhookInput,
 } from "@workspace/api-zod";
-import { db, challengesTable, usersTable, walletLedgerEntriesTable } from "@workspace/db";
-import { and, desc, eq } from "drizzle-orm";
-import { nextPayoutRetry } from "./settlement";
+import {
+  db,
+  challengesTable,
+  moneyReconciliationRunsTable,
+  payoutStatesTable,
+  providerMoneyEventsTable,
+  usersTable,
+  walletLedgerEntriesTable,
+} from "@workspace/db";
+import { and, desc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
+import { projectPayoutEvent, signedLedgerAmountCents } from "./ledger-policy";
 import {
   createStripeCheckout,
   createStripePayoutOnboarding,
@@ -81,12 +89,22 @@ export function checkEligibility(input: EligibilityInput): EligibilityDecision {
   };
 }
 
+function legacyIdempotencyMatch(
+  metadata: Record<string, unknown>,
+  idempotencyKey: string,
+): boolean {
+  return metadata.idempotencyKey === idempotencyKey;
+}
+
 export async function createCheckout(userId: string, input: CheckoutInput) {
   const existingEntries = await db.select().from(walletLedgerEntriesTable).where(and(
     eq(walletLedgerEntriesTable.userId, userId),
     eq(walletLedgerEntriesTable.eventType, "payment_intent_created"),
   ));
-  const existing = existingEntries.find((entry) => entry.metadata.idempotencyKey === input.idempotencyKey);
+  const existing = existingEntries.find((entry) =>
+    entry.idempotencyKey === input.idempotencyKey
+    || legacyIdempotencyMatch(entry.metadata, input.idempotencyKey),
+  );
   if (existing) {
     return {
       checkoutId: String(existing.metadata.checkoutId ?? ""),
@@ -116,25 +134,42 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
 
   const checkout = await createStripeCheckout(user, challenge, input.amountCents, input.idempotencyKey);
   if (!checkout.url) throw new Error("Stripe did not return a hosted checkout URL.");
-  const [entry] = await db.insert(walletLedgerEntriesTable).values({
-    id: `ledger_${randomUUID()}`,
-    userId,
-    eventType: "payment_intent_created",
-    status: "pending_provider",
-    amountCents: input.amountCents,
-    currency: input.currency,
-    providerEventId: null,
-    challengeId: input.challengeId,
-    metadata: {
-      checkoutId: checkout.id,
-      checkoutUrl: checkout.url,
+  const entry = await db.transaction(async (tx) => {
+    const [racedEntry] = await tx.select().from(walletLedgerEntriesTable).where(and(
+      eq(walletLedgerEntriesTable.userId, userId),
+      eq(walletLedgerEntriesTable.eventType, "payment_intent_created"),
+      eq(walletLedgerEntriesTable.idempotencyKey, input.idempotencyKey),
+    ));
+    if (racedEntry) return racedEntry;
+    const [inserted] = await tx.insert(walletLedgerEntriesTable).values({
+      id: `ledger_${randomUUID()}`,
+      userId,
+      eventType: "payment_intent_created",
+      status: "pending_provider",
+      amountCents: input.amountCents,
+      currency: input.currency,
+      providerEventId: null,
       idempotencyKey: input.idempotencyKey,
-      auditRule: "provider webhook required before funds are committed",
-    },
-  }).returning();
+      challengeId: input.challengeId,
+      metadata: {
+        checkoutId: checkout.id,
+        checkoutUrl: checkout.url,
+        idempotencyKey: input.idempotencyKey,
+        auditRule: "provider webhook required before funds are committed",
+      },
+    }).onConflictDoNothing().returning();
+    if (inserted) return inserted;
+    const [conflict] = await tx.select().from(walletLedgerEntriesTable).where(and(
+      eq(walletLedgerEntriesTable.userId, userId),
+      eq(walletLedgerEntriesTable.eventType, "payment_intent_created"),
+      eq(walletLedgerEntriesTable.idempotencyKey, input.idempotencyKey),
+    ));
+    if (!conflict) throw new Error("Checkout idempotency conflict could not be recovered.");
+    return conflict;
+  });
   return {
-    checkoutId: checkout.id,
-    checkoutUrl: checkout.url,
+    checkoutId: String(entry.metadata.checkoutId ?? checkout.id),
+    checkoutUrl: String(entry.metadata.checkoutUrl ?? checkout.url),
     status: "requires_action" as const,
     provider: providerName,
     ledgerEntryId: entry.id,
@@ -146,7 +181,10 @@ export async function startPayoutOnboarding(userId: string, input: PayoutOnboard
     eq(walletLedgerEntriesTable.userId, userId),
     eq(walletLedgerEntriesTable.eventType, "payout_onboarding_started"),
   ));
-  const existing = existingEntries.find((entry) => entry.metadata.idempotencyKey === input.idempotencyKey);
+  const existing = existingEntries.find((entry) =>
+    entry.idempotencyKey === input.idempotencyKey
+    || legacyIdempotencyMatch(entry.metadata, input.idempotencyKey),
+  );
   if (existing) {
     return {
       onboardingId: String(existing.metadata.onboardingId ?? ""),
@@ -161,21 +199,24 @@ export async function startPayoutOnboarding(userId: string, input: PayoutOnboard
     user,
     input.idempotencyKey,
   );
-  await db.insert(walletLedgerEntriesTable).values({
-    id: `ledger_${randomUUID()}`,
-    userId,
-    eventType: "payout_onboarding_started",
-    status: "pending_provider",
-    amountCents: 0,
-    currency: "usd",
-    providerEventId: null,
-    challengeId: null,
-    metadata: {
-      onboardingId: accountId,
-      onboardingUrl: accountLink.url,
+  await db.transaction(async (tx) => {
+    await tx.insert(walletLedgerEntriesTable).values({
+      id: `ledger_${randomUUID()}`,
+      userId,
+      eventType: "payout_onboarding_started",
+      status: "pending_provider",
+      amountCents: 0,
+      currency: "usd",
+      providerEventId: null,
       idempotencyKey: input.idempotencyKey,
-      auditRule: "provider onboarding must complete before withdrawal",
-    },
+      challengeId: null,
+      metadata: {
+        onboardingId: accountId,
+        onboardingUrl: accountLink.url,
+        idempotencyKey: input.idempotencyKey,
+        auditRule: "provider onboarding must complete before withdrawal",
+      },
+    }).onConflictDoNothing();
   });
   return {
     onboardingId: accountId,
@@ -186,28 +227,142 @@ export async function startPayoutOnboarding(userId: string, input: PayoutOnboard
 }
 
 export async function recordProviderWebhook(input: ProviderWebhookInput) {
-  const [duplicate] = await db.select().from(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.providerEventId, input.providerEventId));
-  if (duplicate) return { accepted: true, duplicate: true, ledgerEntryId: duplicate.id };
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, input.userId));
-  if (!user) throw new Error("Provider event references an unknown account.");
-  const [entry] = await db.insert(walletLedgerEntriesTable).values({
-    id: `ledger_${randomUUID()}`,
-    userId: input.userId,
-    eventType: input.eventType,
-    status: input.eventType.endsWith("failed") ? "failed" : "recorded",
-    amountCents: input.amountCents,
-    currency: input.currency,
-    providerEventId: input.providerEventId,
-    challengeId: input.challengeId,
-    metadata: {
-      ...input.metadata,
-      settlementPolicy: "integer_cents",
-      retryCount: input.eventType === "payout_failed"
-        ? nextPayoutRetry(Number(input.metadata.retryCount ?? 0)).retryCount
-        : undefined,
-    },
-  }).returning();
-  return { accepted: true, duplicate: false, ledgerEntryId: entry.id };
+  return db.transaction(async (tx) => {
+    const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, input.userId));
+    if (!user) throw new Error("Provider event references an unknown account.");
+
+    const [receipt] = await tx.insert(providerMoneyEventsTable).values({
+      providerEventId: input.providerEventId,
+      provider: providerName,
+      eventType: input.eventType,
+      userId: input.userId,
+      amountCents: input.amountCents,
+      currency: input.currency,
+      challengeId: input.challengeId,
+      metadata: input.metadata,
+    }).onConflictDoNothing().returning();
+    if (!receipt) {
+      const [duplicate] = await tx.select().from(walletLedgerEntriesTable)
+        .where(eq(walletLedgerEntriesTable.providerEventId, input.providerEventId));
+      if (!duplicate) throw new Error("Provider event receipt exists without its ledger entry.");
+      return { accepted: true, duplicate: true, ledgerEntryId: duplicate.id };
+    }
+
+    let retryCount: number | undefined;
+    if (input.eventType === "payout_failed" || input.eventType === "payout_succeeded") {
+      const payoutId = String(input.metadata.stripe_payout_id ?? input.providerEventId);
+      const isSuccess = input.eventType === "payout_succeeded";
+      const initialProjection = projectPayoutEvent(undefined, input.eventType, input.providerEventId);
+      const [payoutState] = await tx.insert(payoutStatesTable).values({
+        providerPayoutId: payoutId,
+        provider: providerName,
+        userId: input.userId,
+        status: initialProjection.status,
+        retryCount: initialProjection.retryCount,
+        amountCents: input.amountCents,
+        currency: input.currency,
+        lastProviderEventId: initialProjection.lastProviderEventId,
+        metadata: input.metadata,
+      }).onConflictDoUpdate({
+        target: payoutStatesTable.providerPayoutId,
+        set: {
+          status: sql`case when ${payoutStatesTable.status} = 'paid' then 'paid' when ${isSuccess} then 'paid' else 'retry_pending' end`,
+          retryCount: sql`case when ${payoutStatesTable.status} = 'paid' then ${payoutStatesTable.retryCount} when ${isSuccess} then ${payoutStatesTable.retryCount} else ${payoutStatesTable.retryCount} + 1 end`,
+          lastProviderEventId: sql`case when ${payoutStatesTable.status} = 'paid' then ${payoutStatesTable.lastProviderEventId} else ${input.providerEventId} end`,
+          updatedAt: new Date(),
+        },
+      }).returning();
+      retryCount = payoutState.retryCount;
+    }
+
+    const [entry] = await tx.insert(walletLedgerEntriesTable).values({
+      id: `ledger_${randomUUID()}`,
+      userId: input.userId,
+      eventType: input.eventType,
+      status: input.eventType.endsWith("failed") ? "failed" : "recorded",
+      amountCents: input.amountCents,
+      currency: input.currency,
+      providerEventId: input.providerEventId,
+      idempotencyKey: `${providerName.toLowerCase()}:${input.providerEventId}`,
+      challengeId: input.challengeId,
+      metadata: {
+        ...input.metadata,
+        settlementPolicy: "integer_cents",
+        ...(retryCount === undefined ? {} : { retryCount }),
+      },
+    }).returning();
+    return { accepted: true, duplicate: false, ledgerEntryId: entry.id };
+  });
+}
+
+export type ProviderReportInput = {
+  provider?: string;
+  providerReportId: string;
+  periodStart: Date;
+  periodEnd: Date;
+  totalCents: number;
+  eventCount?: number;
+  reportMetadata?: Record<string, unknown>;
+};
+
+export async function reconcileProviderReport(input: ProviderReportInput) {
+  if (!Number.isInteger(input.totalCents) || input.totalCents < 0) {
+    throw new Error("Provider report totals must be non-negative integer cents.");
+  }
+  if (!Number.isInteger(input.eventCount ?? 0) || (input.eventCount ?? 0) < 0) {
+    throw new Error("Provider report event counts must be non-negative integers.");
+  }
+  if (input.periodEnd <= input.periodStart) throw new Error("Provider report period must have a positive duration.");
+
+  const provider = input.provider ?? providerName;
+  return db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(moneyReconciliationRunsTable).where(and(
+      eq(moneyReconciliationRunsTable.provider, provider),
+      eq(moneyReconciliationRunsTable.providerReportId, input.providerReportId),
+    ));
+    if (existing) return { ...existing, duplicate: true };
+
+    const entries = await tx.select({
+      eventType: walletLedgerEntriesTable.eventType,
+      amountCents: walletLedgerEntriesTable.amountCents,
+    }).from(walletLedgerEntriesTable).where(and(
+      eq(walletLedgerEntriesTable.currency, "usd"),
+      isNotNull(walletLedgerEntriesTable.providerEventId),
+      gte(walletLedgerEntriesTable.createdAt, input.periodStart),
+      lt(walletLedgerEntriesTable.createdAt, input.periodEnd),
+    ));
+    const ledgerTotalCents = entries.reduce(
+      (total, entry) => total + signedLedgerAmountCents(entry.eventType, entry.amountCents),
+      0,
+    );
+    const ledgerEventCount = entries.length;
+    const discrepancyCents = input.totalCents - ledgerTotalCents;
+    const status = discrepancyCents === 0
+      && (input.eventCount === undefined || input.eventCount === ledgerEventCount)
+      ? "matched"
+      : "mismatch";
+    const [run] = await tx.insert(moneyReconciliationRunsTable).values({
+      id: `reconciliation_${randomUUID()}`,
+      provider,
+      providerReportId: input.providerReportId,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      providerTotalCents: input.totalCents,
+      ledgerTotalCents,
+      discrepancyCents,
+      providerEventCount: input.eventCount ?? null,
+      ledgerEventCount,
+      status,
+      reportMetadata: input.reportMetadata ?? {},
+    }).onConflictDoNothing().returning();
+    if (run) return { ...run, duplicate: false };
+    const [conflict] = await tx.select().from(moneyReconciliationRunsTable).where(and(
+      eq(moneyReconciliationRunsTable.provider, provider),
+      eq(moneyReconciliationRunsTable.providerReportId, input.providerReportId),
+    ));
+    if (!conflict) throw new Error("Reconciliation idempotency conflict could not be recovered.");
+    return { ...conflict, duplicate: true };
+  });
 }
 
 export async function getLedger(userId: string): Promise<LedgerEntry[]> {

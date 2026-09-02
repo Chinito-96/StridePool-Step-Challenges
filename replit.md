@@ -37,7 +37,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 - Replit Auth identifies users and persists sessions in Postgres. Paid and personalized entries require login; free community participation remains limited to the anonymous browser until a user signs in.
 - Demo state can be reset with the seed script. Web step data supports demo, manual daily totals, and CSV import; native Apple Health and Health Connect require a future mobile companion. Money balances remain zero until signed provider events are reconciled.
 - Paid play is server-gated behind counsel-approved states, provider configuration, and eligibility checks.
-- The API exposes provider-shaped checkout, payout onboarding, signed webhook, and append-only ledger routes; the current file ledger is a development adapter, not a production money store.
+- The API exposes provider-shaped checkout, payout onboarding, signed webhook, and append-only ledger routes backed by transactional PostgreSQL money tables with provider-event and idempotency constraints.
 - The experience uses an original StridePool identity and copy; Steppa is treated as a mechanics benchmark, not a visual or content source.
 - The product emphasizes transparent pool math, human recovery paths, and social accountability as the main opportunities over the benchmark.
 
@@ -57,7 +57,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 
 ## Gotchas
 
-- Paid play is intentionally disabled until qualified counsel signs off on the challenge/refund model and state matrix, a payment/payout provider is connected, and production ledger persistence is transactional.
+- Paid play is intentionally disabled until qualified counsel signs off on the challenge/refund model and state matrix, a payment/payout provider is connected, and the provider reconciliation launch evidence is complete.
 
 ## Pointers
 

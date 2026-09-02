@@ -138,13 +138,87 @@ export const walletLedgerEntriesTable = pgTable(
     amountCents: integer("amount_cents").notNull().default(0),
     currency: varchar("currency").notNull().default("usd"),
     providerEventId: varchar("provider_event_id"),
+    idempotencyKey: varchar("idempotency_key"),
     challengeId: varchar("challenge_id").references(() => challengesTable.id, { onDelete: "set null" }),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("wallet_ledger_provider_event_unique").on(table.providerEventId),
+    uniqueIndex("wallet_ledger_user_idempotency_unique").on(table.userId, table.idempotencyKey),
     index("wallet_ledger_user_idx").on(table.userId, table.createdAt),
+  ],
+);
+
+/**
+ * A receipt is inserted in the same transaction as its ledger entry. It is
+ * intentionally separate from the append-only wallet ledger so a duplicate
+ * webhook can be acknowledged without ever creating a second money event.
+ */
+export const providerMoneyEventsTable = pgTable(
+  "provider_money_events",
+  {
+    providerEventId: varchar("provider_event_id").primaryKey(),
+    provider: varchar("provider").notNull(),
+    eventType: varchar("event_type").notNull(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    amountCents: integer("amount_cents").notNull().default(0),
+    currency: varchar("currency").notNull().default("usd"),
+    challengeId: varchar("challenge_id").references(() => challengesTable.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("provider_money_events_provider_event_unique").on(table.provider, table.providerEventId),
+    index("provider_money_events_user_idx").on(table.userId, table.receivedAt),
+  ],
+);
+
+/**
+ * Payout status is a materialized view of immutable provider events. The
+ * status transition prevents a late payout.failed event from moving a paid
+ * payout back to retry_pending.
+ */
+export const payoutStatesTable = pgTable(
+  "payout_states",
+  {
+    providerPayoutId: varchar("provider_payout_id").primaryKey(),
+    provider: varchar("provider").notNull(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    status: varchar("status").notNull(),
+    retryCount: integer("retry_count").notNull().default(0),
+    amountCents: integer("amount_cents").notNull().default(0),
+    currency: varchar("currency").notNull().default("usd"),
+    lastProviderEventId: varchar("last_provider_event_id").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payout_states_provider_payout_unique").on(table.provider, table.providerPayoutId),
+    index("payout_states_user_idx").on(table.userId, table.updatedAt),
+  ],
+);
+
+export const moneyReconciliationRunsTable = pgTable(
+  "money_reconciliation_runs",
+  {
+    id: varchar("id").primaryKey(),
+    provider: varchar("provider").notNull(),
+    providerReportId: varchar("provider_report_id").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    providerTotalCents: integer("provider_total_cents").notNull(),
+    ledgerTotalCents: integer("ledger_total_cents").notNull(),
+    discrepancyCents: integer("discrepancy_cents").notNull(),
+    providerEventCount: integer("provider_event_count"),
+    ledgerEventCount: integer("ledger_event_count").notNull(),
+    status: varchar("status").notNull(),
+    reportMetadata: jsonb("report_metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("money_reconciliation_provider_report_unique").on(table.provider, table.providerReportId),
+    index("money_reconciliation_created_idx").on(table.createdAt),
   ],
 );
 
@@ -162,3 +236,6 @@ export type HealthSourceConnection = typeof healthSourceConnectionsTable.$inferS
 export type StepSourceSample = typeof stepSourceSamplesTable.$inferSelect;
 export type ChallengeRecoveryCase = typeof challengeRecoveryCasesTable.$inferSelect;
 export type WalletLedgerEntry = typeof walletLedgerEntriesTable.$inferSelect;
+export type ProviderMoneyEvent = typeof providerMoneyEventsTable.$inferSelect;
+export type PayoutState = typeof payoutStatesTable.$inferSelect;
+export type MoneyReconciliationRun = typeof moneyReconciliationRunsTable.$inferSelect;

@@ -81,12 +81,15 @@ export async function joinChallenge(userId: string, challengeId: string, now = n
       return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity: true };
     }
 
+    let entryId = existing?.id;
     if (existing) {
       const [reactivated] = await tx.update(entriesTable).set({ status: "active", joinedAt: now, leftAt: null }).where(and(eq(entriesTable.id, existing.id), eq(entriesTable.status, "left"))).returning();
       if (!reactivated) return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity: false };
+      entryId = reactivated.id;
     } else {
       const [inserted] = await tx.insert(entriesTable).values({ userId, challengeId, entryFee: (feeCents / 100).toFixed(2), status: "active", joinedAt: now }).onConflictDoNothing().returning();
       if (!inserted) return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity: false };
+      entryId = inserted.id;
     }
     const [updatedUser] = await tx.update(usersTable).set({
       walletBalance: sql`${usersTable.walletBalance} - ${(feeCents / 100).toFixed(2)}`,
@@ -104,8 +107,9 @@ export async function joinChallenge(userId: string, challengeId: string, now = n
       status: "recorded",
       amountCents: feeCents,
       currency: "usd",
+      idempotencyKey: `challenge_join:${entryId}:${now.toISOString()}`,
       challengeId,
-      metadata: { source: "challenge_join", entryId: existing?.id ?? null },
+      metadata: { source: "challenge_join", entryId },
       createdAt: now,
     });
     return { wallet: walletFor(updatedUser), charged: true, refunded: false, freeCommunity: false };
@@ -147,6 +151,7 @@ export async function leaveChallenge(userId: string, challengeId: string, now = 
       status: "recorded",
       amountCents: feeCents,
       currency: "usd",
+      idempotencyKey: `challenge_leave:${entry.id}`,
       challengeId,
       metadata: { source: "challenge_leave", entryId: entry.id },
       createdAt: now,
@@ -236,6 +241,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
           status: "recorded",
           amountCents: feeCents,
           currency: "usd",
+           idempotencyKey: `challenge_settlement:${challengeId}:${entry.id}`,
           challengeId,
           metadata: { source: "challenge_settlement", entryId: entry.id },
           createdAt: now,
@@ -265,6 +271,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
         status: "recorded",
         amountCents: payoutCents,
         currency: "usd",
+         idempotencyKey: `challenge_settlement:${challengeId}:${entry.id}`,
         challengeId,
         metadata: { source: "challenge_settlement", entryId: entry.id, committedCents: feeCents },
         createdAt: now,

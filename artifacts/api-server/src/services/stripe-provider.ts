@@ -243,6 +243,7 @@ async function normalizedStripeEvent(
     amountCents = payout.amount;
     currency = payout.currency;
     metadata = {
+       stripe_payout_id: payout.id,
       stripe_connect_account_id: connectedAccountId,
       stripe_payout_status: payout.status,
       ...(payout.failure_code ? { stripe_failure_code: payout.failure_code } : {}),
