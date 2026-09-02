@@ -22,17 +22,24 @@ import type {
 import type {
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  ChallengeInviteInput,
+  ChallengeInvitePreview,
+  ChallengeInviteResponse,
+  ChallengeLeaderboardResponse,
   CheckoutInput,
   CheckoutResponse,
+  CommunityChallengesResponse,
   ComplianceStatus,
   EligibilityDecision,
   EligibilityInput,
   EntryMutationResponse,
   ErrorResponse,
+  GetStridePoolCommunityChallengesParams,
   HealthSourcesResponse,
   HealthStatus,
   IngestStepSamplesBody,
   IngestStepSamplesResponse,
+  InviteAcceptResponse,
   LedgerEntry,
   LogoutBrowserSessionParams,
   LogoutSuccess,
@@ -40,16 +47,19 @@ import type {
   MobileTokenExchangeSuccess,
   PayoutOnboardingInput,
   PayoutOnboardingResponse,
+  PendingInvitesResponse,
   ProfileSettings,
   ProfileUpdate,
   ReceiveStripeWebhook200,
   RecoveryCase,
   RecoveryCasesResponse,
   RecoveryRequestBody,
+  SearchStridePoolUsersParams,
   StridePoolBootstrap,
   StripeWebhookPayload,
   SyncStepsBody,
   SyncStepsResponse,
+  UserSearchResponse,
   WalletSummary
 } from './api.schemas';
 
@@ -1278,6 +1288,548 @@ export const useLeaveStridePoolChallenge = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getLeaveStridePoolChallengeMutationOptions(options));
+    }
+
+export const getGetStridePoolCommunityChallengesUrl = (params?: GetStridePoolCommunityChallengesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stridepool/community-challenges?${stringifiedParams}` : `/api/stridepool/community-challenges`
+}
+
+/**
+ * @summary Browse open free community challenges
+ */
+export const getStridePoolCommunityChallenges = async (params?: GetStridePoolCommunityChallengesParams, options?: Parameters<typeof customFetch>[1]): Promise<CommunityChallengesResponse> => {
+
+  return customFetch<CommunityChallengesResponse>(getGetStridePoolCommunityChallengesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolCommunityChallengesQueryKey = (params?: GetStridePoolCommunityChallengesParams,) => {
+    return [
+    `/api/stridepool/community-challenges`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetStridePoolCommunityChallengesQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolCommunityChallenges>>, TError = ErrorType<unknown>>(params?: GetStridePoolCommunityChallengesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolCommunityChallenges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolCommunityChallengesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolCommunityChallenges>>> = ({ signal }) => getStridePoolCommunityChallenges(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolCommunityChallenges>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolCommunityChallengesQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolCommunityChallenges>>>
+export type GetStridePoolCommunityChallengesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Browse open free community challenges
+ */
+
+export function useGetStridePoolCommunityChallenges<TData = Awaited<ReturnType<typeof getStridePoolCommunityChallenges>>, TError = ErrorType<unknown>>(
+ params?: GetStridePoolCommunityChallengesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolCommunityChallenges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolCommunityChallengesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSearchStridePoolUsersUrl = (params: SearchStridePoolUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stridepool/users/search?${stringifiedParams}` : `/api/stridepool/users/search`
+}
+
+/**
+ * @summary Search users for a free challenge invite
+ */
+export const searchStridePoolUsers = async (params: SearchStridePoolUsersParams, options?: Parameters<typeof customFetch>[1]): Promise<UserSearchResponse> => {
+
+  return customFetch<UserSearchResponse>(getSearchStridePoolUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchStridePoolUsersQueryKey = (params?: SearchStridePoolUsersParams,) => {
+    return [
+    `/api/stridepool/users/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchStridePoolUsersQueryOptions = <TData = Awaited<ReturnType<typeof searchStridePoolUsers>>, TError = ErrorType<void>>(params: SearchStridePoolUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchStridePoolUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchStridePoolUsersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchStridePoolUsers>>> = ({ signal }) => searchStridePoolUsers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchStridePoolUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchStridePoolUsersQueryResult = NonNullable<Awaited<ReturnType<typeof searchStridePoolUsers>>>
+export type SearchStridePoolUsersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search users for a free challenge invite
+ */
+
+export function useSearchStridePoolUsers<TData = Awaited<ReturnType<typeof searchStridePoolUsers>>, TError = ErrorType<void>>(
+ params: SearchStridePoolUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchStridePoolUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchStridePoolUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStridePoolChallengeLeaderboardUrl = (id: string,) => {
+
+
+
+
+  return `/api/stridepool/challenges/${id}/leaderboard`
+}
+
+/**
+ * @summary Get the free community challenge leaderboard
+ */
+export const getStridePoolChallengeLeaderboard = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ChallengeLeaderboardResponse> => {
+
+  return customFetch<ChallengeLeaderboardResponse>(getGetStridePoolChallengeLeaderboardUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolChallengeLeaderboardQueryKey = (id: string,) => {
+    return [
+    `/api/stridepool/challenges/${id}/leaderboard`
+    ] as const;
+    }
+
+
+export const getGetStridePoolChallengeLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolChallengeLeaderboard>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolChallengeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolChallengeLeaderboardQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolChallengeLeaderboard>>> = ({ signal }) => getStridePoolChallengeLeaderboard(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolChallengeLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolChallengeLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolChallengeLeaderboard>>>
+export type GetStridePoolChallengeLeaderboardQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the free community challenge leaderboard
+ */
+
+export function useGetStridePoolChallengeLeaderboard<TData = Awaited<ReturnType<typeof getStridePoolChallengeLeaderboard>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolChallengeLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolChallengeLeaderboardQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStridePoolChallengeInviteUrl = (id: string,) => {
+
+
+
+
+  return `/api/stridepool/challenges/${id}/invites`
+}
+
+/**
+ * @summary Create a shareable or targeted invite for a free community challenge
+ */
+export const createStridePoolChallengeInvite = async (id: string,
+    challengeInviteInput: ChallengeInviteInput, options?: Parameters<typeof customFetch>[1]): Promise<ChallengeInviteResponse> => {
+
+  return customFetch<ChallengeInviteResponse>(getCreateStridePoolChallengeInviteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(challengeInviteInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStridePoolChallengeInviteMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolChallengeInvite>>, TError,{id: string;data: BodyType<ChallengeInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStridePoolChallengeInvite>>, TError,{id: string;data: BodyType<ChallengeInviteInput>}, TContext> => {
+
+const mutationKey = ['createStridePoolChallengeInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStridePoolChallengeInvite>>, {id: string;data: BodyType<ChallengeInviteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createStridePoolChallengeInvite(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStridePoolChallengeInviteMutationResult = NonNullable<Awaited<ReturnType<typeof createStridePoolChallengeInvite>>>
+    export type CreateStridePoolChallengeInviteMutationBody = BodyType<ChallengeInviteInput>
+    export type CreateStridePoolChallengeInviteMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Create a shareable or targeted invite for a free community challenge
+ */
+export const useCreateStridePoolChallengeInvite = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolChallengeInvite>>, TError,{id: string;data: BodyType<ChallengeInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStridePoolChallengeInvite>>,
+        TError,
+        {id: string;data: BodyType<ChallengeInviteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStridePoolChallengeInviteMutationOptions(options));
+    }
+
+export const getGetStridePoolPendingInvitesUrl = () => {
+
+
+
+
+  return `/api/stridepool/invites`
+}
+
+/**
+ * @summary List pending free challenge invites for the current user
+ */
+export const getStridePoolPendingInvites = async ( options?: Parameters<typeof customFetch>[1]): Promise<PendingInvitesResponse> => {
+
+  return customFetch<PendingInvitesResponse>(getGetStridePoolPendingInvitesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolPendingInvitesQueryKey = () => {
+    return [
+    `/api/stridepool/invites`
+    ] as const;
+    }
+
+
+export const getGetStridePoolPendingInvitesQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolPendingInvitesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolPendingInvites>>> = ({ signal }) => getStridePoolPendingInvites({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolPendingInvitesQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolPendingInvites>>>
+export type GetStridePoolPendingInvitesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List pending free challenge invites for the current user
+ */
+
+export function useGetStridePoolPendingInvites<TData = Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolPendingInvitesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStridePoolInviteUrl = (token: string,) => {
+
+
+
+
+  return `/api/stridepool/invites/${token}`
+}
+
+/**
+ * @summary Preview a free challenge invite
+ */
+export const getStridePoolInvite = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<ChallengeInvitePreview> => {
+
+  return customFetch<ChallengeInvitePreview>(getGetStridePoolInviteUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolInviteQueryKey = (token: string,) => {
+    return [
+    `/api/stridepool/invites/${token}`
+    ] as const;
+    }
+
+
+export const getGetStridePoolInviteQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolInvite>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolInvite>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolInviteQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolInvite>>> = ({ signal }) => getStridePoolInvite(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolInvite>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolInviteQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolInvite>>>
+export type GetStridePoolInviteQueryError = ErrorType<void>
+
+
+/**
+ * @summary Preview a free challenge invite
+ */
+
+export function useGetStridePoolInvite<TData = Awaited<ReturnType<typeof getStridePoolInvite>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolInvite>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolInviteQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptStridePoolInviteUrl = (token: string,) => {
+
+
+
+
+  return `/api/stridepool/invites/${token}/accept`
+}
+
+/**
+ * @summary Accept a free challenge invite
+ */
+export const acceptStridePoolInvite = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<InviteAcceptResponse> => {
+
+  return customFetch<InviteAcceptResponse>(getAcceptStridePoolInviteUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptStridePoolInviteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptStridePoolInvite>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptStridePoolInvite>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['acceptStridePoolInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptStridePoolInvite>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  acceptStridePoolInvite(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptStridePoolInviteMutationResult = NonNullable<Awaited<ReturnType<typeof acceptStridePoolInvite>>>
+
+    export type AcceptStridePoolInviteMutationError = ErrorType<void>
+
+    /**
+ * @summary Accept a free challenge invite
+ */
+export const useAcceptStridePoolInvite = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptStridePoolInvite>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptStridePoolInvite>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getAcceptStridePoolInviteMutationOptions(options));
     }
 
 export const getSyncStridePoolStepsUrl = () => {

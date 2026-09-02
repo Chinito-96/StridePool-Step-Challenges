@@ -230,6 +230,27 @@ export interface StepReview {
   createdAt: string;
 }
 
+export interface FreeStreak {
+  current: number;
+  best: number;
+  /** @nullable */
+  lastGoalDate: string | null;
+}
+
+export interface UserSearchResult {
+  id: string;
+  displayName: string;
+  email: string;
+}
+
+export interface PendingInvite {
+  id: string;
+  token: string;
+  challenge: Challenge;
+  inviter: UserSearchResult;
+  createdAt: string;
+}
+
 export interface StridePoolBootstrap {
   user: AuthUser | null;
   challenges: Challenge[];
@@ -241,11 +262,73 @@ export interface StridePoolBootstrap {
   healthSources: HealthSource[];
   recoveryCases: RecoveryCase[];
   stepReviews: StepReview[];
+  freeStreak: FreeStreak;
+  pendingInvites: PendingInvite[];
 }
 
 export interface EntryMutationResponse {
   joined: boolean;
   wallet: WalletSummary;
+}
+
+export interface CommunityChallengesResponse {
+  challenges: Challenge[];
+}
+
+export interface UserSearchResponse {
+  users: UserSearchResult[];
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string;
+  steps: number;
+  completedDays: number;
+  completionPercent: number;
+  isCurrentUser: boolean;
+}
+
+export interface ChallengeLeaderboardResponse {
+  challengeId: string;
+  dailyGoal: number;
+  days: number;
+  leaderboard: LeaderboardEntry[];
+}
+
+export interface ChallengeInviteInput {
+  /** @minLength 1 */
+  inviteeUserId?: string;
+}
+
+export type ChallengeInviteResponseStatus = typeof ChallengeInviteResponseStatus[keyof typeof ChallengeInviteResponseStatus];
+
+
+export const ChallengeInviteResponseStatus = {
+  pending: 'pending',
+} as const;
+
+export interface ChallengeInviteResponse {
+  id: string;
+  token: string;
+  inviteUrl: string;
+  challengeId: string;
+  status: ChallengeInviteResponseStatus;
+}
+
+export interface ChallengeInvitePreview {
+  token: string;
+  challenge: Challenge;
+  inviter: UserSearchResult;
+}
+
+export interface PendingInvitesResponse {
+  invites: PendingInvite[];
+}
+
+export interface InviteAcceptResponse {
+  joined: boolean;
+  challenge: Challenge;
 }
 
 export type SyncStepsResponseSource = typeof SyncStepsResponseSource[keyof typeof SyncStepsResponseSource];
@@ -554,5 +637,20 @@ returnTo?: string;
 
 export type LogoutBrowserSessionParams = {
 returnTo?: string;
+};
+
+export type GetStridePoolCommunityChallengesParams = {
+/**
+ * @maxLength 120
+ */
+q?: string;
+};
+
+export type SearchStridePoolUsersParams = {
+/**
+ * @minLength 2
+ * @maxLength 120
+ */
+q: string;
 };
 

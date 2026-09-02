@@ -1,6 +1,13 @@
 import {
+  AcceptStridePoolInviteResponse,
+  CreateStridePoolChallengeInviteBody,
+  GetStridePoolChallengeLeaderboardResponse,
+  GetStridePoolCommunityChallengesResponse,
+  CreateStridePoolChallengeInviteResponse,
   GetStridePoolBootstrapResponse,
   GetStridePoolHealthSourcesResponse,
+  GetStridePoolInviteResponse,
+  GetStridePoolPendingInvitesResponse,
   GetStridePoolRecoveryCasesResponse,
   IngestStridePoolSourceSamplesBody,
   IngestStridePoolSourceSamplesParams,
@@ -11,6 +18,7 @@ import {
   LeaveStridePoolChallengeResponse,
   RequestStridePoolRecoveryBody,
   RequestStridePoolRecoveryResponse,
+  SearchStridePoolUsersResponse,
   SyncStridePoolStepsBody,
   SyncStridePoolStepsResponse,
   UpdateStridePoolProfileBody,
@@ -18,6 +26,7 @@ import {
 } from "@workspace/api-zod";
 import {
   challengeRecoveryCasesTable,
+  challengeInvitesTable,
   challengesTable,
   dailyStepRecordsTable,
   db,
@@ -33,10 +42,13 @@ import {
   walletLedgerEntriesTable,
   type Challenge,
 } from "@workspace/db";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 
 const router: IRouter = Router();
+const ANONYMOUS_WALKER_COOKIE = "stridepool_anon";
+const ANONYMOUS_WALKER_TTL = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_PROFILE = { displayName: "Alex Morgan", reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, eligibilityAge: 0, eligibilityState: "", identityStatus: "not_started" as const, acceptedTerms: false };
 const DEFAULT_WALLET = { balance: 0, pending: 0, totalEarned: 0 };
 const HEALTH_SOURCES = [
@@ -56,6 +68,27 @@ function requireUser(req: Request, res: Response): string | null {
     return null;
   }
   return req.user.id;
+}
+function anonymousWalkerId(req: Request): string | null {
+  const value = req.cookies?.[ANONYMOUS_WALKER_COOKIE];
+  return typeof value === "string" && /^anon_[a-f0-9]{32}$/.test(value) ? value : null;
+}
+async function ensureAnonymousWalker(req: Request, res: Response): Promise<string> {
+  const existingId = anonymousWalkerId(req);
+  if (existingId) {
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, existingId));
+    if (existing) return existing.id;
+  }
+  const id = `anon_${randomBytes(16).toString("hex")}`;
+  await db.insert(usersTable).values({
+    id,
+    displayName: "Anonymous walker",
+    walletBalance: "0.00",
+    walletPending: "0.00",
+    totalEarned: "0.00",
+  });
+  res.cookie(ANONYMOUS_WALKER_COOKIE, id, { httpOnly: true, sameSite: "lax", maxAge: ANONYMOUS_WALKER_TTL, path: "/" });
+  return id;
 }
 function walletFor(user: typeof usersTable.$inferSelect) {
   return { balance: numberValue(user.walletBalance), pending: numberValue(user.walletPending), totalEarned: numberValue(user.totalEarned) };
@@ -159,6 +192,78 @@ async function getStepReviews(userId: string) {
   }));
 }
 
+function isOpenFreeCommunityChallenge(challenge: Challenge, today = new Date().toISOString().slice(0, 10)) {
+  return challenge.community && numberValue(challenge.entryFee) === 0 && challenge.settlementStatus === "open" && challenge.endDate >= today;
+}
+
+function publicUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    displayName: user.displayName || [user.firstName, user.lastName].filter(Boolean).join(" ") || "StridePool walker",
+    email: user.email ?? "",
+  };
+}
+
+async function getFreeStreak(userId: string) {
+  const rows = await db.select({
+    recordDate: dailyStepRecordsTable.recordDate,
+    steps: dailyStepRecordsTable.steps,
+    dailyGoal: challengesTable.dailyGoal,
+  }).from(dailyStepRecordsTable).innerJoin(challengesTable, eq(dailyStepRecordsTable.challengeId, challengesTable.id)).where(and(
+    eq(dailyStepRecordsTable.userId, userId),
+    eq(dailyStepRecordsTable.verified, true),
+    eq(challengesTable.community, true),
+    eq(challengesTable.entryFee, "0"),
+  ));
+  const qualifyingDates = new Set(rows.filter((row) => row.steps >= row.dailyGoal).map((row) => row.recordDate));
+  const shiftDate = (value: string, amount: number) => {
+    const date = new Date(`${value}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + amount);
+    return date.toISOString().slice(0, 10);
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = shiftDate(today, -1);
+  const currentStart = qualifyingDates.has(today) ? today : yesterday;
+  let current = qualifyingDates.has(currentStart) ? 1 : 0;
+  let cursor = currentStart;
+  while (current > 0 && qualifyingDates.has(shiftDate(cursor, -1))) {
+    cursor = shiftDate(cursor, -1);
+    current += 1;
+  }
+  const sorted = [...qualifyingDates].sort();
+  let best = 0;
+  let run = 0;
+  let previous: string | undefined;
+  for (const date of sorted) {
+    run = previous && shiftDate(previous, 1) === date ? run + 1 : 1;
+    best = Math.max(best, run);
+    previous = date;
+  }
+  return { current, best, lastGoalDate: sorted.at(-1) ?? null };
+}
+
+async function getPendingInvites(userId: string) {
+  const rows = await db.select({
+    invite: challengeInvitesTable,
+    challenge: challengesTable,
+    inviter: usersTable,
+  }).from(challengeInvitesTable)
+    .innerJoin(challengesTable, eq(challengeInvitesTable.challengeId, challengesTable.id))
+    .innerJoin(usersTable, eq(challengeInvitesTable.inviterUserId, usersTable.id))
+    .where(and(
+      eq(challengeInvitesTable.inviteeUserId, userId),
+      eq(challengeInvitesTable.status, "pending"),
+    ))
+    .orderBy(desc(challengeInvitesTable.createdAt));
+  return rows.filter(({ challenge }) => isOpenFreeCommunityChallenge(challenge)).map(({ invite, challenge, inviter }) => ({
+    id: String(invite.id),
+    token: invite.token,
+    challenge: challengeFor(challenge, new Set()),
+    inviter: publicUser(inviter),
+    createdAt: invite.createdAt.toISOString(),
+  }));
+}
+
 async function upsertDailySteps(
   userId: string,
   challengeId: string | null,
@@ -223,10 +328,14 @@ function sampleReviewResult(source: StepSourceId, sample: {
 async function getBootstrap(req: Request) {
   const challenges = await db.select().from(challengesTable).orderBy(challengesTable.createdAt);
   if (!req.isAuthenticated()) {
-    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [] };
+    const anonymousId = anonymousWalkerId(req);
+    const joinedIds = anonymousId
+      ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, anonymousId), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
+      : new Set<string>();
+    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)), joinedIds: [...joinedIds], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   }
   const user = await getUser(req.user.id);
-  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [] };
+  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   const entries = await db.select().from(entriesTable).where(and(eq(entriesTable.userId, user.id), eq(entriesTable.status, "active")));
   const joinedIds = new Set(entries.map((entry) => entry.challengeId));
   const today = new Date().toISOString().slice(0, 10);
@@ -236,6 +345,8 @@ async function getBootstrap(req: Request) {
   const healthSources = await getHealthSources(user.id);
   const recoveryCases = await getRecoveryCases(user.id);
   const stepReviews = await getStepReviews(user.id);
+  const freeStreak = await getFreeStreak(user.id);
+  const pendingInvites = await getPendingInvites(user.id);
   const entryActivities = entries.slice().sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime()).map((entry) => {
     const challenge = challenges.find((item) => item.id === entry.challengeId);
     return { id: `entry-${entry.id}`, type: "challenge", title: `You joined ${challenge?.name ?? "a challenge"}`, meta: `${numberValue(entry.entryFee) ? `$${numberValue(entry.entryFee)} committed` : "Free entry"} · persisted to your account`, timestamp: entry.joinedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }) };
@@ -268,11 +379,184 @@ async function getBootstrap(req: Request) {
     healthSources,
     recoveryCases,
     stepReviews,
+    freeStreak,
+    pendingInvites,
   };
 }
 
 router.get("/stridepool/bootstrap", async (req, res): Promise<void> => {
   res.json(GetStridePoolBootstrapResponse.parse(await getBootstrap(req)));
+});
+
+router.get("/stridepool/community-challenges", async (req, res): Promise<void> => {
+  const query = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 120).toLowerCase() : "";
+  const challenges = await db.select().from(challengesTable).orderBy(challengesTable.createdAt);
+  const openChallenges = challenges.filter((challenge) =>
+    isOpenFreeCommunityChallenge(challenge) &&
+    (!query || `${challenge.name} ${challenge.theme} ${challenge.level}`.toLowerCase().includes(query)),
+  );
+  const joinedIds = req.isAuthenticated()
+    ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, req.user.id), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
+    : new Set<string>();
+  res.json(GetStridePoolCommunityChallengesResponse.parse({ challenges: openChallenges.map((challenge) => challengeFor(challenge, joinedIds)) }));
+});
+
+router.get("/stridepool/users/search", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const query = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 120) : "";
+  if (query.length < 2) {
+    res.json(SearchStridePoolUsersResponse.parse({ users: [] }));
+    return;
+  }
+  const users = await db.select().from(usersTable).where(and(
+    sql`${usersTable.id} <> ${userId}`,
+    or(ilike(usersTable.displayName, `%${query}%`), ilike(usersTable.email, `%${query}%`), ilike(usersTable.firstName, `%${query}%`), ilike(usersTable.lastName, `%${query}%`)),
+  )).orderBy(asc(usersTable.displayName)).limit(10);
+  res.json(SearchStridePoolUsersResponse.parse({ users: users.map(publicUser) }));
+});
+
+router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<void> => {
+  const params = JoinStridePoolChallengeParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
+  if (!challenge || !challenge.community || numberValue(challenge.entryFee) !== 0) {
+    res.status(404).json({ error: "Free community challenge not found." });
+    return;
+  }
+  const entries = await db.select({ entry: entriesTable, user: usersTable }).from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(and(
+    eq(entriesTable.challengeId, challenge.id),
+    eq(entriesTable.status, "active"),
+  ));
+  const currentUserId = req.isAuthenticated() ? req.user.id : null;
+  const leaderboard = await Promise.all(entries.map(async ({ entry, user }) => {
+    const records = await db.select().from(dailyStepRecordsTable).where(and(
+      eq(dailyStepRecordsTable.userId, entry.userId),
+      eq(dailyStepRecordsTable.challengeId, challenge.id),
+      eq(dailyStepRecordsTable.verified, true),
+    ));
+    const steps = records.reduce((total, record) => total + record.steps, 0);
+    const completedDays = records.filter((record) => record.steps >= challenge.dailyGoal).length;
+    return { userId: user.id, displayName: publicUser(user).displayName, steps, completedDays, completionPercent: Math.round((completedDays / challenge.days) * 100), isCurrentUser: user.id === currentUserId };
+  }));
+  leaderboard.sort((a, b) => b.steps - a.steps || b.completedDays - a.completedDays || a.displayName.localeCompare(b.displayName));
+  res.json(GetStridePoolChallengeLeaderboardResponse.parse({
+    challengeId: challenge.id,
+    dailyGoal: challenge.dailyGoal,
+    days: challenge.days,
+    leaderboard: leaderboard.map((entry, index) => ({ rank: index + 1, ...entry })),
+  }));
+});
+
+router.post("/stridepool/challenges/:id/invites", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const params = JoinStridePoolChallengeParams.safeParse(req.params);
+  const body = CreateStridePoolChallengeInviteBody.safeParse(req.body ?? {});
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Choose a free community challenge and an optional person to invite." });
+    return;
+  }
+  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
+  if (!challenge || !isOpenFreeCommunityChallenge(challenge)) {
+    res.status(400).json({ error: "Invites are available only for open free community challenges." });
+    return;
+  }
+  const [entry] = await db.select().from(entriesTable).where(and(
+    eq(entriesTable.userId, userId),
+    eq(entriesTable.challengeId, challenge.id),
+    eq(entriesTable.status, "active"),
+  ));
+  if (!entry) {
+    res.status(400).json({ error: "Join the free community challenge before inviting someone." });
+    return;
+  }
+  if (body.data.inviteeUserId === userId) {
+    res.status(400).json({ error: "You cannot invite yourself." });
+    return;
+  }
+  if (body.data.inviteeUserId) {
+    const [invitee] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, body.data.inviteeUserId));
+    if (!invitee) {
+      res.status(404).json({ error: "That walker could not be found." });
+      return;
+    }
+  }
+  const token = randomBytes(24).toString("base64url");
+  const [invite] = await db.insert(challengeInvitesTable).values({
+    challengeId: challenge.id,
+    inviterUserId: userId,
+    inviteeUserId: body.data.inviteeUserId,
+    token,
+  }).returning();
+  res.status(201).json(CreateStridePoolChallengeInviteResponse.parse({
+    id: String(invite.id),
+    token: invite.token,
+    inviteUrl: `/invite/${invite.token}`,
+    challengeId: invite.challengeId,
+    status: "pending",
+  }));
+});
+
+router.get("/stridepool/invites", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json(GetStridePoolPendingInvitesResponse.parse({ invites: await getPendingInvites(userId) }));
+});
+
+router.get("/stridepool/invites/:token", async (req, res): Promise<void> => {
+  const token = typeof req.params.token === "string" ? req.params.token : "";
+  const [row] = await db.select({
+    invite: challengeInvitesTable,
+    challenge: challengesTable,
+    inviter: usersTable,
+  }).from(challengeInvitesTable)
+    .innerJoin(challengesTable, eq(challengeInvitesTable.challengeId, challengesTable.id))
+    .innerJoin(usersTable, eq(challengeInvitesTable.inviterUserId, usersTable.id))
+    .where(eq(challengeInvitesTable.token, token));
+  if (!row || row.invite.status !== "pending" || !isOpenFreeCommunityChallenge(row.challenge)) {
+    res.status(404).json({ error: "This invite is no longer available." });
+    return;
+  }
+  res.json(GetStridePoolInviteResponse.parse({
+    token,
+    challenge: challengeFor(row.challenge, new Set()),
+    inviter: publicUser(row.inviter),
+  }));
+});
+
+router.post("/stridepool/invites/:token/accept", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const token = typeof req.params.token === "string" ? req.params.token : "";
+  const [row] = await db.select({
+    invite: challengeInvitesTable,
+    challenge: challengesTable,
+  }).from(challengeInvitesTable).innerJoin(challengesTable, eq(challengeInvitesTable.challengeId, challengesTable.id)).where(eq(challengeInvitesTable.token, token));
+  if (!row || row.invite.status !== "pending" || !isOpenFreeCommunityChallenge(row.challenge)) {
+    res.status(404).json({ error: "This invite is no longer available." });
+    return;
+  }
+  if (row.invite.inviteeUserId && row.invite.inviteeUserId !== userId) {
+    res.status(403).json({ error: "This invite was sent to another StridePool walker." });
+    return;
+  }
+  try {
+    await joinMoneyChallenge(userId, row.challenge.id);
+  } catch (error) {
+    if (error instanceof MoneyLogicError) {
+      const status = error.code === "NOT_FOUND" ? 404 : error.code === "ALREADY_STARTED" ? 409 : 400;
+      res.status(status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
+  await db.update(challengeInvitesTable).set({ status: "accepted", acceptedAt: new Date() }).where(eq(challengeInvitesTable.id, row.invite.id));
+  const joinedIds = new Set([row.challenge.id]);
+  res.json(AcceptStridePoolInviteResponse.parse({ joined: true, challenge: challengeFor(row.challenge, joinedIds) }));
 });
 
 router.get("/stridepool/sources", async (req, res): Promise<void> => {
@@ -458,11 +742,23 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
 });
 
 router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
   const params = JoinStridePoolChallengeParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
+  if (!challenge) {
+    res.status(404).json({ error: "Challenge not found." });
+    return;
+  }
+  const userId = req.isAuthenticated()
+    ? req.user.id
+    : challenge.community && numberValue(challenge.entryFee) === 0
+      ? await ensureAnonymousWalker(req, res)
+      : null;
+  if (!userId) {
+    res.status(401).json({ error: "Login required for paid or personalized challenges." });
     return;
   }
   try {
@@ -479,11 +775,23 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
 });
 
 router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
   const params = LeaveStridePoolChallengeParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
+  if (!challenge) {
+    res.status(404).json({ error: "Challenge not found." });
+    return;
+  }
+  const userId = req.isAuthenticated()
+    ? req.user.id
+    : challenge.community && numberValue(challenge.entryFee) === 0
+      ? anonymousWalkerId(req)
+      : null;
+  if (!userId) {
+    res.status(401).json({ error: "Login required to leave this challenge." });
     return;
   }
   try {

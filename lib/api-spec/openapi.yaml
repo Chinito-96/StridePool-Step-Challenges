@@ -302,6 +302,151 @@ paths:
                 $ref: "#/components/schemas/EntryMutationResponse"
         "401":
           description: Login required.
+  /stridepool/community-challenges:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolCommunityChallenges
+      summary: Browse open free community challenges
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema: { type: string, maxLength: 120 }
+      responses:
+        "200":
+          description: Open free community challenges.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityChallengesResponse"
+  /stridepool/users/search:
+    get:
+      tags: [stridepool]
+      operationId: searchStridePoolUsers
+      summary: Search users for a free challenge invite
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 120 }
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Matching users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSearchResponse"
+        "401":
+          description: Login required.
+  /stridepool/challenges/{id}/leaderboard:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolChallengeLeaderboard
+      summary: Get the free community challenge leaderboard
+      parameters:
+        - $ref: "#/components/parameters/ChallengeId"
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Free challenge participant rankings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeLeaderboardResponse"
+        "404":
+          description: Free community challenge not found.
+  /stridepool/challenges/{id}/invites:
+    post:
+      tags: [stridepool]
+      operationId: createStridePoolChallengeInvite
+      summary: Create a shareable or targeted invite for a free community challenge
+      parameters:
+        - $ref: "#/components/parameters/ChallengeId"
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeInviteInput"
+      responses:
+        "201":
+          description: Invite created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeInviteResponse"
+        "400":
+          description: Invalid or non-free challenge invite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
+  /stridepool/invites:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolPendingInvites
+      summary: List pending free challenge invites for the current user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Pending invites.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingInvitesResponse"
+        "401":
+          description: Login required.
+  /stridepool/invites/{token}:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolInvite
+      summary: Preview a free challenge invite
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 120 }
+      responses:
+        "200":
+          description: Invite preview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeInvitePreview"
+        "404":
+          description: Invite not found or no longer available.
+  /stridepool/invites/{token}/accept:
+    post:
+      tags: [stridepool]
+      operationId: acceptStridePoolInvite
+      summary: Accept a free challenge invite
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 120 }
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Invite accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteAcceptResponse"
+        "401":
+          description: Login required.
+        "404":
+          description: Invite not found or no longer available.
   /stridepool/sync:
     post:
       tags: [stridepool]
@@ -599,7 +744,7 @@ components:
         acceptedTerms: { type: boolean }
     StridePoolBootstrap:
       type: object
-      required: [user, challenges, joinedIds, steps, activities, wallet, profile, healthSources, recoveryCases, stepReviews]
+      required: [user, challenges, joinedIds, steps, activities, wallet, profile, healthSources, recoveryCases, stepReviews, freeStreak, pendingInvites]
       properties:
         user:
           oneOf:
@@ -626,12 +771,108 @@ components:
         stepReviews:
           type: array
           items: { $ref: "#/components/schemas/StepReview" }
+        freeStreak: { $ref: "#/components/schemas/FreeStreak" }
+        pendingInvites:
+          type: array
+          items: { $ref: "#/components/schemas/PendingInvite" }
     EntryMutationResponse:
       type: object
       required: [joined, wallet]
       properties:
         joined: { type: boolean }
         wallet: { $ref: "#/components/schemas/WalletSummary" }
+    CommunityChallengesResponse:
+      type: object
+      required: [challenges]
+      properties:
+        challenges:
+          type: array
+          items: { $ref: "#/components/schemas/Challenge" }
+    UserSearchResponse:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items: { $ref: "#/components/schemas/UserSearchResult" }
+    UserSearchResult:
+      type: object
+      required: [id, displayName, email]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        email: { type: string }
+    ChallengeLeaderboardResponse:
+      type: object
+      required: [challengeId, dailyGoal, days, leaderboard]
+      properties:
+        challengeId: { type: string }
+        dailyGoal: { type: integer }
+        days: { type: integer }
+        leaderboard:
+          type: array
+          items: { $ref: "#/components/schemas/LeaderboardEntry" }
+    LeaderboardEntry:
+      type: object
+      required: [rank, userId, displayName, steps, completedDays, completionPercent, isCurrentUser]
+      properties:
+        rank: { type: integer }
+        userId: { type: string }
+        displayName: { type: string }
+        steps: { type: integer }
+        completedDays: { type: integer }
+        completionPercent: { type: integer }
+        isCurrentUser: { type: boolean }
+    ChallengeInviteInput:
+      type: object
+      properties:
+        inviteeUserId: { type: string, minLength: 1 }
+    ChallengeInviteResponse:
+      type: object
+      required: [id, token, inviteUrl, challengeId, status]
+      properties:
+        id: { type: string }
+        token: { type: string }
+        inviteUrl: { type: string }
+        challengeId: { type: string }
+        status: { type: string, enum: [pending] }
+    ChallengeInvitePreview:
+      type: object
+      required: [token, challenge, inviter]
+      properties:
+        token: { type: string }
+        challenge: { $ref: "#/components/schemas/Challenge" }
+        inviter:
+          $ref: "#/components/schemas/UserSearchResult"
+    PendingInvite:
+      type: object
+      required: [id, token, challenge, inviter, createdAt]
+      properties:
+        id: { type: string }
+        token: { type: string }
+        challenge: { $ref: "#/components/schemas/Challenge" }
+        inviter: { $ref: "#/components/schemas/UserSearchResult" }
+        createdAt: { type: string, format: date-time }
+    PendingInvitesResponse:
+      type: object
+      required: [invites]
+      properties:
+        invites:
+          type: array
+          items: { $ref: "#/components/schemas/PendingInvite" }
+    InviteAcceptResponse:
+      type: object
+      required: [joined, challenge]
+      properties:
+        joined: { type: boolean }
+        challenge: { $ref: "#/components/schemas/Challenge" }
+    FreeStreak:
+      type: object
+      required: [current, best, lastGoalDate]
+      properties:
+        current: { type: integer }
+        best: { type: integer }
+        lastGoalDate: { type: [string, "null"], format: date }
     SyncStepsResponse:
       type: object
       required: [steps, activity, source, verificationStatus, reviewFlags]

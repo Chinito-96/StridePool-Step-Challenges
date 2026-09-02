@@ -306,6 +306,41 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "verificationStatus": zod.enum(['pending_review']),
   "reviewFlags": zod.array(zod.string()),
   "createdAt": zod.coerce.date()
+})),
+  "freeStreak": zod.object({
+  "current": zod.int(),
+  "best": zod.int(),
+  "lastGoalDate": zod.coerce.date().nullable()
+}),
+  "pendingInvites": zod.array(zod.object({
+  "id": zod.string(),
+  "token": zod.string(),
+  "challenge": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "theme": zod.string(),
+  "level": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
+  "entryFee": zod.number(),
+  "prizePool": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
+  "color": zod.string(),
+  "goalType": zod.string(),
+  "community": zod.boolean(),
+  "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
+  "joined": zod.boolean()
+}),
+  "inviter": zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string()
+}),
+  "createdAt": zod.coerce.date()
 }))
 })
 
@@ -348,6 +383,244 @@ export const LeaveStridePoolChallengeResponse = zod.object({
   "balance": zod.number(),
   "pending": zod.number(),
   "totalEarned": zod.number()
+})
+})
+
+
+/**
+ * @summary Browse open free community challenges
+ */
+export const getStridePoolCommunityChallengesQueryQMax = 120;
+
+
+
+export const GetStridePoolCommunityChallengesQueryParams = zod.object({
+  "q": zod.coerce.string().max(getStridePoolCommunityChallengesQueryQMax).optional()
+})
+
+export const GetStridePoolCommunityChallengesResponse = zod.object({
+  "challenges": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "theme": zod.string(),
+  "level": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
+  "entryFee": zod.number(),
+  "prizePool": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
+  "color": zod.string(),
+  "goalType": zod.string(),
+  "community": zod.boolean(),
+  "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
+  "joined": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Search users for a free challenge invite
+ */
+export const searchStridePoolUsersQueryQMin = 2;
+export const searchStridePoolUsersQueryQMax = 120;
+
+
+
+export const SearchStridePoolUsersQueryParams = zod.object({
+  "q": zod.coerce.string().min(searchStridePoolUsersQueryQMin).max(searchStridePoolUsersQueryQMax)
+})
+
+export const SearchStridePoolUsersHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const SearchStridePoolUsersResponse = zod.object({
+  "users": zod.array(zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string()
+}))
+})
+
+
+/**
+ * @summary Get the free community challenge leaderboard
+ */
+export const GetStridePoolChallengeLeaderboardParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetStridePoolChallengeLeaderboardHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetStridePoolChallengeLeaderboardResponse = zod.object({
+  "challengeId": zod.string(),
+  "dailyGoal": zod.int(),
+  "days": zod.int(),
+  "leaderboard": zod.array(zod.object({
+  "rank": zod.int(),
+  "userId": zod.string(),
+  "displayName": zod.string(),
+  "steps": zod.int(),
+  "completedDays": zod.int(),
+  "completionPercent": zod.int(),
+  "isCurrentUser": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Create a shareable or targeted invite for a free community challenge
+ */
+export const CreateStridePoolChallengeInviteParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CreateStridePoolChallengeInviteHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+
+
+
+export const CreateStridePoolChallengeInviteBody = zod.object({
+  "inviteeUserId": zod.string().min(1).optional()
+})
+
+export const CreateStridePoolChallengeInviteResponse = zod.object({
+  "id": zod.string(),
+  "token": zod.string(),
+  "inviteUrl": zod.string(),
+  "challengeId": zod.string(),
+  "status": zod.enum(['pending'])
+})
+
+
+/**
+ * @summary List pending free challenge invites for the current user
+ */
+export const GetStridePoolPendingInvitesHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetStridePoolPendingInvitesResponse = zod.object({
+  "invites": zod.array(zod.object({
+  "id": zod.string(),
+  "token": zod.string(),
+  "challenge": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "theme": zod.string(),
+  "level": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
+  "entryFee": zod.number(),
+  "prizePool": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
+  "color": zod.string(),
+  "goalType": zod.string(),
+  "community": zod.boolean(),
+  "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
+  "joined": zod.boolean()
+}),
+  "inviter": zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string()
+}),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Preview a free challenge invite
+ */
+export const getStridePoolInvitePathTokenMin = 16;
+export const getStridePoolInvitePathTokenMax = 120;
+
+
+
+export const GetStridePoolInviteParams = zod.object({
+  "token": zod.coerce.string().min(getStridePoolInvitePathTokenMin).max(getStridePoolInvitePathTokenMax)
+})
+
+export const GetStridePoolInviteResponse = zod.object({
+  "token": zod.string(),
+  "challenge": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "theme": zod.string(),
+  "level": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
+  "entryFee": zod.number(),
+  "prizePool": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
+  "color": zod.string(),
+  "goalType": zod.string(),
+  "community": zod.boolean(),
+  "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
+  "joined": zod.boolean()
+}),
+  "inviter": zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string()
+})
+})
+
+
+/**
+ * @summary Accept a free challenge invite
+ */
+export const acceptStridePoolInvitePathTokenMin = 16;
+export const acceptStridePoolInvitePathTokenMax = 120;
+
+
+
+export const AcceptStridePoolInviteParams = zod.object({
+  "token": zod.coerce.string().min(acceptStridePoolInvitePathTokenMin).max(acceptStridePoolInvitePathTokenMax)
+})
+
+export const AcceptStridePoolInviteHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const AcceptStridePoolInviteResponse = zod.object({
+  "joined": zod.boolean(),
+  "challenge": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "theme": zod.string(),
+  "level": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
+  "entryFee": zod.number(),
+  "prizePool": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
+  "color": zod.string(),
+  "goalType": zod.string(),
+  "community": zod.boolean(),
+  "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
+  "joined": zod.boolean()
 })
 })
 

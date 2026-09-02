@@ -128,6 +128,25 @@ export const challengeRecoveryCasesTable = pgTable(
   ],
 );
 
+export const challengeInvitesTable = pgTable(
+  "challenge_invites",
+  {
+    id: serial("id").primaryKey(),
+    challengeId: varchar("challenge_id").notNull().references(() => challengesTable.id, { onDelete: "cascade" }),
+    inviterUserId: varchar("inviter_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    inviteeUserId: varchar("invitee_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+    token: varchar("token").notNull(),
+    status: varchar("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("challenge_invites_token_unique").on(table.token),
+    index("challenge_invites_challenge_idx").on(table.challengeId, table.createdAt),
+    index("challenge_invites_invitee_idx").on(table.inviteeUserId, table.status),
+  ],
+);
+
 export const walletLedgerEntriesTable = pgTable(
   "wallet_ledger_entries",
   {
@@ -235,6 +254,7 @@ export type DailyStepRecord = typeof dailyStepRecordsTable.$inferSelect;
 export type HealthSourceConnection = typeof healthSourceConnectionsTable.$inferSelect;
 export type StepSourceSample = typeof stepSourceSamplesTable.$inferSelect;
 export type ChallengeRecoveryCase = typeof challengeRecoveryCasesTable.$inferSelect;
+export type ChallengeInvite = typeof challengeInvitesTable.$inferSelect;
 export type WalletLedgerEntry = typeof walletLedgerEntriesTable.$inferSelect;
 export type ProviderMoneyEvent = typeof providerMoneyEventsTable.$inferSelect;
 export type PayoutState = typeof payoutStatesTable.$inferSelect;
