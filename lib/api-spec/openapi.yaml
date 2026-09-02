@@ -318,6 +318,105 @@ paths:
                 $ref: "#/components/schemas/SyncStepsResponse"
         "401":
           description: Login required.
+  /stridepool/sources:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolHealthSources
+      summary: List supported health sources and verification status
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Supported health sources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthSourcesResponse"
+        "401":
+          description: Login required.
+  /stridepool/sources/{source}/samples:
+    post:
+      tags: [stridepool]
+      operationId: ingestStridePoolSourceSamples
+      summary: Store and evaluate raw Apple Health or Health Connect samples
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [apple_health, health_connect]
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestStepSamplesBody"
+      responses:
+        "200":
+          description: Samples stored and evaluated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestStepSamplesResponse"
+        "400":
+          description: Invalid source sample payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
+  /stridepool/recovery:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolRecoveryCases
+      summary: List recovery and settlement states
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Recovery cases.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryCasesResponse"
+        "401":
+          description: Login required.
+    post:
+      tags: [stridepool]
+      operationId: requestStridePoolRecovery
+      summary: Request a grace day, injury pause, or support review
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoveryRequestBody"
+      responses:
+        "201":
+          description: Recovery request created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryCase"
+        "400":
+          description: Invalid recovery request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
+        "404":
+          description: Challenge not found or not joined.
   /stridepool/wallet/demo-funds:
     post:
       tags: [stridepool]
@@ -429,7 +528,7 @@ components:
         success: { type: boolean, const: true }
     Challenge:
       type: object
-      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, goalType, community, graceDays, joined]
+      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, goalType, community, graceDays, settlementStatus, joined]
       properties:
         id: { type: string }
         name: { type: string }
@@ -447,6 +546,7 @@ components:
         goalType: { type: string }
         community: { type: boolean }
         graceDays: { type: integer }
+        settlementStatus: { type: string, enum: [open, pending_review, settled] }
         joined: { type: boolean }
     Activity:
       type: object
@@ -492,7 +592,7 @@ components:
         acceptedTerms: { type: boolean }
     StridePoolBootstrap:
       type: object
-      required: [user, challenges, joinedIds, steps, activities, wallet, profile]
+      required: [user, challenges, joinedIds, steps, activities, wallet, profile, healthSources, recoveryCases]
       properties:
         user:
           oneOf:
@@ -510,6 +610,12 @@ components:
           items: { $ref: "#/components/schemas/Activity" }
         wallet: { $ref: "#/components/schemas/WalletSummary" }
         profile: { $ref: "#/components/schemas/ProfileSettings" }
+        healthSources:
+          type: array
+          items: { $ref: "#/components/schemas/HealthSource" }
+        recoveryCases:
+          type: array
+          items: { $ref: "#/components/schemas/RecoveryCase" }
     EntryMutationResponse:
       type: object
       required: [joined, wallet]
@@ -522,6 +628,89 @@ components:
       properties:
         steps: { type: integer }
         activity: { $ref: "#/components/schemas/Activity" }
+    HealthSource:
+      type: object
+      required: [source, label, status, lastSyncedAt, verifiedSamples, pendingReview]
+      properties:
+        source: { type: string, enum: [apple_health, health_connect] }
+        label: { type: string }
+        status: { type: string, enum: [available, connected] }
+        lastSyncedAt: { type: [string, "null"], format: date-time }
+        verifiedSamples: { type: integer }
+        pendingReview: { type: integer }
+    HealthSourcesResponse:
+      type: object
+      required: [sources]
+      properties:
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/HealthSource" }
+    StepSourceSample:
+      type: object
+      required: [sourceSampleId, recordDate, steps, startTime, endTime, rawPayload]
+      properties:
+        sourceSampleId: { type: string, minLength: 1, maxLength: 180 }
+        recordDate: { type: string, format: date }
+        steps: { type: integer, minimum: 0, maximum: 100000 }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        recordedAt: { type: [string, "null"], format: date-time }
+        rawPayload: { type: object, additionalProperties: true }
+    IngestStepSamplesBody:
+      type: object
+      required: [samples]
+      properties:
+        samples:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: "#/components/schemas/StepSourceSample" }
+    SourceSampleResult:
+      type: object
+      required: [sourceSampleId, verificationStatus, reviewFlags]
+      properties:
+        sourceSampleId: { type: string }
+        verificationStatus: { type: string, enum: [verified, pending_review] }
+        reviewFlags:
+          type: array
+          items: { type: string }
+    IngestStepSamplesResponse:
+      type: object
+      required: [source, acceptedCount, pendingReviewCount, steps, samples]
+      properties:
+        source: { type: string, enum: [apple_health, health_connect] }
+        acceptedCount: { type: integer }
+        pendingReviewCount: { type: integer }
+        steps: { type: integer }
+        samples:
+          type: array
+          items: { $ref: "#/components/schemas/SourceSampleResult" }
+    RecoveryRequestBody:
+      type: object
+      required: [challengeId, type, reason]
+      properties:
+        challengeId: { type: string }
+        type: { type: string, enum: [grace_day, injury_pause, support_review] }
+        reason: { type: string, minLength: 8, maxLength: 1000 }
+    RecoveryCase:
+      type: object
+      required: [id, challengeId, challengeName, type, status, reason, reviewMessage, requestedAt]
+      properties:
+        id: { type: string }
+        challengeId: { type: string }
+        challengeName: { type: string }
+        type: { type: string, enum: [grace_day, injury_pause, support_review] }
+        status: { type: string, enum: [requested, approved, denied, resolved] }
+        reason: { type: string }
+        reviewMessage: { type: string }
+        requestedAt: { type: string, format: date-time }
+    RecoveryCasesResponse:
+      type: object
+      required: [cases]
+      properties:
+        cases:
+          type: array
+          items: { $ref: "#/components/schemas/RecoveryCase" }
     ErrorResponse:
       type: object
       required: [error]

@@ -29,7 +29,10 @@ import type {
   EligibilityInput,
   EntryMutationResponse,
   ErrorResponse,
+  HealthSourcesResponse,
   HealthStatus,
+  IngestStepSamplesBody,
+  IngestStepSamplesResponse,
   LedgerEntry,
   LogoutBrowserSessionParams,
   LogoutSuccess,
@@ -40,6 +43,9 @@ import type {
   ProfileSettings,
   ProfileUpdate,
   ProviderWebhookInput,
+  RecoveryCase,
+  RecoveryCasesResponse,
+  RecoveryRequestBody,
   StridePoolBootstrap,
   SyncStepsResponse,
   WalletSummary,
@@ -1342,6 +1348,303 @@ export const useSyncStridePoolSteps = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSyncStridePoolStepsMutationOptions(options));
+    }
+
+export const getGetStridePoolHealthSourcesUrl = () => {
+
+
+
+
+  return `/api/stridepool/sources`
+}
+
+/**
+ * @summary List supported health sources and verification status
+ */
+export const getStridePoolHealthSources = async ( options?: Parameters<typeof customFetch>[1]): Promise<HealthSourcesResponse> => {
+
+  return customFetch<HealthSourcesResponse>(getGetStridePoolHealthSourcesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolHealthSourcesQueryKey = () => {
+    return [
+    `/api/stridepool/sources`
+    ] as const;
+    }
+
+
+export const getGetStridePoolHealthSourcesQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolHealthSources>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolHealthSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolHealthSourcesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolHealthSources>>> = ({ signal }) => getStridePoolHealthSources({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolHealthSources>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolHealthSourcesQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolHealthSources>>>
+export type GetStridePoolHealthSourcesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List supported health sources and verification status
+ */
+
+export function useGetStridePoolHealthSources<TData = Awaited<ReturnType<typeof getStridePoolHealthSources>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolHealthSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolHealthSourcesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getIngestStridePoolSourceSamplesUrl = (source: 'apple_health' | 'health_connect',) => {
+
+
+
+
+  return `/api/stridepool/sources/${source}/samples`
+}
+
+/**
+ * @summary Store and evaluate raw Apple Health or Health Connect samples
+ */
+export const ingestStridePoolSourceSamples = async (source: 'apple_health' | 'health_connect',
+    ingestStepSamplesBody: IngestStepSamplesBody, options?: Parameters<typeof customFetch>[1]): Promise<IngestStepSamplesResponse> => {
+
+  return customFetch<IngestStepSamplesResponse>(getIngestStridePoolSourceSamplesUrl(source),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(ingestStepSamplesBody)
+  }
+);}
+
+
+
+
+
+export const getIngestStridePoolSourceSamplesMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext> => {
+
+const mutationKey = ['ingestStridePoolSourceSamples'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, {source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}> = (props) => {
+          const {source,data} = props ?? {};
+
+          return  ingestStridePoolSourceSamples(source,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IngestStridePoolSourceSamplesMutationResult = NonNullable<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>>
+    export type IngestStridePoolSourceSamplesMutationBody = BodyType<IngestStepSamplesBody>
+    export type IngestStridePoolSourceSamplesMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Store and evaluate raw Apple Health or Health Connect samples
+ */
+export const useIngestStridePoolSourceSamples = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>,
+        TError,
+        {source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>},
+        TContext
+      > => {
+      return useMutation(getIngestStridePoolSourceSamplesMutationOptions(options));
+    }
+
+export const getGetStridePoolRecoveryCasesUrl = () => {
+
+
+
+
+  return `/api/stridepool/recovery`
+}
+
+/**
+ * @summary List recovery and settlement states
+ */
+export const getStridePoolRecoveryCases = async ( options?: Parameters<typeof customFetch>[1]): Promise<RecoveryCasesResponse> => {
+
+  return customFetch<RecoveryCasesResponse>(getGetStridePoolRecoveryCasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolRecoveryCasesQueryKey = () => {
+    return [
+    `/api/stridepool/recovery`
+    ] as const;
+    }
+
+
+export const getGetStridePoolRecoveryCasesQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolRecoveryCasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>> = ({ signal }) => getStridePoolRecoveryCases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolRecoveryCasesQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>>
+export type GetStridePoolRecoveryCasesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List recovery and settlement states
+ */
+
+export function useGetStridePoolRecoveryCases<TData = Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolRecoveryCasesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestStridePoolRecoveryUrl = () => {
+
+
+
+
+  return `/api/stridepool/recovery`
+}
+
+/**
+ * @summary Request a grace day, injury pause, or support review
+ */
+export const requestStridePoolRecovery = async (recoveryRequestBody: RecoveryRequestBody, options?: Parameters<typeof customFetch>[1]): Promise<RecoveryCase> => {
+
+  return customFetch<RecoveryCase>(getRequestStridePoolRecoveryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recoveryRequestBody)
+  }
+);}
+
+
+
+
+
+export const getRequestStridePoolRecoveryMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStridePoolRecovery>>, TError,{data: BodyType<RecoveryRequestBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestStridePoolRecovery>>, TError,{data: BodyType<RecoveryRequestBody>}, TContext> => {
+
+const mutationKey = ['requestStridePoolRecovery'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestStridePoolRecovery>>, {data: BodyType<RecoveryRequestBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestStridePoolRecovery(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestStridePoolRecoveryMutationResult = NonNullable<Awaited<ReturnType<typeof requestStridePoolRecovery>>>
+    export type RequestStridePoolRecoveryMutationBody = BodyType<RecoveryRequestBody>
+    export type RequestStridePoolRecoveryMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Request a grace day, injury pause, or support review
+ */
+export const useRequestStridePoolRecovery = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStridePoolRecovery>>, TError,{data: BodyType<RecoveryRequestBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestStridePoolRecovery>>,
+        TError,
+        {data: BodyType<RecoveryRequestBody>},
+        TContext
+      > => {
+      return useMutation(getRequestStridePoolRecoveryMutationOptions(options));
     }
 
 export const getAddStridePoolDemoFundsUrl = () => {

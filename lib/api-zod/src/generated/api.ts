@@ -263,6 +263,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()
 })),
   "joinedIds": zod.array(zod.string()),
@@ -290,7 +291,25 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "eligibilityState": zod.string().max(getStridePoolBootstrapResponseProfileEligibilityStateMax),
   "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
   "acceptedTerms": zod.boolean()
-})
+}),
+  "healthSources": zod.array(zod.object({
+  "source": zod.enum(['apple_health', 'health_connect']),
+  "label": zod.string(),
+  "status": zod.enum(['available', 'connected']),
+  "lastSyncedAt": zod.coerce.date().nullable(),
+  "verifiedSamples": zod.int(),
+  "pendingReview": zod.int()
+})),
+  "recoveryCases": zod.array(zod.object({
+  "id": zod.string(),
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
+  "reason": zod.string(),
+  "reviewMessage": zod.string(),
+  "requestedAt": zod.coerce.date()
+}))
 })
 
 
@@ -352,6 +371,121 @@ export const SyncStridePoolStepsResponse = zod.object({
   "meta": zod.string(),
   "timestamp": zod.string()
 })
+})
+
+
+/**
+ * @summary List supported health sources and verification status
+ */
+export const GetStridePoolHealthSourcesHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetStridePoolHealthSourcesResponse = zod.object({
+  "sources": zod.array(zod.object({
+  "source": zod.enum(['apple_health', 'health_connect']),
+  "label": zod.string(),
+  "status": zod.enum(['available', 'connected']),
+  "lastSyncedAt": zod.coerce.date().nullable(),
+  "verifiedSamples": zod.int(),
+  "pendingReview": zod.int()
+}))
+})
+
+
+/**
+ * @summary Store and evaluate raw Apple Health or Health Connect samples
+ */
+export const IngestStridePoolSourceSamplesParams = zod.object({
+  "source": zod.enum(['apple_health', 'health_connect'])
+})
+
+export const IngestStridePoolSourceSamplesHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const ingestStridePoolSourceSamplesBodySamplesItemSourceSampleIdMax = 180;
+
+export const ingestStridePoolSourceSamplesBodySamplesItemStepsMin = 0;
+export const ingestStridePoolSourceSamplesBodySamplesItemStepsMax = 100000;
+
+export const ingestStridePoolSourceSamplesBodySamplesMax = 500;
+
+
+
+export const IngestStridePoolSourceSamplesBody = zod.object({
+  "samples": zod.array(zod.object({
+  "sourceSampleId": zod.string().min(1).max(ingestStridePoolSourceSamplesBodySamplesItemSourceSampleIdMax),
+  "recordDate": zod.coerce.date(),
+  "steps": zod.int().min(ingestStridePoolSourceSamplesBodySamplesItemStepsMin).max(ingestStridePoolSourceSamplesBodySamplesItemStepsMax),
+  "startTime": zod.coerce.date(),
+  "endTime": zod.coerce.date(),
+  "recordedAt": zod.coerce.date().nullish(),
+  "rawPayload": zod.record(zod.string(), zod.unknown())
+})).min(1).max(ingestStridePoolSourceSamplesBodySamplesMax)
+})
+
+export const IngestStridePoolSourceSamplesResponse = zod.object({
+  "source": zod.enum(['apple_health', 'health_connect']),
+  "acceptedCount": zod.int(),
+  "pendingReviewCount": zod.int(),
+  "steps": zod.int(),
+  "samples": zod.array(zod.object({
+  "sourceSampleId": zod.string(),
+  "verificationStatus": zod.enum(['verified', 'pending_review']),
+  "reviewFlags": zod.array(zod.string())
+}))
+})
+
+
+/**
+ * @summary List recovery and settlement states
+ */
+export const GetStridePoolRecoveryCasesHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetStridePoolRecoveryCasesResponse = zod.object({
+  "cases": zod.array(zod.object({
+  "id": zod.string(),
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
+  "reason": zod.string(),
+  "reviewMessage": zod.string(),
+  "requestedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Request a grace day, injury pause, or support review
+ */
+export const RequestStridePoolRecoveryHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const requestStridePoolRecoveryBodyReasonMin = 8;
+export const requestStridePoolRecoveryBodyReasonMax = 1000;
+
+
+
+export const RequestStridePoolRecoveryBody = zod.object({
+  "challengeId": zod.string(),
+  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "reason": zod.string().min(requestStridePoolRecoveryBodyReasonMin).max(requestStridePoolRecoveryBodyReasonMax)
+})
+
+export const RequestStridePoolRecoveryResponse = zod.object({
+  "id": zod.string(),
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
+  "reason": zod.string(),
+  "reviewMessage": zod.string(),
+  "requestedAt": zod.coerce.date()
 })
 
 

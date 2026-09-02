@@ -47,6 +47,15 @@ export const LogoutSuccessValue = {
 } as const;
 export type LogoutSuccess = typeof LogoutSuccessValue;
 
+export type ChallengeSettlementStatus = typeof ChallengeSettlementStatus[keyof typeof ChallengeSettlementStatus];
+
+
+export const ChallengeSettlementStatus = {
+  open: 'open',
+  pending_review: 'pending_review',
+  settled: 'settled',
+} as const;
+
 export interface Challenge {
   id: string;
   name: string;
@@ -64,6 +73,7 @@ export interface Challenge {
   goalType: string;
   community: boolean;
   graceDays: number;
+  settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
 }
 
@@ -132,6 +142,62 @@ export interface ProfileUpdate {
   acceptedTerms?: boolean;
 }
 
+export type HealthSourceSource = typeof HealthSourceSource[keyof typeof HealthSourceSource];
+
+
+export const HealthSourceSource = {
+  apple_health: 'apple_health',
+  health_connect: 'health_connect',
+} as const;
+
+export type HealthSourceStatus = typeof HealthSourceStatus[keyof typeof HealthSourceStatus];
+
+
+export const HealthSourceStatus = {
+  available: 'available',
+  connected: 'connected',
+} as const;
+
+export interface HealthSource {
+  source: HealthSourceSource;
+  label: string;
+  status: HealthSourceStatus;
+  /** @nullable */
+  lastSyncedAt: string | null;
+  verifiedSamples: number;
+  pendingReview: number;
+}
+
+export type RecoveryCaseType = typeof RecoveryCaseType[keyof typeof RecoveryCaseType];
+
+
+export const RecoveryCaseType = {
+  grace_day: 'grace_day',
+  injury_pause: 'injury_pause',
+  support_review: 'support_review',
+} as const;
+
+export type RecoveryCaseStatus = typeof RecoveryCaseStatus[keyof typeof RecoveryCaseStatus];
+
+
+export const RecoveryCaseStatus = {
+  requested: 'requested',
+  approved: 'approved',
+  denied: 'denied',
+  resolved: 'resolved',
+} as const;
+
+export interface RecoveryCase {
+  id: string;
+  challengeId: string;
+  challengeName: string;
+  type: RecoveryCaseType;
+  status: RecoveryCaseStatus;
+  reason: string;
+  reviewMessage: string;
+  requestedAt: string;
+}
+
 export interface StridePoolBootstrap {
   user: AuthUser | null;
   challenges: Challenge[];
@@ -140,6 +206,8 @@ export interface StridePoolBootstrap {
   activities: Activity[];
   wallet: WalletSummary;
   profile: ProfileSettings;
+  healthSources: HealthSource[];
+  recoveryCases: RecoveryCase[];
 }
 
 export interface EntryMutationResponse {
@@ -150,6 +218,92 @@ export interface EntryMutationResponse {
 export interface SyncStepsResponse {
   steps: number;
   activity: Activity;
+}
+
+export interface HealthSourcesResponse {
+  sources: HealthSource[];
+}
+
+export type StepSourceSampleRawPayload = { [key: string]: unknown };
+
+export interface StepSourceSample {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  sourceSampleId: string;
+  recordDate: string;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  steps: number;
+  startTime: string;
+  endTime: string;
+  /** @nullable */
+  recordedAt?: string | null;
+  rawPayload: StepSourceSampleRawPayload;
+}
+
+export interface IngestStepSamplesBody {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  samples: StepSourceSample[];
+}
+
+export type SourceSampleResultVerificationStatus = typeof SourceSampleResultVerificationStatus[keyof typeof SourceSampleResultVerificationStatus];
+
+
+export const SourceSampleResultVerificationStatus = {
+  verified: 'verified',
+  pending_review: 'pending_review',
+} as const;
+
+export interface SourceSampleResult {
+  sourceSampleId: string;
+  verificationStatus: SourceSampleResultVerificationStatus;
+  reviewFlags: string[];
+}
+
+export type IngestStepSamplesResponseSource = typeof IngestStepSamplesResponseSource[keyof typeof IngestStepSamplesResponseSource];
+
+
+export const IngestStepSamplesResponseSource = {
+  apple_health: 'apple_health',
+  health_connect: 'health_connect',
+} as const;
+
+export interface IngestStepSamplesResponse {
+  source: IngestStepSamplesResponseSource;
+  acceptedCount: number;
+  pendingReviewCount: number;
+  steps: number;
+  samples: SourceSampleResult[];
+}
+
+export type RecoveryRequestBodyType = typeof RecoveryRequestBodyType[keyof typeof RecoveryRequestBodyType];
+
+
+export const RecoveryRequestBodyType = {
+  grace_day: 'grace_day',
+  injury_pause: 'injury_pause',
+  support_review: 'support_review',
+} as const;
+
+export interface RecoveryRequestBody {
+  challengeId: string;
+  type: RecoveryRequestBodyType;
+  /**
+     * @minLength 8
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface RecoveryCasesResponse {
+  cases: RecoveryCase[];
 }
 
 export interface ErrorResponse {

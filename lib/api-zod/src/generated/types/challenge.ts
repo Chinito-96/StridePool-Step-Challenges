@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChallengeSettlementStatus } from './challengeSettlementStatus';
 
 export interface Challenge {
   id: string;
@@ -23,5 +24,6 @@ export interface Challenge {
   goalType: string;
   community: boolean;
   graceDays: number;
+  settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
 }

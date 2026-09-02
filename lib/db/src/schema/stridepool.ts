@@ -68,6 +68,66 @@ export const dailyStepRecordsTable = pgTable(
   ],
 );
 
+export const healthSourceConnectionsTable = pgTable(
+  "health_source_connections",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    source: varchar("source").notNull(),
+    status: varchar("status").notNull().default("connected"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("health_source_connections_user_source_unique").on(table.userId, table.source),
+    index("health_source_connections_user_idx").on(table.userId),
+  ],
+);
+
+export const stepSourceSamplesTable = pgTable(
+  "step_source_samples",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    source: varchar("source").notNull(),
+    sourceSampleId: varchar("source_sample_id").notNull(),
+    recordDate: date("record_date", { mode: "string" }).notNull(),
+    steps: integer("steps").notNull(),
+    startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }),
+    rawPayload: jsonb("raw_payload").$type<Record<string, unknown>>().notNull().default({}),
+    verificationStatus: varchar("verification_status").notNull().default("verified"),
+    reviewFlags: jsonb("review_flags").$type<string[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("step_source_samples_user_source_id_unique").on(table.userId, table.source, table.sourceSampleId),
+    index("step_source_samples_user_date_idx").on(table.userId, table.recordDate),
+    index("step_source_samples_review_idx").on(table.verificationStatus),
+  ],
+);
+
+export const challengeRecoveryCasesTable = pgTable(
+  "challenge_recovery_cases",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    challengeId: varchar("challenge_id").notNull().references(() => challengesTable.id, { onDelete: "cascade" }),
+    type: varchar("type").notNull(),
+    status: varchar("status").notNull().default("requested"),
+    reason: text("reason").notNull(),
+    reviewMessage: text("review_message").notNull().default("Support will review this with your source history before settlement."),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("challenge_recovery_cases_user_idx").on(table.userId, table.updatedAt),
+    index("challenge_recovery_cases_challenge_idx").on(table.challengeId),
+  ],
+);
+
 export const walletLedgerEntriesTable = pgTable(
   "wallet_ledger_entries",
   {
@@ -98,4 +158,7 @@ export type InsertDailyStepRecord = z.infer<typeof insertDailyStepRecordSchema>;
 export type Challenge = typeof challengesTable.$inferSelect;
 export type Entry = typeof entriesTable.$inferSelect;
 export type DailyStepRecord = typeof dailyStepRecordsTable.$inferSelect;
+export type HealthSourceConnection = typeof healthSourceConnectionsTable.$inferSelect;
+export type StepSourceSample = typeof stepSourceSamplesTable.$inferSelect;
+export type ChallengeRecoveryCase = typeof challengeRecoveryCasesTable.$inferSelect;
 export type WalletLedgerEntry = typeof walletLedgerEntriesTable.$inferSelect;

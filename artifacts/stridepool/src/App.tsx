@@ -1,6 +1,6 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, useCheckEligibility, useCreateCheckout, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type ProfileSettings as ApiProfileSettings } from '@workspace/api-client-react';
+import { getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, useCheckEligibility, useCreateCheckout, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useRequestStridePoolRecovery, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type HealthSource, type RecoveryCase, type ProfileSettings as ApiProfileSettings } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, CircleUserRound, Clock3, Compass, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
@@ -22,10 +22,14 @@ type AppState = {
   eligibility: EligibilityProfile;
   compliance: ComplianceStatus;
   complianceLoading: boolean;
+  healthSources: HealthSource[];
+  recoveryCases: RecoveryCase[];
   joinChallenge: (id: string) => boolean;
   leaveChallenge: (id: string) => boolean;
   updateEligibility: (eligibility: EligibilityProfile) => void;
   syncSteps: () => void;
+  connectSource: (source: HealthSource['source']) => void;
+  requestRecovery: (challengeId: string, type: RecoveryCase['type'], reason: string) => void;
   addFunds: () => void;
   toggleSetting: (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'>) => void;
   updateProfile: (updates: ProfileUpdate) => void;
@@ -49,6 +53,8 @@ function AppProvider({ children }: { children: ReactNode }) {
   const joinMutation = useJoinStridePoolChallenge();
   const leaveMutation = useLeaveStridePoolChallenge();
   const syncMutation = useSyncStridePoolSteps();
+  const sourceMutation = useIngestStridePoolSourceSamples();
+  const recoveryMutation = useRequestStridePoolRecovery();
   const profileMutation = useUpdateStridePoolProfile();
   const bootstrap = bootstrapQuery.data;
   const defaultProfile: ProfileSettings = { displayName: auth.user ? [auth.user.firstName, auth.user.lastName].filter(Boolean).join(' ') || 'Your profile' : 'Alex Morgan', reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, eligibilityAge: 0, eligibilityState: '', identityStatus: 'not_started', acceptedTerms: false };
@@ -58,6 +64,8 @@ function AppProvider({ children }: { children: ReactNode }) {
   const activities = bootstrap?.activities ?? [];
   const wallet = bootstrap?.wallet ?? { balance: 0, pending: 0, totalEarned: 0 };
   const profile = bootstrap?.profile ?? defaultProfile;
+  const healthSources = bootstrap?.healthSources ?? [];
+  const recoveryCases = bootstrap?.recoveryCases ?? [];
   const eligibility: EligibilityProfile = { age: profile.eligibilityAge, state: profile.eligibilityState, identityStatus: profile.identityStatus, acceptedTerms: profile.acceptedTerms };
   const compliance = complianceData ?? { paidPlayEnabled: false, providerConfigured: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
   const invalidateBootstrap = () => queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
@@ -78,6 +86,15 @@ function AppProvider({ children }: { children: ReactNode }) {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
     syncMutation.mutate(undefined, { onSuccess: invalidateBootstrap });
   };
+  const connectSource = (source: HealthSource['source']) => {
+    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
+    const now = new Date();
+    sourceMutation.mutate({ source, data: { samples: [{ sourceSampleId: `${source}-${now.getTime()}`, recordDate: now.toISOString().slice(0, 10), steps: 628, startTime: new Date(now.getTime() - 30 * 60000).toISOString(), endTime: now.toISOString(), recordedAt: now.toISOString(), rawPayload: { source, import: 'user-authorized-health-sync' } }] } }, { onSuccess: invalidateBootstrap });
+  };
+  const requestRecovery = (challengeId: string, type: RecoveryCase['type'], reason: string) => {
+    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
+    recoveryMutation.mutate({ data: { challengeId, type, reason } }, { onSuccess: invalidateBootstrap });
+  };
   const updateEligibility = (next: EligibilityProfile) => updateProfile({ eligibilityAge: next.age, eligibilityState: next.state, identityStatus: next.identityStatus, acceptedTerms: next.acceptedTerms });
   const addFunds = () => {
     if (!auth.isAuthenticated) loginIfNeeded();
@@ -87,7 +104,7 @@ function AppProvider({ children }: { children: ReactNode }) {
     profileMutation.mutate({ data: updates }, { onSuccess: invalidateBootstrap });
   };
   const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'>) => updateProfile({ [key]: !profile[key] });
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, joinChallenge, leaveChallenge, updateEligibility, syncSteps, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading]);
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases, joinChallenge, leaveChallenge, updateEligibility, syncSteps, connectSource, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -172,7 +189,7 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities, syncSteps } = useApp();
+  const { challenges, steps, activities, syncSteps, healthSources, recoveryCases } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
   const goal = 10_000;
   const percent = Math.min(100, Math.round((steps / goal) * 100));
@@ -185,12 +202,37 @@ function Dashboard() {
       <div className="rise-in delay-1 relative overflow-hidden rounded-[22px] bg-foreground p-6 text-background shadow-[var(--shadow-soft)] sm:p-8"><div className="absolute -right-10 -top-16 h-56 w-56 rounded-full border-[28px] border-accent/80 opacity-80" /><div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full border-[20px] border-primary/80 opacity-70" /><div className="relative flex flex-col justify-between gap-8 sm:flex-row"><div><div className="flex items-center gap-2 text-background/60"><span className="h-2 w-2 rounded-full bg-accent" /><span className="font-mono-app text-[10px] uppercase tracking-[.18em]">Today's movement</span></div><div className="mt-6 flex items-baseline gap-2"><span className="font-display text-6xl font-bold tracking-[-.08em] sm:text-7xl" data-testid="text-todays-steps">{steps.toLocaleString()}</span><span className="font-mono-app text-xs text-background/50">/ {goal.toLocaleString()}</span></div><p className="mt-2 text-sm text-background/60">{goal - steps > 0 ? `${(goal - steps).toLocaleString()} steps to your daily goal` : 'Daily goal met — beautifully done.'}</p></div><div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-[10px] border-background/15 sm:h-36 sm:w-36" style={{ background: `conic-gradient(#bdcf57 ${percent}%, rgba(255,255,255,.1) 0)` }}><div className="flex h-[78%] w-[78%] flex-col items-center justify-center rounded-full bg-foreground"><span className="font-display text-2xl font-bold">{percent}%</span><span className="font-mono-app text-[9px] uppercase text-background/45">of goal</span></div></div></div><div className="relative mt-8 flex items-center justify-between border-t border-background/10 pt-4 text-xs text-background/55"><span className="flex items-center gap-2"><Flame size={15} className="text-primary" /> 4 day rhythm</span><span className="font-mono-app">Last sync 8:42 AM</span></div></div>
        <div className="rise-in delay-2 rounded-[22px] border border-border bg-card p-6 shadow-[var(--shadow-card)]"><div className="flex items-center justify-between"><Badge tone="coral">Live now</Badge><RadioDot /></div><h2 className="mt-5 font-display text-2xl font-bold tracking-[-.045em]">{spotlight.name}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{spotlight.theme}</p><div className="mt-6 space-y-4"><StatLine icon={<Target size={16} />} label={spotlight.goalType === 'personalized' ? 'Your daily target' : 'Daily target'} value={`${spotlight.dailyGoal.toLocaleString()} steps`} /><StatLine icon={<Users size={16} />} label="Walking together" value={`${spotlight.participantCount} people`} /><StatLine icon={<Award size={16} />} label="Pool so far" value={spotlight.community ? 'Free to join' : `$${spotlight.prizePool.toLocaleString()}`} /></div><Link href={`/challenge/${spotlight.id}`} className="mt-6 flex items-center justify-between border-t border-border pt-4 text-sm font-bold text-primary" data-testid={`link-spotlight-${spotlight.id}`}>Open challenge <ArrowUpRight size={17} /></Link></div>
     </section>
+     <SourceTrustPanel sources={healthSources} recoveryCases={recoveryCases} />
     <section className="mt-10 grid gap-8 xl:grid-cols-[1fr_340px]">
       <div className="rise-in delay-3"><SectionHeading eyebrow="Your circle" title="Challenges in motion" action={<Link href="/challenges" className="flex items-center gap-1 text-sm font-bold text-primary" data-testid="link-see-all-challenges">See all <ChevronRight size={16} /></Link>} /><div className="grid gap-4 sm:grid-cols-2">{challenges.filter((item) => item.joined).map((challenge) => <ChallengeMiniCard challenge={challenge} key={challenge.id} />)}<div className="flex min-h-[150px] flex-col items-center justify-center rounded-2xl border border-dashed border-border p-5 text-center"><div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-accent/35 text-accent-foreground"><Plus size={17} /></div><p className="text-sm font-bold">Find your next rhythm</p><Link href="/challenges" className="mt-1 text-xs text-muted-foreground underline decoration-primary/50 underline-offset-4" data-testid="link-discover-challenges">Browse open challenges</Link></div></div></div>
       <div className="rise-in delay-4"><SectionHeading eyebrow="On deck" title="Coming up" /><div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"><div className="flex items-start justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${upcoming.color}33`, color: upcoming.color }}><CalendarDays size={19} /></div><Badge tone="teal">Starts {upcoming.startDate}</Badge></div><h3 className="mt-4 font-display text-lg font-bold">{upcoming.name}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{upcoming.days} days · {upcoming.dailyGoal.toLocaleString()} steps/day · ${upcoming.entryFee} entry</p><Link href={`/challenge/${upcoming.id}`} className="mt-5 flex w-full items-center justify-center rounded-xl border border-border py-2.5 text-sm font-bold transition hover:bg-muted" data-testid={`link-upcoming-${upcoming.id}`}>View details <ArrowUpRight size={15} className="ml-2" /></Link></div></div>
     </section>
     <section className="mt-10 rise-in delay-4"><SectionHeading eyebrow="Recent movement" title="Your activity" action={<button onClick={() => setShowAllActivity((value) => !value)} className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground" data-testid="button-view-activity">{showAllActivity ? 'Show less' : 'View all'} <ChevronRight size={16} className={showAllActivity ? 'rotate-90' : ''} /></button>} /><div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">{activities.slice(0, showAllActivity ? 20 : 4).map((activity) => <ActivityRow activity={activity} key={activity.id} />)}</div></section>
   </div>;
+}
+
+function SourceTrustPanel({ sources, recoveryCases }: { sources: HealthSource[]; recoveryCases: RecoveryCase[] }) {
+  const { connectSource, challenges, requestRecovery } = useApp();
+  const pendingCases = recoveryCases.filter((item) => item.status === 'requested' || item.status === 'approved');
+  const recoveryChallenge = challenges.find((item) => item.joined);
+  return <><section className="mt-8 grid gap-5 lg:grid-cols-[1.25fr_.75fr]" data-testid="panel-source-trust">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+      <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your sources, plainly</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Only samples from a connected source count toward settlement. We retain the original sample and pause anything that looks like a burst, backfill, or implausible total.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">{sources.map((source) => <div key={source.source} className="rounded-xl border border-border/80 bg-background p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-secondary-foreground"><HeartPulse size={17} /></span><div className="min-w-0"><p className="text-sm font-bold">{source.label}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{source.status === 'connected' ? `${source.verifiedSamples} verified samples` : 'Not connected yet'}</p></div><span className={`ml-auto h-2 w-2 rounded-full ${source.status === 'connected' ? 'bg-primary' : 'bg-muted-foreground/35'}`} /></div>{source.pendingReview > 0 && <p className="mt-3 rounded-lg bg-primary/10 p-2 text-[11px] leading-4 text-primary">{source.pendingReview} sample{source.pendingReview === 1 ? '' : 's'} pending support review</p>}<Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" onClick={() => connectSource(source.source)} data-testid={`button-connect-${source.source}`}>{source.status === 'connected' ? 'Sync latest sample' : `Connect ${source.label}`}</Button></div>)}</div>
+    </div>
+    <div className="rounded-2xl border border-border bg-secondary/55 p-5 sm:p-6"><div className="flex items-center gap-2 text-secondary-foreground"><HeartPulse size={18} /><p className="font-mono-app text-[10px] uppercase tracking-[.16em]">Fair recovery</p></div><h2 className="mt-2 font-display text-xl font-bold text-secondary-foreground">Life happens. The ledger waits.</h2><p className="mt-2 text-xs leading-5 text-secondary-foreground/75">Grace days, injury pauses, and support review keep a questionable day from deciding your payout without a human look.</p>{pendingCases.length ? <div className="mt-4 space-y-2">{pendingCases.slice(0, 2).map((item) => <div className="rounded-xl bg-background/60 p-3" key={item.id}><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">{item.challengeName}</p><Badge tone="teal">{item.status.replaceAll('_', ' ')}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">{item.type.replaceAll('_', ' ')}</p></div>)}</div> : <p className="mt-4 rounded-xl bg-background/60 p-3 text-[11px] leading-5 text-secondary-foreground/75">No recovery requests are open. Open a joined challenge to request one before settlement.</p>}</div>
+  </section>{recoveryChallenge && <RecoveryPanel challenge={recoveryChallenge} cases={recoveryCases.filter((item) => item.challengeId === recoveryChallenge.id)} requestRecovery={requestRecovery} />}</>;
+}
+
+function RecoveryPanel({ challenge, cases, requestRecovery }: { challenge: Challenge; cases: RecoveryCase[]; requestRecovery: (challengeId: string, type: RecoveryCase['type'], reason: string) => void }) {
+  const [type, setType] = useState<RecoveryCase['type']>('grace_day');
+  const [reason, setReason] = useState('');
+  const existing = cases[0];
+  const labels = { grace_day: 'Use a grace day', injury_pause: 'Request an injury pause', support_review: 'Ask support to review' };
+  return <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8" data-testid="panel-recovery">
+    <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><HeartPulse size={18} /></span><div><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Settlement care</p><h2 className="mt-1 font-display text-xl font-bold">Need a fair recovery path?</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Requests are attached to this challenge and reviewed against your source history before settlement.</p></div></div>
+    {existing ? <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">{labels[existing.type]}</p><Badge tone="teal">{existing.status.replaceAll('_', ' ')}</Badge></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{existing.reviewMessage}</p></div> : <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); if (reason.trim().length >= 8) { requestRecovery(challenge.id, type, reason.trim()); setReason(''); } }}><label className="block text-xs font-bold">What do you need?<select value={type} onChange={(event) => setType(event.target.value as RecoveryCase['type'])} className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" data-testid="select-recovery-type">{Object.entries(labels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label className="block text-xs font-bold">A little context<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={8} maxLength={1000} rows={3} placeholder="For example: my watch was off for an afternoon..." className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-sm outline-none focus:border-primary" data-testid="textarea-recovery-reason" /></label><Button type="submit" variant="secondary" disabled={reason.trim().length < 8} data-testid="button-request-recovery">Send recovery request</Button></form>}
+  </section>;
 }
 
 function RadioDot() { return <span className="flex items-center gap-1.5 font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground"><span className="pulse-dot h-1.5 w-1.5 rounded-full bg-primary" /> updates live</span>; }

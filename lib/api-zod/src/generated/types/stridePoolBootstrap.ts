@@ -8,7 +8,9 @@
 import type { Activity } from './activity';
 import type { AuthUser } from './authUser';
 import type { Challenge } from './challenge';
+import type { HealthSource } from './healthSource';
 import type { ProfileSettings } from './profileSettings';
+import type { RecoveryCase } from './recoveryCase';
 import type { WalletSummary } from './walletSummary';
 
 export interface StridePoolBootstrap {
@@ -19,4 +21,6 @@ export interface StridePoolBootstrap {
   activities: Activity[];
   wallet: WalletSummary;
   profile: ProfileSettings;
+  healthSources: HealthSource[];
+  recoveryCases: RecoveryCase[];
 }
