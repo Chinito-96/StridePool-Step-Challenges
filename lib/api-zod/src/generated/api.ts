@@ -250,6 +250,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()
@@ -333,6 +334,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()
@@ -418,9 +420,87 @@ export const GetStridePoolCommunityChallengesResponse = zod.object({
   "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Create a private free group challenge
+ */
+export const CreateStridePoolGroupChallengeHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const createStridePoolGroupChallengeBodyGroupNameMax = 80;
+
+
+export const createStridePoolGroupChallengeBodyMemberUserIdsMax = 20;
+
+export const createStridePoolGroupChallengeBodyNameMax = 120;
+
+export const createStridePoolGroupChallengeBodyThemeMax = 240;
+
+export const createStridePoolGroupChallengeBodyDailyGoalMax = 100000;
+
+export const createStridePoolGroupChallengeBodyGraceDaysMin = 0;
+export const createStridePoolGroupChallengeBodyGraceDaysMax = 30;
+
+export const createStridePoolGroupChallengeBodyColorMin = 4;
+export const createStridePoolGroupChallengeBodyColorMax = 30;
+
+
+
+export const CreateStridePoolGroupChallengeBody = zod.object({
+  "groupName": zod.string().min(1).max(createStridePoolGroupChallengeBodyGroupNameMax),
+  "memberUserIds": zod.array(zod.string().min(1)).min(1).max(createStridePoolGroupChallengeBodyMemberUserIdsMax),
+  "name": zod.string().min(1).max(createStridePoolGroupChallengeBodyNameMax),
+  "theme": zod.string().min(1).max(createStridePoolGroupChallengeBodyThemeMax),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "dailyGoal": zod.int().min(1).max(createStridePoolGroupChallengeBodyDailyGoalMax),
+  "challengeType": zod.enum(['goal', 'elimination']),
+  "goalType": zod.enum(['fixed', 'personalized']),
+  "graceDays": zod.int().min(createStridePoolGroupChallengeBodyGraceDaysMin).max(createStridePoolGroupChallengeBodyGraceDaysMax),
+  "color": zod.string().min(createStridePoolGroupChallengeBodyColorMin).max(createStridePoolGroupChallengeBodyColorMax)
+})
+
+export const CreateStridePoolGroupChallengeResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "ownerUserId": zod.string(),
+  "memberCount": zod.int()
+}),
+  "challenge": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "theme": zod.string(),
+  "level": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
+  "entryFee": zod.number(),
+  "prizePool": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
+  "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination']),
+  "goalType": zod.string(),
+  "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
+  "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
+  "joined": zod.boolean()
+}),
+  "members": zod.array(zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string()
 }))
 })
 
@@ -548,6 +628,7 @@ export const GetStridePoolPendingInvitesResponse = zod.object({
   "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()
@@ -559,6 +640,56 @@ export const GetStridePoolPendingInvitesResponse = zod.object({
 }),
   "createdAt": zod.coerce.date()
 }))
+})
+
+
+/**
+ * @summary List in-app notifications
+ */
+export const GetStridePoolNotificationsHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetStridePoolNotificationsResponse = zod.object({
+  "notifications": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['daily_reminder', 'eliminated', 'group_member_joined', 'challenge_finished']),
+  "title": zod.string(),
+  "body": zod.string(),
+  "challengeId": zod.string().nullable(),
+  "actorUserId": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "readAt": zod.coerce.date().nullable()
+})),
+  "unreadCount": zod.int()
+})
+
+
+/**
+ * @summary Mark an in-app notification read
+ */
+export const MarkStridePoolNotificationReadParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const MarkStridePoolNotificationReadHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const MarkStridePoolNotificationReadResponse = zod.object({
+  "success": zod.literal(true)
+})
+
+
+/**
+ * @summary Mark all in-app notifications read
+ */
+export const MarkAllStridePoolNotificationsReadHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const MarkAllStridePoolNotificationsReadResponse = zod.object({
+  "success": zod.literal(true)
 })
 
 
@@ -593,6 +724,7 @@ export const GetStridePoolInviteResponse = zod.object({
   "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()
@@ -640,6 +772,7 @@ export const AcceptStridePoolInviteResponse = zod.object({
   "challengeType": zod.enum(['goal', 'elimination']),
   "goalType": zod.string(),
   "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()

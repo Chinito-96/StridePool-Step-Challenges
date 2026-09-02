@@ -55,6 +55,14 @@ export const ChallengeChallengeType = {
   elimination: 'elimination',
 } as const;
 
+export type ChallengeVisibility = typeof ChallengeVisibility[keyof typeof ChallengeVisibility];
+
+
+export const ChallengeVisibility = {
+  public: 'public',
+  private_group: 'private_group',
+} as const;
+
 export type ChallengeSettlementStatus = typeof ChallengeSettlementStatus[keyof typeof ChallengeSettlementStatus];
 
 
@@ -81,6 +89,7 @@ export interface Challenge {
   challengeType: ChallengeChallengeType;
   goalType: string;
   community: boolean;
+  visibility: ChallengeVisibility;
   graceDays: number;
   settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
@@ -284,6 +293,78 @@ export interface CommunityChallengesResponse {
   challenges: Challenge[];
 }
 
+export type GroupChallengeInputChallengeType = typeof GroupChallengeInputChallengeType[keyof typeof GroupChallengeInputChallengeType];
+
+
+export const GroupChallengeInputChallengeType = {
+  goal: 'goal',
+  elimination: 'elimination',
+} as const;
+
+export type GroupChallengeInputGoalType = typeof GroupChallengeInputGoalType[keyof typeof GroupChallengeInputGoalType];
+
+
+export const GroupChallengeInputGoalType = {
+  fixed: 'fixed',
+  personalized: 'personalized',
+} as const;
+
+export interface GroupChallengeInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  groupName: string;
+  /**
+     * @minItems 1
+     * @maxItems 20
+     * @items.minLength 1
+     */
+  memberUserIds: string[];
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 240
+     */
+  theme: string;
+  startDate: string;
+  endDate: string;
+  /**
+     * @minimum 1
+     * @maximum 100000
+     */
+  dailyGoal: number;
+  challengeType: GroupChallengeInputChallengeType;
+  goalType: GroupChallengeInputGoalType;
+  /**
+     * @minimum 0
+     * @maximum 30
+     */
+  graceDays: number;
+  /**
+     * @minLength 4
+     * @maxLength 30
+     */
+  color: string;
+}
+
+export interface GroupSummary {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  memberCount: number;
+}
+
+export interface GroupChallengeResponse {
+  group: GroupSummary;
+  challenge: Challenge;
+  members: UserSearchResult[];
+}
+
 export interface UserSearchResponse {
   users: UserSearchResult[];
 }
@@ -357,6 +438,40 @@ export interface ChallengeInvitePreview {
 export interface PendingInvitesResponse {
   invites: PendingInvite[];
 }
+
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+
+export const NotificationType = {
+  daily_reminder: 'daily_reminder',
+  eliminated: 'eliminated',
+  group_member_joined: 'group_member_joined',
+  challenge_finished: 'challenge_finished',
+} as const;
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  /** @nullable */
+  challengeId: string | null;
+  /** @nullable */
+  actorUserId: string | null;
+  createdAt: string;
+  /** @nullable */
+  readAt: string | null;
+}
+
+export interface NotificationsResponse {
+  notifications: Notification[];
+  unreadCount: number;
+}
+
+export const NotificationMutationResponseValue = {
+  success: true,
+} as const;
+export type NotificationMutationResponse = typeof NotificationMutationResponseValue;
 
 export interface InviteAcceptResponse {
   joined: boolean;

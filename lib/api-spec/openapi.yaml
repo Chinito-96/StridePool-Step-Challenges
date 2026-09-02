@@ -321,6 +321,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CommunityChallengesResponse"
+  /stridepool/groups/challenges:
+    post:
+      tags: [stridepool]
+      operationId: createStridePoolGroupChallenge
+      summary: Create a private free group challenge
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupChallengeInput"
+      responses:
+        "201":
+          description: Private group and challenge created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupChallengeResponse"
+        "400":
+          description: Invalid group challenge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
+        "404":
+          description: One or more invited walkers could not be found.
   /stridepool/users/search:
     get:
       tags: [stridepool]
@@ -417,6 +448,61 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PendingInvitesResponse"
+  /stridepool/notifications:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolNotifications
+      summary: List in-app notifications
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Current user's notifications.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationsResponse"
+        "401":
+          description: Login required.
+  /stridepool/notifications/{id}/read:
+    post:
+      tags: [stridepool]
+      operationId: markStridePoolNotificationRead
+      summary: Mark an in-app notification read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Notification marked read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationMutationResponse"
+        "401":
+          description: Login required.
+        "404":
+          description: Notification not found.
+  /stridepool/notifications/read-all:
+    post:
+      tags: [stridepool]
+      operationId: markAllStridePoolNotificationsRead
+      summary: Mark all in-app notifications read
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Notifications marked read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationMutationResponse"
         "401":
           description: Login required.
   /stridepool/invites/{token}:
@@ -838,7 +924,7 @@ components:
         success: { type: boolean, const: true }
     Challenge:
       type: object
-      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, challengeType, goalType, community, graceDays, settlementStatus, joined]
+      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, challengeType, goalType, community, visibility, graceDays, settlementStatus, joined]
       properties:
         id: { type: string }
         name: { type: string }
@@ -856,6 +942,7 @@ components:
         challengeType: { type: string, enum: [goal, elimination] }
         goalType: { type: string }
         community: { type: boolean }
+        visibility: { type: string, enum: [public, private_group] }
         graceDays: { type: integer }
         settlementStatus: { type: string, enum: [open, pending_review, settled] }
         joined: { type: boolean }
@@ -947,6 +1034,44 @@ components:
         challenges:
           type: array
           items: { $ref: "#/components/schemas/Challenge" }
+    GroupChallengeInput:
+      type: object
+      required: [groupName, memberUserIds, name, theme, startDate, endDate, dailyGoal, challengeType, goalType, graceDays, color]
+      properties:
+        groupName: { type: string, minLength: 1, maxLength: 80 }
+        memberUserIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        theme: { type: string, minLength: 1, maxLength: 240 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        dailyGoal: { type: integer, minimum: 1, maximum: 100000 }
+        challengeType: { type: string, enum: [goal, elimination] }
+        goalType: { type: string, enum: [fixed, personalized] }
+        graceDays: { type: integer, minimum: 0, maximum: 30 }
+        color: { type: string, minLength: 4, maxLength: 30 }
+    GroupChallengeResponse:
+      type: object
+      required: [group, challenge, members]
+      properties:
+        group:
+          $ref: "#/components/schemas/GroupSummary"
+        challenge:
+          $ref: "#/components/schemas/Challenge"
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/UserSearchResult" }
+    GroupSummary:
+      type: object
+      required: [id, name, ownerUserId, memberCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        ownerUserId: { type: string }
+        memberCount: { type: integer }
     UserSearchResponse:
       type: object
       required: [users]
@@ -1037,6 +1162,31 @@ components:
         invites:
           type: array
           items: { $ref: "#/components/schemas/PendingInvite" }
+    Notification:
+      type: object
+      required: [id, type, title, body, challengeId, actorUserId, createdAt, readAt]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [daily_reminder, eliminated, group_member_joined, challenge_finished] }
+        title: { type: string }
+        body: { type: string }
+        challengeId: { type: [string, "null"] }
+        actorUserId: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, "null"], format: date-time }
+    NotificationsResponse:
+      type: object
+      required: [notifications, unreadCount]
+      properties:
+        notifications:
+          type: array
+          items: { $ref: "#/components/schemas/Notification" }
+        unreadCount: { type: integer }
+    NotificationMutationResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, const: true }
     InviteAcceptResponse:
       type: object
       required: [joined, challenge]

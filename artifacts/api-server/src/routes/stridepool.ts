@@ -4,11 +4,16 @@ import {
   GetStridePoolChallengeLeaderboardResponse,
   GetStridePoolCommunityChallengesResponse,
   GetStridePoolLifetimeLeaderboardResponse,
+  CreateStridePoolGroupChallengeBody,
+  CreateStridePoolGroupChallengeResponse,
   CreateStridePoolChallengeInviteResponse,
   GetStridePoolBootstrapResponse,
   GetStridePoolHealthSourcesResponse,
   GetStridePoolInviteResponse,
   GetStridePoolPendingInvitesResponse,
+  GetStridePoolNotificationsResponse,
+  MarkStridePoolNotificationReadResponse,
+  MarkAllStridePoolNotificationsReadResponse,
   GetStridePoolRecoveryCasesResponse,
   IngestStridePoolSourceSamplesBody,
   IngestStridePoolSourceSamplesParams,
@@ -42,12 +47,16 @@ import {
   usersTable,
   walletLedgerEntriesTable,
   type Challenge,
+  groupMembersTable,
+  groupsTable,
+  notificationsTable,
 } from "@workspace/db";
 import { challengeParticipantOverridesTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { buildLifetimeLeaderboard, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
+import { buildGroupMemberJoinedCandidate, buildParticipantNotificationCandidates } from "../services/stridepool-notifications";
 
 const router: IRouter = Router();
 const ANONYMOUS_WALKER_COOKIE = "stridepool_anon";
@@ -128,6 +137,7 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
     challengeType: challenge.challengeType === "elimination" ? "elimination" as const : "goal" as const,
     goalType: challenge.goalType,
     community: challenge.community,
+    visibility: challenge.groupId ? "private_group" as const : "public" as const,
     graceDays: challenge.graceDays,
     settlementStatus: challenge.settlementStatus,
     joined: joinedIds.has(challenge.id),
@@ -136,6 +146,121 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
 async function getUser(userId: string) {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   return user;
+}
+
+async function getVisibleChallenges(userId: string | null) {
+  const challenges = await db.select().from(challengesTable).orderBy(challengesTable.createdAt);
+  if (!userId) return challenges.filter((challenge) => !challenge.groupId);
+  const memberships = await db.select({ groupId: groupMembersTable.groupId }).from(groupMembersTable).where(eq(groupMembersTable.userId, userId));
+  const groupIds = new Set(memberships.map((membership) => membership.groupId));
+  return challenges.filter((challenge) => !challenge.groupId || groupIds.has(challenge.groupId));
+}
+
+async function isGroupMember(groupId: string, userId: string) {
+  const [membership] = await db.select({ id: groupMembersTable.id }).from(groupMembersTable).where(and(
+    eq(groupMembersTable.groupId, groupId),
+    eq(groupMembersTable.userId, userId),
+  ));
+  return Boolean(membership);
+}
+
+async function saveNotification(values: {
+  userId: string;
+  type: "daily_reminder" | "eliminated" | "group_member_joined" | "challenge_finished";
+  title: string;
+  body: string;
+  challengeId?: string | null;
+  actorUserId?: string | null;
+  dedupeKey: string;
+}) {
+  await db.insert(notificationsTable).values(values).onConflictDoNothing({ target: notificationsTable.dedupeKey });
+}
+
+async function getLatestParticipantOverride(challengeId: string, userId: string) {
+  const [override] = await db.select().from(challengeParticipantOverridesTable).where(and(
+    eq(challengeParticipantOverridesTable.challengeId, challengeId),
+    eq(challengeParticipantOverridesTable.userId, userId),
+  )).orderBy(desc(challengeParticipantOverridesTable.createdAt)).limit(1);
+  return override?.status === "on_track" || override?.status === "finished" ? override.status : undefined;
+}
+
+async function refreshNotifications(userId: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  const visibleChallenges = await getVisibleChallenges(userId);
+  const entries = await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(
+    eq(entriesTable.userId, userId),
+    eq(entriesTable.status, "active"),
+  ));
+  const joinedIds = new Set(entries.map((entry) => entry.challengeId));
+  const user = await getUser(userId);
+  if (!user) return;
+
+  for (const challenge of visibleChallenges.filter((item) => joinedIds.has(item.id) && item.community && numberValue(item.entryFee) === 0)) {
+    const records = await db.select().from(dailyStepRecordsTable).where(and(
+      eq(dailyStepRecordsTable.userId, userId),
+      eq(dailyStepRecordsTable.challengeId, challenge.id),
+      eq(dailyStepRecordsTable.verified, true),
+    ));
+    const dailyGoal = challenge.goalType === "personalized" ? numberValue(user.goalBaseline) || challenge.dailyGoal : challenge.dailyGoal;
+    const status = getParticipantStatus(challenge, records, dailyGoal, await getLatestParticipantOverride(challenge.id, userId));
+    const [todayRecord] = await db.select({ id: dailyStepRecordsTable.id }).from(dailyStepRecordsTable).where(and(
+      eq(dailyStepRecordsTable.userId, userId),
+      eq(dailyStepRecordsTable.challengeId, challenge.id),
+      eq(dailyStepRecordsTable.recordDate, today),
+      eq(dailyStepRecordsTable.verified, true),
+    ));
+    const candidates = buildParticipantNotificationCandidates({
+      userId,
+      challengeId: challenge.id,
+      challengeName: challenge.name,
+      challengeType: challenge.challengeType === "elimination" ? "elimination" : "goal",
+      startDate: challenge.startDate,
+      endDate: challenge.endDate,
+      today,
+      missedDays: status.missedDays,
+      graceDays: challenge.graceDays,
+      status: status.status,
+      todayHasVerifiedRecord: Boolean(todayRecord),
+    });
+    await Promise.all(candidates.map((candidate) => saveNotification({
+      userId,
+      type: candidate.type,
+      title: candidate.title,
+      body: candidate.body,
+      challengeId: challenge.id,
+      dedupeKey: candidate.dedupeKey,
+    })));
+  }
+}
+
+async function notifyGroupParticipants(challenge: Challenge, actorUserId: string) {
+  if (!challenge.groupId) return;
+  const [actor] = await db.select().from(usersTable).where(eq(usersTable.id, actorUserId));
+  if (!actor) return;
+  const participants = await db.select({ userId: entriesTable.userId }).from(entriesTable).where(and(
+    eq(entriesTable.challengeId, challenge.id),
+    eq(entriesTable.status, "active"),
+    sql`${entriesTable.userId} <> ${actorUserId}`,
+  ));
+  const actorName = publicUser(actor).displayName;
+  await Promise.all(participants.map(({ userId }) => {
+    const candidate = buildGroupMemberJoinedCandidate({
+      challengeId: challenge.id,
+      challengeName: challenge.name,
+      actorUserId,
+      recipientUserId: userId,
+      actorName,
+    });
+    return saveNotification({
+      userId,
+      type: candidate.type,
+      title: candidate.title,
+      body: candidate.body,
+      challengeId: challenge.id,
+      actorUserId,
+      dedupeKey: candidate.dedupeKey,
+    });
+  }));
 }
 async function getHealthSources(userId: string) {
   const connections = await db.select().from(healthSourceConnectionsTable).where(eq(healthSourceConnectionsTable.userId, userId));
@@ -330,7 +455,7 @@ function sampleReviewResult(source: StepSourceId, sample: {
   } as const;
 }
 async function getBootstrap(req: Request) {
-  const challenges = await db.select().from(challengesTable).orderBy(challengesTable.createdAt);
+  const challenges = await getVisibleChallenges(req.isAuthenticated() ? req.user.id : null);
   if (!req.isAuthenticated()) {
     const anonymousId = anonymousWalkerId(req);
     const joinedIds = anonymousId
@@ -394,7 +519,7 @@ router.get("/stridepool/bootstrap", async (req, res): Promise<void> => {
 
 router.get("/stridepool/community-challenges", async (req, res): Promise<void> => {
   const query = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 120).toLowerCase() : "";
-  const challenges = await db.select().from(challengesTable).orderBy(challengesTable.createdAt);
+  const challenges = await getVisibleChallenges(req.isAuthenticated() ? req.user.id : null);
   const openChallenges = challenges.filter((challenge) =>
     isOpenFreeCommunityChallenge(challenge) &&
     (!query || `${challenge.name} ${challenge.theme} ${challenge.level}`.toLowerCase().includes(query)),
@@ -403,6 +528,75 @@ router.get("/stridepool/community-challenges", async (req, res): Promise<void> =
     ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, req.user.id), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
     : new Set<string>();
   res.json(GetStridePoolCommunityChallengesResponse.parse({ challenges: openChallenges.map((challenge) => challengeFor(challenge, joinedIds)) }));
+});
+
+router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const body = CreateStridePoolGroupChallengeBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const start = body.data.startDate;
+  const end = body.data.endDate;
+  const startDate = start.toISOString().slice(0, 10);
+  const endDate = end.toISOString().slice(0, 10);
+  const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || days < 1 || days > 90) {
+    res.status(400).json({ error: "Choose a challenge window between one and 90 days." });
+    return;
+  }
+  const memberIds = [...new Set([userId, ...body.data.memberUserIds])];
+  const members = await db.select().from(usersTable).where(inArray(usersTable.id, memberIds));
+  if (members.length !== memberIds.length) {
+    res.status(404).json({ error: "One or more invited walkers could not be found." });
+    return;
+  }
+  const groupId = `group_${randomBytes(12).toString("hex")}`;
+  const challengeId = `group_challenge_${randomBytes(12).toString("hex")}`;
+  const [group, challenge] = await db.transaction(async (tx) => {
+    const [createdGroup] = await tx.insert(groupsTable).values({
+      id: groupId,
+      name: body.data.groupName,
+      ownerUserId: userId,
+    }).returning();
+    await tx.insert(groupMembersTable).values(memberIds.map((memberId) => ({ groupId, userId: memberId })));
+    const challengeValues: typeof challengesTable.$inferInsert = {
+      id: challengeId,
+      name: body.data.name,
+      theme: body.data.theme,
+      level: "community",
+      startDate,
+      endDate,
+      days,
+      dailyGoal: body.data.dailyGoal,
+      entryFee: "0",
+      prizePool: "0",
+      participantCount: 1,
+      finishers: 0,
+      settlementStatus: "open",
+      color: body.data.color,
+      challengeType: body.data.challengeType,
+      goalType: body.data.goalType,
+      community: true,
+      groupId,
+      graceDays: body.data.graceDays,
+    };
+    const [createdChallenge] = await tx.insert(challengesTable).values(challengeValues).returning();
+    await tx.insert(entriesTable).values({
+      userId,
+      challengeId,
+      status: "active",
+      entryFee: "0",
+    });
+    return [createdGroup, createdChallenge] as const;
+  });
+  res.status(201).json(CreateStridePoolGroupChallengeResponse.parse({
+    group: { id: group.id, name: group.name, ownerUserId: group.ownerUserId, memberCount: memberIds.length },
+    challenge: challengeFor(challenge, new Set([challenge.id])),
+    members: members.map(publicUser),
+  }));
 });
 
 router.get("/stridepool/users/search", async (req, res): Promise<void> => {
@@ -420,6 +614,62 @@ router.get("/stridepool/users/search", async (req, res): Promise<void> => {
   res.json(SearchStridePoolUsersResponse.parse({ users: users.map(publicUser) }));
 });
 
+router.get("/stridepool/notifications", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  await refreshNotifications(userId);
+  const notifications = await db.select().from(notificationsTable)
+    .where(eq(notificationsTable.userId, userId))
+    .orderBy(desc(notificationsTable.createdAt))
+    .limit(40);
+  const [unread] = await db.select({ count: sql<number>`count(*)` }).from(notificationsTable).where(and(
+    eq(notificationsTable.userId, userId),
+    isNull(notificationsTable.readAt),
+  ));
+  res.json(GetStridePoolNotificationsResponse.parse({
+    notifications: notifications.map((notification) => ({
+      id: String(notification.id),
+      type: notification.type,
+      title: notification.title,
+      body: notification.body,
+      challengeId: notification.challengeId,
+      actorUserId: notification.actorUserId,
+      createdAt: notification.createdAt.toISOString(),
+      readAt: notification.readAt?.toISOString() ?? null,
+    })),
+    unreadCount: Number(unread?.count ?? 0),
+  }));
+});
+
+router.post("/stridepool/notifications/:id/read", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Notification not found." });
+    return;
+  }
+  const updated = await db.update(notificationsTable).set({ readAt: new Date() }).where(and(
+    eq(notificationsTable.id, id),
+    eq(notificationsTable.userId, userId),
+  )).returning({ id: notificationsTable.id });
+  if (!updated.length) {
+    res.status(404).json({ error: "Notification not found." });
+    return;
+  }
+  res.json(MarkStridePoolNotificationReadResponse.parse({ success: true }));
+});
+
+router.post("/stridepool/notifications/read-all", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  await db.update(notificationsTable).set({ readAt: new Date() }).where(and(
+    eq(notificationsTable.userId, userId),
+    isNull(notificationsTable.readAt),
+  ));
+  res.json(MarkAllStridePoolNotificationsReadResponse.parse({ success: true }));
+});
+
 router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<void> => {
   const params = JoinStridePoolChallengeParams.safeParse(req.params);
   if (!params.success) {
@@ -429,6 +679,10 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
   const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
   if (!challenge || !challenge.community || numberValue(challenge.entryFee) !== 0) {
     res.status(404).json({ error: "Free community challenge not found." });
+    return;
+  }
+  if (challenge.groupId && (!req.isAuthenticated() || !(await isGroupMember(challenge.groupId, req.user.id)))) {
+    res.status(404).json({ error: "Private group challenge not found." });
     return;
   }
   const entries = await db.select({ entry: entriesTable, user: usersTable }).from(entriesTable).innerJoin(usersTable, eq(entriesTable.userId, usersTable.id)).where(and(
@@ -502,6 +756,10 @@ router.post("/stridepool/challenges/:id/invites", async (req, res): Promise<void
     res.status(400).json({ error: "Invites are available only for open free community challenges." });
     return;
   }
+  if (challenge.groupId) {
+    res.status(400).json({ error: "Private group challenges use their group membership instead of public invites." });
+    return;
+  }
   const [entry] = await db.select().from(entriesTable).where(and(
     eq(entriesTable.userId, userId),
     eq(entriesTable.challengeId, challenge.id),
@@ -558,6 +816,10 @@ router.get("/stridepool/invites/:token", async (req, res): Promise<void> => {
     res.status(404).json({ error: "This invite is no longer available." });
     return;
   }
+  if (row.challenge.groupId) {
+    res.status(404).json({ error: "This invite is no longer available." });
+    return;
+  }
   res.json(GetStridePoolInviteResponse.parse({
     token,
     challenge: challengeFor(row.challenge, new Set()),
@@ -575,6 +837,10 @@ router.post("/stridepool/invites/:token/accept", async (req, res): Promise<void>
   }).from(challengeInvitesTable).innerJoin(challengesTable, eq(challengeInvitesTable.challengeId, challengesTable.id)).where(eq(challengeInvitesTable.token, token));
   if (!row || row.invite.status !== "pending" || !isOpenFreeCommunityChallenge(row.challenge)) {
     res.status(404).json({ error: "This invite is no longer available." });
+    return;
+  }
+  if (row.challenge.groupId && (!await isGroupMember(row.challenge.groupId, userId))) {
+    res.status(403).json({ error: "This private challenge is limited to its group members." });
     return;
   }
   if (row.invite.inviteeUserId && row.invite.inviteeUserId !== userId) {
@@ -731,6 +997,10 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Challenge not found." });
     return;
   }
+  if (challenge.groupId && (!req.isAuthenticated() || !(await isGroupMember(challenge.groupId, req.user.id)))) {
+    res.status(req.isAuthenticated() ? 403 : 401).json({ error: "This private challenge is limited to its group members." });
+    return;
+  }
   const [entry] = await db.select().from(entriesTable).where(and(
     eq(entriesTable.userId, userId),
     eq(entriesTable.challengeId, challenge.id),
@@ -789,6 +1059,10 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
     res.status(404).json({ error: "Challenge not found." });
     return;
   }
+  if (challenge.groupId && (!req.isAuthenticated() || !(await isGroupMember(challenge.groupId, req.user.id)))) {
+    res.status(req.isAuthenticated() ? 403 : 401).json({ error: "This private challenge is limited to its group members." });
+    return;
+  }
   const userId = req.isAuthenticated()
     ? req.user.id
     : challenge.community && numberValue(challenge.entryFee) === 0
@@ -800,6 +1074,7 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
   }
   try {
     const result = await joinMoneyChallenge(userId, params.data.id);
+    await notifyGroupParticipants(challenge, userId);
     res.json(JoinStridePoolChallengeResponse.parse({ joined: true, wallet: result.wallet }));
   } catch (error) {
     if (error instanceof MoneyLogicError) {
@@ -820,6 +1095,10 @@ router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> 
   const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
   if (!challenge) {
     res.status(404).json({ error: "Challenge not found." });
+    return;
+  }
+  if (challenge.groupId && (!req.isAuthenticated() || !(await isGroupMember(challenge.groupId, req.user.id)))) {
+    res.status(req.isAuthenticated() ? 403 : 401).json({ error: "This private challenge is limited to its group members." });
     return;
   }
   const userId = req.isAuthenticated()

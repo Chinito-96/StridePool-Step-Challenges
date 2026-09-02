@@ -3,6 +3,33 @@ import { date, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIn
 import { z } from "zod/v4";
 import { usersTable } from "./auth";
 
+export const groupsTable = pgTable(
+  "stridepool_groups",
+  {
+    id: varchar("id").primaryKey(),
+    name: text("name").notNull(),
+    ownerUserId: varchar("owner_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("stridepool_groups_owner_idx").on(table.ownerUserId, table.createdAt),
+  ],
+);
+
+export const groupMembersTable = pgTable(
+  "stridepool_group_members",
+  {
+    id: serial("id").primaryKey(),
+    groupId: varchar("group_id").notNull().references(() => groupsTable.id, { onDelete: "cascade" }),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("stridepool_group_members_unique").on(table.groupId, table.userId),
+    index("stridepool_group_members_user_idx").on(table.userId, table.joinedAt),
+  ],
+);
+
 export const challengesTable = pgTable("challenges", {
   id: varchar("id").primaryKey(),
   name: text("name").notNull(),
@@ -23,6 +50,7 @@ export const challengesTable = pgTable("challenges", {
   challengeType: varchar("challenge_type").notNull().default("goal"),
   goalType: varchar("goal_type").notNull().default("fixed"),
   community: boolean("community").notNull().default(false),
+  groupId: varchar("group_id").references(() => groupsTable.id, { onDelete: "set null" }),
   graceDays: integer("grace_days").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -166,6 +194,26 @@ export const challengeInvitesTable = pgTable(
   ],
 );
 
+export const notificationsTable = pgTable(
+  "stridepool_notifications",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    type: varchar("type").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    challengeId: varchar("challenge_id").references(() => challengesTable.id, { onDelete: "cascade" }),
+    actorUserId: varchar("actor_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+    dedupeKey: varchar("dedupe_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("stridepool_notifications_dedupe_unique").on(table.dedupeKey),
+    index("stridepool_notifications_user_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 export const walletLedgerEntriesTable = pgTable(
   "wallet_ledger_entries",
   {
@@ -261,6 +309,8 @@ export const moneyReconciliationRunsTable = pgTable(
 );
 
 export const insertChallengeSchema = createInsertSchema(challengesTable);
+export const insertGroupSchema = createInsertSchema(groupsTable);
+export const insertGroupMemberSchema = createInsertSchema(groupMembersTable);
 export const insertEntrySchema = createInsertSchema(entriesTable);
 export const insertDailyStepRecordSchema = createInsertSchema(dailyStepRecordsTable);
 export const insertWalletLedgerEntrySchema = createInsertSchema(walletLedgerEntriesTable);
@@ -268,6 +318,8 @@ export type InsertChallenge = z.infer<typeof insertChallengeSchema>;
 export type InsertEntry = z.infer<typeof insertEntrySchema>;
 export type InsertDailyStepRecord = z.infer<typeof insertDailyStepRecordSchema>;
 export type Challenge = typeof challengesTable.$inferSelect;
+export type Group = typeof groupsTable.$inferSelect;
+export type GroupMember = typeof groupMembersTable.$inferSelect;
 export type Entry = typeof entriesTable.$inferSelect;
 export type DailyStepRecord = typeof dailyStepRecordsTable.$inferSelect;
 export type HealthSourceConnection = typeof healthSourceConnectionsTable.$inferSelect;
@@ -275,6 +327,7 @@ export type StepSourceSample = typeof stepSourceSamplesTable.$inferSelect;
 export type ChallengeRecoveryCase = typeof challengeRecoveryCasesTable.$inferSelect;
 export type ChallengeParticipantOverride = typeof challengeParticipantOverridesTable.$inferSelect;
 export type ChallengeInvite = typeof challengeInvitesTable.$inferSelect;
+export type Notification = typeof notificationsTable.$inferSelect;
 export type WalletLedgerEntry = typeof walletLedgerEntriesTable.$inferSelect;
 export type ProviderMoneyEvent = typeof providerMoneyEventsTable.$inferSelect;
 export type PayoutState = typeof payoutStatesTable.$inferSelect;

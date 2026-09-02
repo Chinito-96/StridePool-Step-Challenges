@@ -18,6 +18,7 @@ import type {
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
+
 import type {
   AdminChallengesResponse,
   AdminFlaggedStepRecordsResponse,
@@ -41,6 +42,8 @@ import type {
   EntryMutationResponse,
   ErrorResponse,
   GetStridePoolCommunityChallengesParams,
+  GroupChallengeInput,
+  GroupChallengeResponse,
   HealthSourcesResponse,
   HealthStatus,
   IngestStepSamplesBody,
@@ -52,6 +55,8 @@ import type {
   LogoutSuccess,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
+  NotificationMutationResponse,
+  NotificationsResponse,
   PayoutOnboardingInput,
   PayoutOnboardingResponse,
   PendingInvitesResponse,
@@ -70,7 +75,7 @@ import type {
   UserSearchResponse,
   WalletSummary
 } from './api.schemas';
-// End of generated API hooks.
+
 import { customFetch } from '../custom-fetch';
 import type { ErrorType , BodyType } from '../custom-fetch';
 
@@ -104,7 +109,8 @@ export const getHealthCheckUrl = () => {
 
 
   return `/api/healthz`
-     }
+}
+
 /**
  * Returns server health status
  * @summary Health check
@@ -1381,6 +1387,77 @@ export function useGetStridePoolCommunityChallenges<TData = Awaited<ReturnType<t
 
 
 
+export const getCreateStridePoolGroupChallengeUrl = () => {
+
+
+
+
+  return `/api/stridepool/groups/challenges`
+}
+
+/**
+ * @summary Create a private free group challenge
+ */
+export const createStridePoolGroupChallenge = async (groupChallengeInput: GroupChallengeInput, options?: Parameters<typeof customFetch>[1]): Promise<GroupChallengeResponse> => {
+
+  return customFetch<GroupChallengeResponse>(getCreateStridePoolGroupChallengeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(groupChallengeInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStridePoolGroupChallengeMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolGroupChallenge>>, TError,{data: BodyType<GroupChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStridePoolGroupChallenge>>, TError,{data: BodyType<GroupChallengeInput>}, TContext> => {
+
+const mutationKey = ['createStridePoolGroupChallenge'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStridePoolGroupChallenge>>, {data: BodyType<GroupChallengeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStridePoolGroupChallenge(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStridePoolGroupChallengeMutationResult = NonNullable<Awaited<ReturnType<typeof createStridePoolGroupChallenge>>>
+    export type CreateStridePoolGroupChallengeMutationBody = BodyType<GroupChallengeInput>
+    export type CreateStridePoolGroupChallengeMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Create a private free group challenge
+ */
+export const useCreateStridePoolGroupChallenge = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolGroupChallenge>>, TError,{data: BodyType<GroupChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStridePoolGroupChallenge>>,
+        TError,
+        {data: BodyType<GroupChallengeInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStridePoolGroupChallengeMutationOptions(options));
+    }
+
 export const getSearchStridePoolUsersUrl = (params: SearchStridePoolUsersParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1724,7 +1801,7 @@ export const getGetStridePoolPendingInvitesQueryKey = () => {
     }
 
 
-export const getGetStridePoolPendingInvitesQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetStridePoolPendingInvitesQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1743,14 +1820,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetStridePoolPendingInvitesQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolPendingInvites>>>
-export type GetStridePoolPendingInvitesQueryError = ErrorType<void>
+export type GetStridePoolPendingInvitesQueryError = ErrorType<unknown>
 
 
 /**
  * @summary List pending free challenge invites for the current user
  */
 
-export function useGetStridePoolPendingInvites<TData = Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError = ErrorType<void>>(
+export function useGetStridePoolPendingInvites<TData = Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError = ErrorType<unknown>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolPendingInvites>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1767,6 +1844,225 @@ export function useGetStridePoolPendingInvites<TData = Awaited<ReturnType<typeof
 
 
 
+
+export const getGetStridePoolNotificationsUrl = () => {
+
+
+
+
+  return `/api/stridepool/notifications`
+}
+
+/**
+ * @summary List in-app notifications
+ */
+export const getStridePoolNotifications = async ( options?: Parameters<typeof customFetch>[1]): Promise<NotificationsResponse> => {
+
+  return customFetch<NotificationsResponse>(getGetStridePoolNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolNotificationsQueryKey = () => {
+    return [
+    `/api/stridepool/notifications`
+    ] as const;
+    }
+
+
+export const getGetStridePoolNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolNotifications>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolNotifications>>> = ({ signal }) => getStridePoolNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolNotifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolNotifications>>>
+export type GetStridePoolNotificationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List in-app notifications
+ */
+
+export function useGetStridePoolNotifications<TData = Awaited<ReturnType<typeof getStridePoolNotifications>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkStridePoolNotificationReadUrl = (id: string,) => {
+
+
+
+
+  return `/api/stridepool/notifications/${id}/read`
+}
+
+/**
+ * @summary Mark an in-app notification read
+ */
+export const markStridePoolNotificationRead = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<NotificationMutationResponse> => {
+
+  return customFetch<NotificationMutationResponse>(getMarkStridePoolNotificationReadUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkStridePoolNotificationReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markStridePoolNotificationRead>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markStridePoolNotificationRead>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['markStridePoolNotificationRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markStridePoolNotificationRead>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  markStridePoolNotificationRead(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkStridePoolNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markStridePoolNotificationRead>>>
+
+    export type MarkStridePoolNotificationReadMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark an in-app notification read
+ */
+export const useMarkStridePoolNotificationRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markStridePoolNotificationRead>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markStridePoolNotificationRead>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getMarkStridePoolNotificationReadMutationOptions(options));
+    }
+
+export const getMarkAllStridePoolNotificationsReadUrl = () => {
+
+
+
+
+  return `/api/stridepool/notifications/read-all`
+}
+
+/**
+ * @summary Mark all in-app notifications read
+ */
+export const markAllStridePoolNotificationsRead = async ( options?: Parameters<typeof customFetch>[1]): Promise<NotificationMutationResponse> => {
+
+  return customFetch<NotificationMutationResponse>(getMarkAllStridePoolNotificationsReadUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkAllStridePoolNotificationsReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllStridePoolNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAllStridePoolNotificationsRead>>, TError,void, TContext> => {
+
+const mutationKey = ['markAllStridePoolNotificationsRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAllStridePoolNotificationsRead>>, void> = () => {
+
+
+          return  markAllStridePoolNotificationsRead(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAllStridePoolNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAllStridePoolNotificationsRead>>>
+
+    export type MarkAllStridePoolNotificationsReadMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark all in-app notifications read
+ */
+export const useMarkAllStridePoolNotificationsRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllStridePoolNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markAllStridePoolNotificationsRead>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkAllStridePoolNotificationsReadMutationOptions(options));
+    }
 
 export const getGetStridePoolInviteUrl = (token: string,) => {
 
@@ -2890,4 +3186,5 @@ export const useOverrideAdminChallengeParticipant = <TError = ErrorType<ErrorRes
         TContext
       > => {
       return useMutation(getOverrideAdminChallengeParticipantMutationOptions(options));
-    }// End of generated API hooks.
+    }
+

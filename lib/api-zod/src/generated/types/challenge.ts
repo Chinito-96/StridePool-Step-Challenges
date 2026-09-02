@@ -7,6 +7,7 @@
  */
 import type { ChallengeChallengeType } from './challengeChallengeType';
 import type { ChallengeSettlementStatus } from './challengeSettlementStatus';
+import type { ChallengeVisibility } from './challengeVisibility';
 
 export interface Challenge {
   id: string;
@@ -25,6 +26,7 @@ export interface Challenge {
   challengeType: ChallengeChallengeType;
   goalType: string;
   community: boolean;
+  visibility: ChallengeVisibility;
   graceDays: number;
   settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
