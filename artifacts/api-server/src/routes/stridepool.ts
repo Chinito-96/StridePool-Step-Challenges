@@ -13,6 +13,9 @@ import {
   dailyStepRecordsTable,
   db,
   entriesTable,
+  joinChallenge as joinMoneyChallenge,
+  leaveChallenge as leaveMoneyChallenge,
+  MoneyLogicError,
   usersTable,
   type Challenge,
 } from "@workspace/db";
@@ -112,43 +115,17 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
-  if (!challenge) {
-    res.status(404).json({ error: "Challenge not found." });
-    return;
-  }
-  const user = await getUser(userId);
-  if (!user) {
-    res.status(401).json({ error: "Login required." });
-    return;
-  }
-  const [existing] = await db.select().from(entriesTable).where(and(eq(entriesTable.userId, userId), eq(entriesTable.challengeId, challenge.id)));
-  if (existing?.status === "active") {
-    res.json(JoinStridePoolChallengeResponse.parse({ joined: true, wallet: walletFor(user) }));
-    return;
-  }
-  const fee = numberValue(challenge.entryFee);
-  if (fee > numberValue(user.walletBalance)) {
-    res.status(400).json({ error: "Your available balance is too low for this entry." });
-    return;
-  }
-  const updatedWallet = await db.transaction(async (tx) => {
-    if (existing) {
-      await tx.update(entriesTable).set({ status: "active", joinedAt: new Date(), leftAt: null }).where(eq(entriesTable.id, existing.id));
-    } else {
-      await tx.insert(entriesTable).values({ userId, challengeId: challenge.id, entryFee: fee.toFixed(2), status: "active" });
+  try {
+    const result = await joinMoneyChallenge(userId, params.data.id);
+    res.json(JoinStridePoolChallengeResponse.parse({ joined: true, wallet: result.wallet }));
+  } catch (error) {
+    if (error instanceof MoneyLogicError) {
+      const status = error.code === "NOT_FOUND" ? 404 : error.code === "INSUFFICIENT_FUNDS" || error.code === "INVALID_FREE_CHALLENGE" ? 400 : 409;
+      res.status(status).json({ error: error.message });
+      return;
     }
-    const [updatedUser] = await tx.update(usersTable).set({
-      walletBalance: sql`${usersTable.walletBalance} - ${fee.toFixed(2)}`,
-      walletPending: sql`${usersTable.walletPending} + ${fee.toFixed(2)}`,
-    }).where(eq(usersTable.id, userId)).returning();
-    await tx.update(challengesTable).set({
-      participantCount: sql`${challengesTable.participantCount} + 1`,
-      prizePool: sql`${challengesTable.prizePool} + ${fee.toFixed(2)}`,
-    }).where(eq(challengesTable.id, challenge.id));
-    return walletFor(updatedUser);
-  });
-  res.json(JoinStridePoolChallengeResponse.parse({ joined: true, wallet: updatedWallet }));
+    throw error;
+  }
 });
 
 router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> => {
@@ -159,25 +136,17 @@ router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> 
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [entry] = await db.select().from(entriesTable).where(and(eq(entriesTable.userId, userId), eq(entriesTable.challengeId, params.data.id), eq(entriesTable.status, "active")));
-  if (!entry) {
-    res.status(404).json({ error: "Active entry not found." });
-    return;
+  try {
+    const result = await leaveMoneyChallenge(userId, params.data.id);
+    res.json(LeaveStridePoolChallengeResponse.parse({ joined: false, wallet: result.wallet }));
+  } catch (error) {
+    if (error instanceof MoneyLogicError) {
+      const status = error.code === "NOT_FOUND" ? 404 : 409;
+      res.status(status).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-  const fee = numberValue(entry.entryFee);
-  const updatedWallet = await db.transaction(async (tx) => {
-    await tx.update(entriesTable).set({ status: "left", leftAt: new Date() }).where(eq(entriesTable.id, entry.id));
-    const [updatedUser] = await tx.update(usersTable).set({
-      walletBalance: sql`${usersTable.walletBalance} + ${fee.toFixed(2)}`,
-      walletPending: sql`greatest(${usersTable.walletPending} - ${fee.toFixed(2)}, 0)`,
-    }).where(eq(usersTable.id, userId)).returning();
-    await tx.update(challengesTable).set({
-      participantCount: sql`greatest(${challengesTable.participantCount} - 1, 0)`,
-      prizePool: sql`greatest(${challengesTable.prizePool} - ${fee.toFixed(2)}, 0)`,
-    }).where(eq(challengesTable.id, params.data.id));
-    return walletFor(updatedUser);
-  });
-  res.json(LeaveStridePoolChallengeResponse.parse({ joined: false, wallet: updatedWallet }));
 });
 
 router.post("/stridepool/sync", async (req, res): Promise<void> => {

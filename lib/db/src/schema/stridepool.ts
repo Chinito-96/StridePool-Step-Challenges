@@ -16,6 +16,9 @@ export const challengesTable = pgTable("challenges", {
   prizePool: numeric("prize_pool", { precision: 12, scale: 2 }).notNull().default("0"),
   participantCount: integer("participant_count").notNull().default(0),
   finishers: integer("finishers").notNull().default(0),
+  settlementStatus: varchar("settlement_status").notNull().default("open"),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+  settledPool: numeric("settled_pool", { precision: 12, scale: 2 }),
   color: varchar("color").notNull(),
   goalType: varchar("goal_type").notNull().default("fixed"),
   community: boolean("community").notNull().default(false),
@@ -37,6 +40,8 @@ export const entriesTable = pgTable(
     paymentProvider: varchar("payment_provider"),
     paymentReference: varchar("payment_reference"),
     settlementStatus: varchar("settlement_status"),
+    settlementAmount: numeric("settlement_amount", { precision: 12, scale: 2 }),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("entries_user_challenge_unique").on(table.userId, table.challengeId),
