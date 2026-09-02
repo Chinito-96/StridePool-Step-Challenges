@@ -20,6 +20,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminChallengesResponse,
+  AdminFlaggedStepRecordsResponse,
+  AdminSettlementHistoryResponse,
+  AdminUserResponse,
+  AdminUserSearchResponse,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
   ChallengeInviteInput,
@@ -54,6 +59,7 @@ import type {
   RecoveryCase,
   RecoveryCasesResponse,
   RecoveryRequestBody,
+  SearchAdminUsersParams,
   SearchStridePoolUsersParams,
   StridePoolBootstrap,
   StripeWebhookPayload,
@@ -163,11 +169,6 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 }
 
 
-
-
-
-
-
 export const getGetComplianceStatusUrl = () => {
 
 
@@ -239,13 +240,6 @@ export function useGetComplianceStatus<TData = Awaited<ReturnType<typeof getComp
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getCheckEligibilityUrl = () => {
 
 
@@ -529,13 +523,6 @@ export function useGetLedger<TData = Awaited<ReturnType<typeof getLedger>>, TErr
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getReceiveStripeWebhookUrl = () => {
 
 
@@ -2342,3 +2329,388 @@ export const useUpdateStridePoolProfile = <TError = ErrorType<void>,
       return useMutation(getUpdateStridePoolProfileMutationOptions(options));
     }
 
+export const getGetAdminFlaggedStepRecordsUrl = () => {
+
+
+
+
+  return `/api/admin/flagged-step-records`
+}
+
+/**
+ * @summary List suspicious daily step records
+ */
+export const getAdminFlaggedStepRecords = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminFlaggedStepRecordsResponse> => {
+
+  return customFetch<AdminFlaggedStepRecordsResponse>(getGetAdminFlaggedStepRecordsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminFlaggedStepRecordsQueryKey = () => {
+    return [
+    `/api/admin/flagged-step-records`
+    ] as const;
+    }
+
+
+export const getGetAdminFlaggedStepRecordsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminFlaggedStepRecords>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminFlaggedStepRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminFlaggedStepRecordsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminFlaggedStepRecords>>> = ({ signal }) => getAdminFlaggedStepRecords({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminFlaggedStepRecords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminFlaggedStepRecordsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminFlaggedStepRecords>>>
+export type GetAdminFlaggedStepRecordsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List suspicious daily step records
+ */
+
+export function useGetAdminFlaggedStepRecords<TData = Awaited<ReturnType<typeof getAdminFlaggedStepRecords>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminFlaggedStepRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminFlaggedStepRecordsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminChallengesUrl = () => {
+
+
+
+
+  return `/api/admin/challenges`
+}
+
+/**
+ * @summary List challenge status and pool totals
+ */
+export const getAdminChallenges = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminChallengesResponse> => {
+
+  return customFetch<AdminChallengesResponse>(getGetAdminChallengesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminChallengesQueryKey = () => {
+    return [
+    `/api/admin/challenges`
+    ] as const;
+    }
+
+
+export const getGetAdminChallengesQueryOptions = <TData = Awaited<ReturnType<typeof getAdminChallenges>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminChallenges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminChallengesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminChallenges>>> = ({ signal }) => getAdminChallenges({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminChallenges>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminChallengesQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminChallenges>>>
+export type GetAdminChallengesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List challenge status and pool totals
+ */
+
+export function useGetAdminChallenges<TData = Awaited<ReturnType<typeof getAdminChallenges>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminChallenges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminChallengesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminSettlementHistoryUrl = () => {
+
+
+
+
+  return `/api/admin/settlements`
+}
+
+/**
+ * @summary List challenge settlement history
+ */
+export const getAdminSettlementHistory = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminSettlementHistoryResponse> => {
+
+  return customFetch<AdminSettlementHistoryResponse>(getGetAdminSettlementHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminSettlementHistoryQueryKey = () => {
+    return [
+    `/api/admin/settlements`
+    ] as const;
+    }
+
+
+export const getGetAdminSettlementHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getAdminSettlementHistory>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminSettlementHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminSettlementHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminSettlementHistory>>> = ({ signal }) => getAdminSettlementHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminSettlementHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminSettlementHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminSettlementHistory>>>
+export type GetAdminSettlementHistoryQueryError = ErrorType<void>
+
+
+/**
+ * @summary List challenge settlement history
+ */
+
+export function useGetAdminSettlementHistory<TData = Awaited<ReturnType<typeof getAdminSettlementHistory>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminSettlementHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminSettlementHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSearchAdminUsersUrl = (params?: SearchAdminUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/users/search?${stringifiedParams}` : `/api/admin/users/search`
+}
+
+/**
+ * @summary Search users by email, ID, or name
+ */
+export const searchAdminUsers = async (params?: SearchAdminUsersParams, options?: Parameters<typeof customFetch>[1]): Promise<AdminUserSearchResponse> => {
+
+  return customFetch<AdminUserSearchResponse>(getSearchAdminUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchAdminUsersQueryKey = (params?: SearchAdminUsersParams,) => {
+    return [
+    `/api/admin/users/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof searchAdminUsers>>, TError = ErrorType<void>>(params?: SearchAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchAdminUsersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchAdminUsers>>> = ({ signal }) => searchAdminUsers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchAdminUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof searchAdminUsers>>>
+export type SearchAdminUsersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search users by email, ID, or name
+ */
+
+export function useSearchAdminUsers<TData = Awaited<ReturnType<typeof searchAdminUsers>>, TError = ErrorType<void>>(
+ params?: SearchAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchAdminUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminUserUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/users/${id}`
+}
+
+/**
+ * @summary Inspect a user's wallet and challenge history
+ */
+export const getAdminUser = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminUserResponse> => {
+
+  return customFetch<AdminUserResponse>(getGetAdminUserUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminUserQueryKey = (id: string,) => {
+    return [
+    `/api/admin/users/${id}`
+    ] as const;
+    }
+
+
+export const getGetAdminUserQueryOptions = <TData = Awaited<ReturnType<typeof getAdminUser>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminUserQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminUser>>> = ({ signal }) => getAdminUser(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminUser>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminUserQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminUser>>>
+export type GetAdminUserQueryError = ErrorType<void>
+
+
+/**
+ * @summary Inspect a user's wallet and challenge history
+ */
+
+export function useGetAdminUser<TData = Awaited<ReturnType<typeof getAdminUser>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminUserQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

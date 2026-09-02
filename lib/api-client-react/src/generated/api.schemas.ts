@@ -627,6 +627,107 @@ export interface WebhookResponse {
   ledgerEntryId: string;
 }
 
+export interface AdminFlaggedStepRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  /** @nullable */
+  challengeId: string | null;
+  challengeName: string;
+  recordDate: string;
+  steps: number;
+  source: string;
+  flagReasons: string[];
+  createdAt: string;
+}
+
+export interface AdminFlaggedStepRecordsResponse {
+  records: AdminFlaggedStepRecord[];
+}
+
+export type AdminChallengeStatus = typeof AdminChallengeStatus[keyof typeof AdminChallengeStatus];
+
+
+export const AdminChallengeStatus = {
+  open: 'open',
+  active: 'active',
+  settling: 'settling',
+  settled: 'settled',
+} as const;
+
+export interface AdminChallenge {
+  id: string;
+  name: string;
+  status: AdminChallengeStatus;
+  participantCount: number;
+  poolTotal: number;
+  entryFee: number;
+  startDate: string;
+  endDate: string;
+  community: boolean;
+  settlementStatus: string;
+}
+
+export interface AdminChallengesResponse {
+  challenges: AdminChallenge[];
+}
+
+export interface AdminSettlement {
+  challengeId: string;
+  challengeName: string;
+  /** @nullable */
+  settledAt: string | null;
+  finisherCount: number;
+  perFinisherPayoutCents: number;
+  payoutAmountsCents: number[];
+  noFinisherRefundCount: number;
+  noFinisherRefundCents: number;
+}
+
+export interface AdminSettlementHistoryResponse {
+  settlements: AdminSettlement[];
+}
+
+export interface AdminUserSearchResult {
+  id: string;
+  email: string;
+  displayName: string;
+}
+
+export interface AdminUserSearchResponse {
+  users: AdminUserSearchResult[];
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: string;
+  walletBalance: number;
+  walletPending: number;
+  totalEarned: number;
+  createdAt: string;
+}
+
+export interface AdminUserChallenge {
+  challengeId: string;
+  challengeName: string;
+  entryStatus: string;
+  entryFee: number;
+  settlementStatus: string;
+  /** @nullable */
+  settlementAmount: number | null;
+  joinedAt: string;
+  /** @nullable */
+  settledAt: string | null;
+}
+
+export interface AdminUserResponse {
+  user: AdminUser;
+  challenges: AdminUserChallenge[];
+}
+
 export type AuthorizationSessionHeaderParameter = string;
 
 export type ReceiveStripeWebhook200 = { [key: string]: unknown };
@@ -652,5 +753,9 @@ export type SearchStridePoolUsersParams = {
  * @maxLength 120
  */
 q: string;
+};
+
+export type SearchAdminUsersParams = {
+q?: string;
 };
 

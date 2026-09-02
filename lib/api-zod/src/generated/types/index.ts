@@ -7,6 +7,18 @@
  */
 
 export * from './activity';
+export * from './adminChallenge';
+export * from './adminChallengesResponse';
+export * from './adminChallengeStatus';
+export * from './adminFlaggedStepRecord';
+export * from './adminFlaggedStepRecordsResponse';
+export * from './adminSettlement';
+export * from './adminSettlementHistoryResponse';
+export * from './adminUser';
+export * from './adminUserChallenge';
+export * from './adminUserResponse';
+export * from './adminUserSearchResponse';
+export * from './adminUserSearchResult';
 export * from './authorizationSessionHeaderParameter';
 export * from './authUser';
 export * from './authUserEnvelope';
@@ -67,6 +79,7 @@ export * from './recoveryCaseStatus';
 export * from './recoveryCaseType';
 export * from './recoveryRequestBody';
 export * from './recoveryRequestBodyType';
+export * from './searchAdminUsersParams';
 export * from './searchStridePoolUsersParams';
 export * from './sourceSampleResult';
 export * from './sourceSampleResultVerificationStatus';

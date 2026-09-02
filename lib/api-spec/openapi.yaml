@@ -18,6 +18,8 @@ tags:
     description: Paid-play eligibility and launch controls
   - name: money
     description: Provider-backed money movement and audit events
+  - name: admin
+    description: Authenticated internal support and operations tooling
 paths:
   /healthz:
     get:
@@ -609,6 +611,109 @@ paths:
                 $ref: "#/components/schemas/ProfileSettings"
         "401":
           description: Login required.
+  /admin/flagged-step-records:
+    get:
+      tags: [admin]
+      operationId: getAdminFlaggedStepRecords
+      summary: List suspicious daily step records
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Daily records held for anti-cheat review.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminFlaggedStepRecordsResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+  /admin/challenges:
+    get:
+      tags: [admin]
+      operationId: getAdminChallenges
+      summary: List challenge status and pool totals
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Challenge operations overview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminChallengesResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+  /admin/settlements:
+    get:
+      tags: [admin]
+      operationId: getAdminSettlementHistory
+      summary: List challenge settlement history
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Materialized settlement and refund events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSettlementHistoryResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+  /admin/users/search:
+    get:
+      tags: [admin]
+      operationId: searchAdminUsers
+      summary: Search users by email, ID, or name
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Matching users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserSearchResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+  /admin/users/{id}:
+    get:
+      tags: [admin]
+      operationId: getAdminUser
+      summary: Inspect a user's wallet and challenge history
+      parameters:
+        - $ref: "#/components/parameters/ChallengeId"
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: User support detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+        "404":
+          description: User not found.
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -1095,4 +1200,122 @@ components:
         duplicate: { type: boolean }
         ledgerEntryId: { type: string }
       required: [accepted, duplicate, ledgerEntryId]
+    AdminFlaggedStepRecord:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        userName: { type: string }
+        userEmail: { type: string }
+        challengeId: { type: [string, "null"] }
+        challengeName: { type: string }
+        recordDate: { type: string, format: date }
+        steps: { type: integer }
+        source: { type: string }
+        flagReasons:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, userId, userName, userEmail, challengeId, challengeName, recordDate, steps, source, flagReasons, createdAt]
+    AdminFlaggedStepRecordsResponse:
+      type: object
+      properties:
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminFlaggedStepRecord"
+      required: [records]
+    AdminChallenge:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [open, active, settling, settled] }
+        participantCount: { type: integer }
+        poolTotal: { type: number }
+        entryFee: { type: number }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        community: { type: boolean }
+        settlementStatus: { type: string }
+      required: [id, name, status, participantCount, poolTotal, entryFee, startDate, endDate, community, settlementStatus]
+    AdminChallengesResponse:
+      type: object
+      properties:
+        challenges:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminChallenge"
+      required: [challenges]
+    AdminSettlement:
+      type: object
+      properties:
+        challengeId: { type: string }
+        challengeName: { type: string }
+        settledAt: { type: [string, "null"], format: date-time }
+        finisherCount: { type: integer }
+        perFinisherPayoutCents: { type: integer }
+        payoutAmountsCents:
+          type: array
+          items: { type: integer }
+        noFinisherRefundCount: { type: integer }
+        noFinisherRefundCents: { type: integer }
+      required: [challengeId, challengeName, settledAt, finisherCount, perFinisherPayoutCents, payoutAmountsCents, noFinisherRefundCount, noFinisherRefundCents]
+    AdminSettlementHistoryResponse:
+      type: object
+      properties:
+        settlements:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminSettlement"
+      required: [settlements]
+    AdminUserSearchResult:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+      required: [id, email, displayName]
+    AdminUserSearchResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserSearchResult"
+      required: [users]
+    AdminUser:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+        role: { type: string }
+        walletBalance: { type: number }
+        walletPending: { type: number }
+        totalEarned: { type: number }
+        createdAt: { type: string, format: date-time }
+      required: [id, email, displayName, role, walletBalance, walletPending, totalEarned, createdAt]
+    AdminUserChallenge:
+      type: object
+      properties:
+        challengeId: { type: string }
+        challengeName: { type: string }
+        entryStatus: { type: string }
+        entryFee: { type: number }
+        settlementStatus: { type: string }
+        settlementAmount: { type: [number, "null"] }
+        joinedAt: { type: string, format: date-time }
+        settledAt: { type: [string, "null"], format: date-time }
+      required: [challengeId, challengeName, entryStatus, entryFee, settlementStatus, settlementAmount, joinedAt, settledAt]
+    AdminUserResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AdminUser"
+        challenges:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserChallenge"
+      required: [user, challenges]
 

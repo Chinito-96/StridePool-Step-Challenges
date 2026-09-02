@@ -21,6 +21,7 @@ export const usersTable = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   displayName: varchar("display_name"),
+  role: varchar("role").notNull().default("user"),
   walletBalance: numeric("wallet_balance", { precision: 12, scale: 2 }).notNull().default("42.50"),
   walletPending: numeric("wallet_pending", { precision: 12, scale: 2 }).notNull().default("18.00"),
   totalEarned: numeric("total_earned", { precision: 12, scale: 2 }).notNull().default("156.75"),

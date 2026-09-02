@@ -837,3 +837,126 @@ export const UpdateStridePoolProfileResponse = zod.object({
 })
 
 
+/**
+ * @summary List suspicious daily step records
+ */
+export const GetAdminFlaggedStepRecordsHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetAdminFlaggedStepRecordsResponse = zod.object({
+  "records": zod.array(zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "userName": zod.string(),
+  "userEmail": zod.string(),
+  "challengeId": zod.string().nullable(),
+  "challengeName": zod.string(),
+  "recordDate": zod.coerce.date(),
+  "steps": zod.int(),
+  "source": zod.string(),
+  "flagReasons": zod.array(zod.string()),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary List challenge status and pool totals
+ */
+export const GetAdminChallengesHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetAdminChallengesResponse = zod.object({
+  "challenges": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['open', 'active', 'settling', 'settled']),
+  "participantCount": zod.int(),
+  "poolTotal": zod.number(),
+  "entryFee": zod.number(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "community": zod.boolean(),
+  "settlementStatus": zod.string()
+}))
+})
+
+
+/**
+ * @summary List challenge settlement history
+ */
+export const GetAdminSettlementHistoryHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetAdminSettlementHistoryResponse = zod.object({
+  "settlements": zod.array(zod.object({
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "settledAt": zod.coerce.date().nullable(),
+  "finisherCount": zod.int(),
+  "perFinisherPayoutCents": zod.int(),
+  "payoutAmountsCents": zod.array(zod.int()),
+  "noFinisherRefundCount": zod.int(),
+  "noFinisherRefundCents": zod.int()
+}))
+})
+
+
+/**
+ * @summary Search users by email, ID, or name
+ */
+export const SearchAdminUsersQueryParams = zod.object({
+  "q": zod.coerce.string().optional()
+})
+
+export const SearchAdminUsersHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const SearchAdminUsersResponse = zod.object({
+  "users": zod.array(zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "displayName": zod.string()
+}))
+})
+
+
+/**
+ * @summary Inspect a user's wallet and challenge history
+ */
+export const GetAdminUserParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetAdminUserHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetAdminUserResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.string(),
+  "walletBalance": zod.number(),
+  "walletPending": zod.number(),
+  "totalEarned": zod.number(),
+  "createdAt": zod.coerce.date()
+}),
+  "challenges": zod.array(zod.object({
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "entryStatus": zod.string(),
+  "entryFee": zod.number(),
+  "settlementStatus": zod.string(),
+  "settlementAmount": zod.number().nullable(),
+  "joinedAt": zod.coerce.date(),
+  "settledAt": zod.coerce.date().nullable()
+}))
+})
+
+

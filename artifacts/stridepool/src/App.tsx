@@ -1,6 +1,6 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getSearchStridePoolUsersQueryKey, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolInvite, useGetStridePoolPendingInvites, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
+import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolInvite, useGetStridePoolPendingInvites, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, type AdminChallenge, type AdminFlaggedStepRecord, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert, CircleHelp, CircleUserRound, Clock3, Compass, Copy, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, UserCheck, UserPlus, Users, UsersRound, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
@@ -143,7 +143,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
-   const pageName = location === '/' ? 'Today' : location.startsWith('/challenge/') ? 'Challenge details' : location.startsWith('/invite/') ? 'Invite' : navItems.find((item) => item.href === location)?.label ?? 'StridePool';
+   const pageName = location === '/' ? 'Today' : location.startsWith('/challenge/') ? 'Challenge details' : location.startsWith('/invite/') ? 'Invite' : location.startsWith('/admin') ? 'Admin' : navItems.find((item) => item.href === location)?.label ?? 'StridePool';
   return <div className="app-noise min-h-[100dvh] bg-background">
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[244px] flex-col justify-between border-r border-sidebar-border bg-sidebar px-5 py-6 text-sidebar-foreground lg:flex">
       <div>
@@ -503,8 +503,112 @@ function InviteLoading() {
   return <div className="mx-auto flex min-h-[60vh] max-w-[620px] items-center justify-center animate-pulse"><div className="w-full overflow-hidden rounded-[26px] border border-border bg-card"><div className="h-72 bg-muted" /><div className="space-y-4 p-8"><div className="h-5 w-2/3 rounded bg-muted" /><div className="h-12 w-full rounded bg-muted" /><div className="h-12 w-full rounded-xl bg-muted" /></div></div></div>;
 }
 
+function adminErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== 'object' || !('status' in error)) return null;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : null;
+}
+
+function adminMoney(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function adminDate(value: string | null): string {
+  return value ? new Date(value).toLocaleString() : '—';
+}
+
+function AdminPage() {
+  const { auth } = useApp();
+  const [userQuery, setUserQuery] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const flagged = useGetAdminFlaggedStepRecords({ query: { queryKey: getGetAdminFlaggedStepRecordsQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
+  const challenges = useGetAdminChallenges({ query: { queryKey: getGetAdminChallengesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
+  const settlements = useGetAdminSettlementHistory({ query: { queryKey: getGetAdminSettlementHistoryQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
+  const users = useSearchAdminUsers(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined, { query: { queryKey: getSearchAdminUsersQueryKey(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined), enabled: auth.isAuthenticated && userQuery.trim().length >= 2, staleTime: 10_000 } });
+  const user = useGetAdminUser(selectedUserId, { query: { queryKey: getGetAdminUserQueryKey(selectedUserId), enabled: auth.isAuthenticated && Boolean(selectedUserId), staleTime: 15_000 } });
+  const requests = [flagged, challenges, settlements];
+  const forbidden = requests.find((request) => adminErrorStatus(request.error) === 403) || (users.error && adminErrorStatus(users.error) === 403 ? users : null) || (user.error && adminErrorStatus(user.error) === 403 ? user : null);
+  const unauthenticated = !auth.isLoading && !auth.isAuthenticated;
+
+  if (unauthenticated) {
+    return <AdminGate title="Admin sign-in required" text="This workspace is restricted to authorized operations staff." action={<Button onClick={auth.login} data-testid="button-admin-login">Log in</Button>} />;
+  }
+  if (forbidden) {
+    return <AdminGate title="Admin access required" text="Your account is signed in, but it does not have the admin role. No internal records were returned." />;
+  }
+
+  const flaggedRecords = flagged.data?.records ?? [];
+  const challengeRows = challenges.data?.challenges ?? [];
+  const settlementRows = settlements.data?.settlements ?? [];
+  const searchUsers = users.data?.users ?? [];
+  const selected = user.data;
+
+  return <div className="mx-auto max-w-[1380px]">
+    <div className="mb-8 flex flex-col gap-4 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
+      <div><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Internal operations</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Admin console</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">A read-only view for anti-cheat review, challenge operations, settlement history, and support lookups.</p></div>
+      <Badge tone="teal">Admin only</Badge>
+    </div>
+
+    <section className="mb-8 grid gap-4 sm:grid-cols-3">
+      <AdminMetric label="Flagged records" value={flagged.isLoading ? '…' : String(flaggedRecords.length)} detail="Unverified daily totals" />
+      <AdminMetric label="Challenges" value={challenges.isLoading ? '…' : String(challengeRows.length)} detail="Current status overview" />
+      <AdminMetric label="Settlements" value={settlements.isLoading ? '…' : String(settlementRows.length)} detail="Recorded settlement runs" />
+    </section>
+
+    <div className="grid gap-8">
+      <AdminPanel eyebrow="Anti-cheat queue" title="Flagged step records" count={flaggedRecords.length}>
+        {flagged.isLoading ? <AdminLoading /> : flaggedRecords.length === 0 ? <AdminEmpty text="No suspicious daily records are waiting for review." /> : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="border-b border-border bg-muted/45 font-mono-app text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Walker</th><th className="px-4 py-3">Challenge</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Steps</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Flag reason</th></tr></thead><tbody>{flaggedRecords.map((record: AdminFlaggedStepRecord) => <tr className="border-b border-border/70 last:border-0" key={record.id}><td className="px-4 py-3"><button className="text-left font-bold hover:text-primary" onClick={() => { setSelectedUserId(record.userId); setUserQuery(record.userEmail || record.userName); }} data-testid={`button-admin-record-user-${record.id}`}>{record.userName}<span className="mt-0.5 block font-normal text-muted-foreground">{record.userEmail || record.userId}</span></button></td><td className="px-4 py-3 font-semibold">{record.challengeName}</td><td className="px-4 py-3 whitespace-nowrap">{record.recordDate}</td><td className="px-4 py-3 font-mono-app font-bold">{record.steps.toLocaleString()}</td><td className="px-4 py-3 text-muted-foreground">{record.source.replaceAll('_', ' ')}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{record.flagReasons.map((reason) => <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary" key={reason}>{reason.replaceAll('_', ' ')}</span>)}</div></td></tr>)}</tbody></table></div>}
+      </AdminPanel>
+
+      <AdminPanel eyebrow="Pool operations" title="Challenge status overview" count={challengeRows.length}>
+        {challenges.isLoading ? <AdminLoading /> : challengeRows.length === 0 ? <AdminEmpty text="No challenges found." /> : <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-xs"><thead className="border-b border-border bg-muted/45 font-mono-app text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Challenge</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Participants</th><th className="px-4 py-3">Pool total</th><th className="px-4 py-3">Window</th></tr></thead><tbody>{challengeRows.map((challenge: AdminChallenge) => <tr className="border-b border-border/70 last:border-0" key={challenge.id}><td className="px-4 py-3"><p className="font-bold">{challenge.name}</p><p className="mt-0.5 text-muted-foreground">{challenge.community ? 'Free community' : `$${challenge.entryFee.toFixed(2)} entry`}</p></td><td className="px-4 py-3"><AdminStatus status={challenge.status} /></td><td className="px-4 py-3 font-mono-app font-bold">{challenge.participantCount}</td><td className="px-4 py-3 font-mono-app font-bold">${challenge.poolTotal.toFixed(2)}</td><td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{challenge.startDate} → {challenge.endDate}</td></tr>)}</tbody></table></div>}
+      </AdminPanel>
+
+      <AdminPanel eyebrow="Money audit" title="Settlement history" count={settlementRows.length}>
+        {settlements.isLoading ? <AdminLoading /> : settlementRows.length === 0 ? <AdminEmpty text="No settled challenge runs have been recorded yet." /> : <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-left text-xs"><thead className="border-b border-border bg-muted/45 font-mono-app text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Challenge</th><th className="px-4 py-3">Settled</th><th className="px-4 py-3">Finishers</th><th className="px-4 py-3">Per-finisher payout</th><th className="px-4 py-3">Payout events</th><th className="px-4 py-3">No-finisher refunds</th></tr></thead><tbody>{settlementRows.map((settlement: AdminSettlement) => <tr className="border-b border-border/70 last:border-0" key={settlement.challengeId}><td className="px-4 py-3 font-bold">{settlement.challengeName}</td><td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{adminDate(settlement.settledAt)}</td><td className="px-4 py-3 font-mono-app font-bold">{settlement.finisherCount}</td><td className="px-4 py-3 font-mono-app font-bold">{settlement.finisherCount ? adminMoney(settlement.perFinisherPayoutCents) : '—'}</td><td className="px-4 py-3">{settlement.payoutAmountsCents.length ? <span title={settlement.payoutAmountsCents.map(adminMoney).join(', ')}>{settlement.payoutAmountsCents.length} · {settlement.payoutAmountsCents.map(adminMoney).join(', ')}</span> : '—'}</td><td className="px-4 py-3">{settlement.noFinisherRefundCount ? <span className="font-semibold text-primary">{settlement.noFinisherRefundCount} · {adminMoney(settlement.noFinisherRefundCents)}</span> : '—'}</td></tr>)}</tbody></table></div>}
+      </AdminPanel>
+
+      <AdminPanel eyebrow="Support tools" title="User lookup">
+        <div className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr]">
+          <div><label className="block text-xs font-bold" htmlFor="admin-user-search">Search email, ID, or name</label><div className="relative mt-2"><Search className="absolute left-3 top-3 text-muted-foreground" size={16} /><input id="admin-user-search" value={userQuery} onChange={(event) => { setUserQuery(event.target.value); setSelectedUserId(''); }} placeholder="Start with two characters" className="h-10 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary" data-testid="input-admin-user-search" /></div>{users.isLoading && <p className="mt-2 text-[11px] text-muted-foreground">Searching users…</p>}{searchUsers.length > 0 && <div className="mt-2 overflow-hidden rounded-xl border border-border bg-background">{searchUsers.map((result) => <button type="button" className="flex w-full items-center gap-3 border-b border-border/70 px-3 py-3 text-left last:border-0 hover:bg-muted" onClick={() => { setSelectedUserId(result.id); setUserQuery(result.email || result.displayName); }} key={result.id} data-testid={`button-admin-select-user-${result.id}`}><span className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">{result.displayName.slice(0, 2).toUpperCase()}</span><span className="min-w-0"><span className="block truncate text-xs font-bold">{result.displayName}</span><span className="block truncate text-[10px] text-muted-foreground">{result.email || result.id}</span></span></button>)}</div>}{userQuery.trim().length >= 2 && !users.isLoading && searchUsers.length === 0 && <p className="mt-2 text-[11px] text-muted-foreground">No users matched that query.</p>}</div>
+          <div className="min-h-[180px] rounded-xl border border-border bg-background p-5">{!selectedUserId ? <div className="flex h-full min-h-[140px] flex-col items-center justify-center text-center"><UserPlus size={22} className="text-primary" /><p className="mt-3 text-sm font-bold">Select a walker to inspect</p><p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">Support can review wallet state and every challenge entry without exposing this data publicly.</p></div> : user.isLoading ? <AdminLoading /> : selected ? <AdminUserDetail user={selected.user} challenges={selected.challenges} /> : user.isError ? <AdminEmpty text="That user could not be loaded." /> : null}</div>
+        </div>
+      </AdminPanel>
+    </div>
+  </div>;
+}
+
+function AdminGate({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
+  return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={26} /></div><h1 className="mt-5 font-display text-2xl font-bold">{title}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>{action && <div className="mt-5">{action}</div>}</div>;
+}
+
+function AdminMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"><p className="font-mono-app text-[10px] uppercase tracking-[.14em] text-muted-foreground">{label}</p><p className="mt-4 font-display text-3xl font-bold tracking-[-.05em]">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>;
+}
+
+function AdminPanel({ eyebrow, title, count, children }: { eyebrow: string; title: string; count?: number; children: ReactNode }) {
+  return <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]"><div className="flex items-end justify-between gap-4 border-b border-border/70 p-5 sm:p-6"><div><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">{eyebrow}</p><h2 className="mt-1 font-display text-xl font-bold">{title}</h2></div>{count !== undefined && <Badge tone="neutral">{count} records</Badge>}</div><div className="p-0">{children}</div></section>;
+}
+
+function AdminLoading() {
+  return <div className="space-y-3 p-6"><div className="h-4 animate-pulse rounded bg-muted" /><div className="h-4 animate-pulse rounded bg-muted" /><div className="h-4 w-2/3 animate-pulse rounded bg-muted" /></div>;
+}
+
+function AdminEmpty({ text }: { text: string }) {
+  return <div className="p-8 text-center text-sm text-muted-foreground">{text}</div>;
+}
+
+function AdminStatus({ status }: { status: AdminChallenge['status'] }) {
+  const tone = status === 'settled' ? 'lime' : status === 'settling' ? 'coral' : status === 'active' ? 'teal' : 'neutral';
+  return <Badge tone={tone}>{status}</Badge>;
+}
+
+function AdminUserDetail({ user, challenges }: { user: { id: string; email: string; displayName: string; role: string; walletBalance: number; walletPending: number; totalEarned: number; createdAt: string }; challenges: AdminUserChallenge[] }) {
+  return <div><div className="flex flex-col justify-between gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start"><div><p className="font-display text-lg font-bold">{user.displayName}</p><p className="mt-1 text-xs text-muted-foreground">{user.email || 'No email'} · {user.id}</p></div><Badge tone={user.role === 'admin' ? 'coral' : 'neutral'}>{user.role}</Badge></div><div className="mt-5 grid gap-3 sm:grid-cols-3"><div><p className="text-[10px] uppercase text-muted-foreground">Balance</p><p className="mt-1 font-mono-app text-lg font-bold">${user.walletBalance.toFixed(2)}</p></div><div><p className="text-[10px] uppercase text-muted-foreground">Pending</p><p className="mt-1 font-mono-app text-lg font-bold">${user.walletPending.toFixed(2)}</p></div><div><p className="text-[10px] uppercase text-muted-foreground">Total earned</p><p className="mt-1 font-mono-app text-lg font-bold">${user.totalEarned.toFixed(2)}</p></div></div><div className="mt-6"><p className="mb-3 text-xs font-bold">Challenge history · {challenges.length}</p>{challenges.length ? <div className="overflow-x-auto rounded-xl border border-border/80"><table className="w-full min-w-[680px] text-left text-xs"><thead className="bg-muted/45 font-mono-app text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-3 py-2.5">Challenge</th><th className="px-3 py-2.5">Entry</th><th className="px-3 py-2.5">Entry status</th><th className="px-3 py-2.5">Settlement</th><th className="px-3 py-2.5">Joined</th></tr></thead><tbody>{challenges.map((challenge) => <tr className="border-t border-border/70" key={`${challenge.challengeId}-${challenge.joinedAt}`}><td className="px-3 py-3 font-semibold">{challenge.challengeName}</td><td className="px-3 py-3 font-mono-app">{challenge.entryFee ? `$${challenge.entryFee.toFixed(2)}` : 'Free'}</td><td className="px-3 py-3">{challenge.entryStatus}</td><td className="px-3 py-3">{challenge.settlementStatus}{challenge.settlementAmount !== null && <span className="ml-1 font-mono-app">· ${challenge.settlementAmount.toFixed(2)}</span>}</td><td className="px-3 py-3 whitespace-nowrap text-muted-foreground">{adminDate(challenge.joinedAt)}</td></tr>)}</tbody></table></div> : <AdminEmpty text="This user has no challenge entries." />}</div></div>;
+}
+
 function NotFound() { return <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary"><Footprints size={25} /></div><h1 className="mt-5 font-display text-3xl font-bold">This path wandered off.</h1><p className="mt-2 text-sm text-muted-foreground">That page is not part of today's route.</p><Link href="/" className="mt-6 rounded-xl bg-foreground px-5 py-3 text-sm font-bold text-background" data-testid="link-back-home">Back to today</Link></div>; }
 
-function Router() { const [location] = useLocation(); return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Dashboard} /><Route path="/challenges" component={ChallengesPage} /><Route path="/community" component={CommunityPage} /><Route path="/challenge/:id" component={ChallengeDetail} /><Route path="/invite/:token" component={InvitePage} /><Route path="/wallet" component={WalletPage} /><Route path="/safety" component={SafetyPage} /><Route path="/profile" component={ProfilePage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>; }
+function Router() { const [location] = useLocation(); return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Dashboard} /><Route path="/challenges" component={ChallengesPage} /><Route path="/community" component={CommunityPage} /><Route path="/challenge/:id" component={ChallengeDetail} /><Route path="/invite/:token" component={InvitePage} /><Route path="/wallet" component={WalletPage} /><Route path="/safety" component={SafetyPage} /><Route path="/profile" component={ProfilePage} /><Route path="/admin" component={AdminPage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>; }
 function App() { return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><AppProvider><Router /></AppProvider></WouterRouter></QueryClientProvider>; }
 export default App;
