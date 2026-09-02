@@ -122,13 +122,6 @@ paths:
       operationId: getLedger
       tags: [money]
       summary: Get auditable money events
-      parameters:
-        - name: userId
-          in: query
-          required: true
-          schema:
-            type: string
-            minLength: 1
       responses:
         "200":
           description: User money ledger
@@ -138,8 +131,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/LedgerEntry"
-        "400":
-          description: Missing user id
+        "401":
+          description: Login required
           content:
             application/json:
               schema:
@@ -473,7 +466,7 @@ components:
         totalEarned: { type: number }
     ProfileSettings:
       type: object
-      required: [displayName, reminders, weeklyDigest, publicProgress, healthConnected, goalBaseline]
+      required: [displayName, reminders, weeklyDigest, publicProgress, healthConnected, goalBaseline, eligibilityAge, eligibilityState, identityStatus, acceptedTerms]
       properties:
         displayName: { type: string }
         reminders: { type: boolean }
@@ -481,6 +474,10 @@ components:
         publicProgress: { type: boolean }
         healthConnected: { type: boolean }
         goalBaseline: { type: integer }
+        eligibilityAge: { type: integer, minimum: 0 }
+        eligibilityState: { type: string, maxLength: 2 }
+        identityStatus: { type: string, enum: [not_started, pending, verified] }
+        acceptedTerms: { type: boolean }
     ProfileUpdate:
       type: object
       properties:
@@ -489,6 +486,10 @@ components:
         weeklyDigest: { type: boolean }
         publicProgress: { type: boolean }
         healthConnected: { type: boolean }
+        eligibilityAge: { type: integer, minimum: 0 }
+        eligibilityState: { type: string, maxLength: 2 }
+        identityStatus: { type: string, enum: [not_started, pending, verified] }
+        acceptedTerms: { type: boolean }
     StridePoolBootstrap:
       type: object
       required: [user, challenges, joinedIds, steps, activities, wallet, profile]
@@ -563,13 +564,11 @@ components:
     CheckoutInput:
       type: object
       properties:
-        userId: { type: string, minLength: 1 }
         challengeId: { type: string, minLength: 1 }
         amountCents: { type: number, minimum: 1 }
         currency: { type: string, enum: [usd] }
         idempotencyKey: { type: string, minLength: 8 }
-        eligibility: { $ref: "#/components/schemas/EligibilityInput" }
-      required: [userId, challengeId, amountCents, currency, idempotencyKey, eligibility]
+      required: [challengeId, amountCents, currency, idempotencyKey]
     CheckoutResponse:
       type: object
       properties:
@@ -581,9 +580,8 @@ components:
     PayoutOnboardingInput:
       type: object
       properties:
-        userId: { type: string, minLength: 1 }
         idempotencyKey: { type: string, minLength: 8 }
-      required: [userId, idempotencyKey]
+      required: [idempotencyKey]
     PayoutOnboardingResponse:
       type: object
       properties:

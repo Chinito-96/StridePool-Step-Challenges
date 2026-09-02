@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, jsonb, numeric, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, numeric, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const sessionsTable = pgTable(
   "sessions",
@@ -29,6 +29,10 @@ export const usersTable = pgTable("users", {
   weeklyDigest: boolean("weekly_digest").notNull().default(true),
   publicProgress: boolean("public_progress").notNull().default(false),
   healthConnected: boolean("health_connected").notNull().default(true),
+  eligibilityAge: integer("eligibility_age").notNull().default(0),
+  eligibilityState: varchar("eligibility_state").notNull().default(""),
+  eligibilityIdentityStatus: varchar("eligibility_identity_status").notNull().default("not_started"),
+  eligibilityAcceptedTerms: boolean("eligibility_accepted_terms").notNull().default(false),
   // Future real-payment fields: populate only when a provider is selected.
   stripeCustomerId: varchar("stripe_customer_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

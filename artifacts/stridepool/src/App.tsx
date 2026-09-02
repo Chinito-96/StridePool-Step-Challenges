@@ -1,34 +1,16 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useCheckEligibility, useCreateCheckout, useGetComplianceStatus, useGetLedger, useStartPayoutOnboarding, type ComplianceStatus, type EligibilityInput } from '@workspace/api-client-react';
+import { getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, useCheckEligibility, useCreateCheckout, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type ProfileSettings as ApiProfileSettings } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, CircleUserRound, Clock3, Compass, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
 import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
 import type { ProfileUpdate } from '@workspace/api-client-react';
 
-type Challenge = {
-  id: string;
-  name: string;
-  theme: string;
-  level: 'Gentle' | 'Steady' | 'Brisk';
-  startDate: string;
-  endDate: string;
-  days: number;
-  dailyGoal: number;
-  entryFee: number;
-  prizePool: number;
-  participantCount: number;
-  finishers: number;
-  color: string;
-  joined: boolean;
-  goalType?: 'fixed' | 'personalized';
-  community?: boolean;
-  graceDays?: number;
-};
+type Challenge = ApiChallenge;
 type Activity = { id: string; type: string; title: string; meta: string; timestamp: string };
 type WalletSummary = { balance: number; pending: number; totalEarned: number };
-type ProfileSettings = { reminders: boolean; weeklyDigest: boolean; publicProgress: boolean; healthConnected: boolean };
+type ProfileSettings = ApiProfileSettings;
 type EligibilityProfile = EligibilityInput;
 type AppState = {
   challenges: Challenge[];
@@ -45,7 +27,7 @@ type AppState = {
   updateEligibility: (eligibility: EligibilityProfile) => void;
   syncSteps: () => void;
   addFunds: () => void;
-  toggleSetting: (key: keyof ProfileSettings) => void;
+  toggleSetting: (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'>) => void;
   updateProfile: (updates: ProfileUpdate) => void;
   auth: { user: AuthUser | null; isLoading: boolean; isAuthenticated: boolean; login: () => void; logout: () => void };
 };
@@ -53,33 +35,6 @@ type AppState = {
 const queryClient = new QueryClient();
 const today = new Date();
 const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-const seededChallenges: Challenge[] = [
-  { id: 'sunrise-steps', name: 'Sunrise Steps', theme: 'Start soft, finish proud.', level: 'Gentle', startDate: 'Jun 18', endDate: 'Jun 24', days: 7, dailyGoal: 6500, entryFee: 8, prizePool: 640, participantCount: 82, finishers: 54, color: '#f58b73', joined: false, goalType: 'personalized', graceDays: 1 },
-  { id: 'city-loop', name: 'City Loop', theme: 'A little further every day.', level: 'Steady', startDate: 'Jun 20', endDate: 'Jun 29', days: 10, dailyGoal: 9000, entryFee: 14, prizePool: 1_260, participantCount: 118, finishers: 71, color: '#65bdb4', joined: false, goalType: 'fixed' },
-  { id: 'green-mile', name: 'The Green Mile', theme: 'Make room for outside.', level: 'Brisk', startDate: 'Jun 22', endDate: 'Jul 5', days: 14, dailyGoal: 11_000, entryFee: 22, prizePool: 2_890, participantCount: 131, finishers: 88, color: '#bdcf57', joined: false, goalType: 'fixed' },
-  { id: 'lunch-break', name: 'Lunch Break League', theme: 'Twenty minutes counts.', level: 'Gentle', startDate: 'Jun 23', endDate: 'Jun 27', days: 5, dailyGoal: 5000, entryFee: 6, prizePool: 410, participantCount: 64, finishers: 39, color: '#d8a35d', joined: false, goalType: 'personalized', graceDays: 1 },
-  { id: 'weekend-wander', name: 'Weekend Wander', theme: 'Take the scenic way home.', level: 'Steady', startDate: 'Jun 28', endDate: 'Jun 30', days: 3, dailyGoal: 8000, entryFee: 10, prizePool: 780, participantCount: 76, finishers: 0, color: '#8b9ad8', joined: false, goalType: 'fixed' },
-  { id: 'park-loop-social', name: 'Park Loop Social', theme: 'A free lap with good company.', level: 'Gentle', startDate: 'Jul 2', endDate: 'Jul 8', days: 7, dailyGoal: 7000, entryFee: 0, prizePool: 0, participantCount: 94, finishers: 0, color: '#6bb9aa', joined: false, goalType: 'personalized', community: true, graceDays: 2 },
-];
-
-const defaultActivities: Activity[] = [
-  { id: 'a1', type: 'challenge', title: 'You joined Sunrise Steps', meta: '$8 committed · 4 days left', timestamp: 'Today, 8:42 AM' },
-  { id: 'a2', type: 'sync', title: 'Steps synced from Apple Health', meta: '+1,284 steps · personal best', timestamp: 'Today, 7:15 AM' },
-  { id: 'a3', type: 'milestone', title: 'Three-day rhythm unlocked', meta: 'Sunrise Steps · 3 day streak', timestamp: 'Yesterday' },
-];
-
-function usePersistentState<T>(key: string, initial: T | (() => T)) {
-  const [value, setValue] = useState<T>(() => {
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try { return JSON.parse(saved) as T; } catch { /* use seed */ }
-    }
-    return typeof initial === 'function' ? (initial as () => T)() : initial;
-  });
-  useEffect(() => { localStorage.setItem(key, JSON.stringify(value)); }, [key, value]);
-  return [value, setValue] as const;
-}
-
 const AppContext = createContext<AppState | null>(null);
 function useApp() {
   const context = useContext(AppContext);
@@ -90,43 +45,48 @@ function useApp() {
 function AppProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const { data: complianceData, isLoading: complianceLoading } = useGetComplianceStatus();
-  const [joinedIds, setJoinedIds] = usePersistentState<string[]>('stridepool-joined', []);
-  const [steps, setSteps] = usePersistentState('stridepool-steps', 7284);
-  const [activities, setActivities] = usePersistentState<Activity[]>('stridepool-activities', defaultActivities);
-  const [wallet] = usePersistentState<WalletSummary>('stridepool-wallet', { balance: 0, pending: 0, totalEarned: 0 });
-  const [profile, setProfile] = usePersistentState<ProfileSettings>('stridepool-profile', { reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true });
-  const [eligibility, setEligibility] = usePersistentState<EligibilityProfile>('stridepool-eligibility', { age: 0, state: '', identityStatus: 'not_started', acceptedTerms: false });
+  const bootstrapQuery = useGetStridePoolBootstrap();
+  const joinMutation = useJoinStridePoolChallenge();
+  const leaveMutation = useLeaveStridePoolChallenge();
+  const syncMutation = useSyncStridePoolSteps();
+  const profileMutation = useUpdateStridePoolProfile();
+  const bootstrap = bootstrapQuery.data;
+  const defaultProfile: ProfileSettings = { displayName: auth.user ? [auth.user.firstName, auth.user.lastName].filter(Boolean).join(' ') || 'Your profile' : 'Alex Morgan', reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, eligibilityAge: 0, eligibilityState: '', identityStatus: 'not_started', acceptedTerms: false };
+  const challenges = bootstrap?.challenges ?? [];
+  const joinedIds = bootstrap?.joinedIds ?? [];
+  const steps = bootstrap?.steps ?? 0;
+  const activities = bootstrap?.activities ?? [];
+  const wallet = bootstrap?.wallet ?? { balance: 0, pending: 0, totalEarned: 0 };
+  const profile = bootstrap?.profile ?? defaultProfile;
+  const eligibility: EligibilityProfile = { age: profile.eligibilityAge, state: profile.eligibilityState, identityStatus: profile.identityStatus, acceptedTerms: profile.acceptedTerms };
   const compliance = complianceData ?? { paidPlayEnabled: false, providerConfigured: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
-  const challenges = useMemo(() => seededChallenges.map((challenge) => ({ ...challenge, joined: joinedIds.includes(challenge.id) })), [joinedIds]);
+  const invalidateBootstrap = () => queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
   const loginIfNeeded = () => { if (!auth.isAuthenticated) auth.login(); };
 
   const joinChallenge = (id: string) => {
     if (joinedIds.includes(id)) return false;
-    const challenge = seededChallenges.find((item) => item.id === id);
-    if (!challenge || challenge.entryFee > 0) return false;
-    if (!auth.isAuthenticated && !challenge.community) { loginIfNeeded(); return false; }
-    setJoinedIds((current) => [...current, id]);
-    setActivities((current) => [{ id: `join-${Date.now()}`, type: 'challenge', title: `You joined ${challenge.name}`, meta: `$${challenge.entryFee} committed · starts ${challenge.startDate}`, timestamp: 'Just now' }, ...current]);
+    if (!auth.isAuthenticated) { loginIfNeeded(); return false; }
+    joinMutation.mutate({ id }, { onSuccess: invalidateBootstrap });
     return true;
   };
   const leaveChallenge = (id: string) => {
-    const challenge = seededChallenges.find((item) => item.id === id);
-    if (!challenge || !joinedIds.includes(id) || challenge.entryFee > 0) return false;
-    setJoinedIds((current) => current.filter((item) => item !== id));
-    setActivities((current) => [{ id: `leave-${Date.now()}`, type: 'challenge', title: `You left ${challenge.name}`, meta: `$${challenge.entryFee} returned to your balance`, timestamp: 'Just now' }, ...current]);
+    if (!auth.isAuthenticated || !joinedIds.includes(id)) return false;
+    leaveMutation.mutate({ id }, { onSuccess: invalidateBootstrap });
     return true;
   };
   const syncSteps = () => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    setSteps((current) => current + 628);
-    setActivities((current) => [{ id: `sync-${Date.now()}`, type: 'sync', title: 'Verified steps synced', meta: '+628 steps · rhythm is building', timestamp: 'Just now' }, ...current]);
+    syncMutation.mutate(undefined, { onSuccess: invalidateBootstrap });
   };
-  const updateEligibility = (next: EligibilityProfile) => setEligibility(next);
+  const updateEligibility = (next: EligibilityProfile) => updateProfile({ eligibilityAge: next.age, eligibilityState: next.state, identityStatus: next.identityStatus, acceptedTerms: next.acceptedTerms });
   const addFunds = () => {
     if (!auth.isAuthenticated) loginIfNeeded();
   };
-  const updateProfile = (_updates: ProfileUpdate) => { if (!auth.isAuthenticated) loginIfNeeded(); };
-  const toggleSetting = (key: keyof ProfileSettings) => setProfile((current) => ({ ...current, [key]: !current[key] }));
+  const updateProfile = (updates: ProfileUpdate) => {
+    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
+    profileMutation.mutate({ data: updates }, { onSuccess: invalidateBootstrap });
+  };
+  const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'>) => updateProfile({ [key]: !profile[key] });
   const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, joinChallenge, leaveChallenge, updateEligibility, syncSteps, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
@@ -150,6 +110,7 @@ function Logo() {
 }
 
 function AppShell({ children }: { children: ReactNode }) {
+  const { auth } = useApp();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -177,10 +138,10 @@ function AppShell({ children }: { children: ReactNode }) {
       </div>
     </aside>
     <div className="lg:pl-[244px]">
-      <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md sm:px-8 lg:px-12">
+       <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md sm:px-8 lg:px-12">
         <div className="flex items-center gap-3 lg:hidden"><button className="icon-button rounded-lg p-2 hover:bg-muted" onClick={() => setMobileOpen(true)} aria-label="Open navigation" data-testid="button-open-navigation"><Menu size={21} /></button><Logo /></div>
         <div className="hidden lg:block"><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-muted-foreground">StridePool / {pageName}</p></div>
-        <div className="flex items-center gap-3"><div className="relative"><button onClick={() => setNotificationOpen((value) => !value)} className="icon-button relative rounded-lg p-2.5 hover:bg-muted" aria-label="View notifications" aria-expanded={notificationOpen} data-testid="button-notifications"><Bell size={19} /><span className="pulse-dot absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" /></button>{notificationOpen && <div className="absolute right-0 top-12 z-40 w-[290px] rounded-2xl border border-border bg-card p-4 shadow-2xl" role="status" data-testid="panel-notifications"><div className="flex items-center justify-between"><p className="font-display text-sm font-bold">A note for your rhythm</p><button onClick={() => setNotificationOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Close notifications" data-testid="button-close-notifications"><X size={14} /></button></div><p className="mt-2 text-xs leading-5 text-muted-foreground">You are 2,716 steps from today's goal. A quick loop after lunch would get you there.</p><Link href="/challenges" onClick={() => setNotificationOpen(false)} className="mt-3 block text-xs font-bold text-primary" data-testid="link-notification-challenges">See open challenges <ArrowUpRight size={13} className="ml-1 inline" /></Link></div>}</div><Link href="/profile" className="flex items-center gap-2.5 rounded-xl p-1.5 pr-2 transition hover:bg-muted" data-testid="link-header-profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-display text-xs font-bold text-secondary-foreground">AM</span><span className="hidden text-sm font-semibold sm:block">Alex Morgan</span><ChevronDown size={15} className="hidden text-muted-foreground sm:block" /></Link></div>
+         <div className="flex items-center gap-3"><div className="relative"><button onClick={() => setNotificationOpen((value) => !value)} className="icon-button relative rounded-lg p-2.5 hover:bg-muted" aria-label="View notifications" aria-expanded={notificationOpen} data-testid="button-notifications"><Bell size={19} /><span className="pulse-dot absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" /></button>{notificationOpen && <div className="absolute right-0 top-12 z-40 w-[290px] rounded-2xl border border-border bg-card p-4 shadow-2xl" role="status" data-testid="panel-notifications"><div className="flex items-center justify-between"><p className="font-display text-sm font-bold">A note for your rhythm</p><button onClick={() => setNotificationOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Close notifications" data-testid="button-close-notifications"><X size={14} /></button></div><p className="mt-2 text-xs leading-5 text-muted-foreground">You are 2,716 steps from today's goal. A quick loop after lunch would get you there.</p><Link href="/challenges" onClick={() => setNotificationOpen(false)} className="mt-3 block text-xs font-bold text-primary" data-testid="link-notification-challenges">See open challenges <ArrowUpRight size={13} className="ml-1 inline" /></Link></div>}</div>{auth.isAuthenticated ? <><Link href="/profile" className="flex items-center gap-2.5 rounded-xl p-1.5 pr-2 transition hover:bg-muted" data-testid="link-header-profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-display text-xs font-bold text-secondary-foreground">{(auth.user?.firstName?.[0] ?? 'A')}{(auth.user?.lastName?.[0] ?? 'M')}</span><span className="hidden max-w-[130px] truncate text-sm font-semibold sm:block">{[auth.user?.firstName, auth.user?.lastName].filter(Boolean).join(' ') || 'Your profile'}</span><ChevronDown size={15} className="hidden text-muted-foreground sm:block" /></Link><button onClick={auth.logout} className="hidden text-xs font-bold text-muted-foreground hover:text-foreground sm:block" data-testid="button-logout">Log out</button></> : <button onClick={auth.login} className="rounded-xl bg-foreground px-3 py-2 text-xs font-bold text-background transition hover:bg-primary hover:text-primary-foreground" data-testid="button-login">Log in</button>}</div>
       </header>
       <main className="page-enter min-h-[calc(100dvh-72px)] px-5 pb-28 pt-8 sm:px-8 lg:px-12 lg:pb-12">{children}</main>
     </div>
@@ -216,7 +177,8 @@ function Dashboard() {
   const goal = 10_000;
   const percent = Math.min(100, Math.round((steps / goal) * 100));
   const spotlight = challenges.find((item) => item.joined) ?? challenges[0];
-  const upcoming = challenges.find((item) => !item.joined) ?? challenges[1];
+  const upcoming = challenges.find((item) => !item.joined) ?? spotlight;
+  if (!spotlight || !upcoming) return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary"><Footprints size={25} /></div><h1 className="mt-5 font-display text-2xl font-bold">Your challenges are loading</h1><p className="mt-2 text-sm text-muted-foreground">We’re fetching the latest pools and your saved rhythm.</p></div>;
   return <div className="mx-auto max-w-[1280px]">
     <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="rise-in"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">{dateLabel}</p><h1 className="font-display text-[clamp(2.15rem,5vw,3.7rem)] font-bold leading-[.97] tracking-[-.06em]">Keep your <span className="text-primary">rhythm.</span></h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">A little movement today keeps tomorrow feeling lighter.</p></div><Button onClick={syncSteps} data-testid="button-sync-steps"><RefreshCw size={16} /> Sync steps</Button></div>
     <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
@@ -267,7 +229,7 @@ function ChallengeDetail() {
   const joinChallenge = (challengeId: string) => {
     const selected = challenges.find((item) => item.id === challengeId);
     if (!selected || selected.entryFee === 0) return joinFreeChallenge(challengeId);
-    checkout.mutate({ data: { userId: 'demo-user', challengeId, amountCents: Math.round(selected.entryFee * 100), currency: 'usd', idempotencyKey: `entry-${challengeId}-${Date.now()}`, eligibility } }, {
+    checkout.mutate({ data: { challengeId, amountCents: Math.round(selected.entryFee * 100), currency: 'usd', idempotencyKey: `entry-${challengeId}-${Date.now()}` } }, {
       onSuccess: () => setCheckoutMessage('Provider checkout created. The challenge will appear after a signed payment event is reconciled.'),
       onError: () => setCheckoutMessage('Secure checkout is unavailable. No money was moved and the challenge was not joined.')
     });
@@ -290,13 +252,13 @@ function JoinDialog({ challenge, onClose, onConfirm }: { challenge: Challenge; o
 function LegacyJoinDialog({ challenge, onClose, onConfirm }: { challenge: Challenge; onClose: () => void; onConfirm: () => void }) { const leaving = challenge.joined; const free = challenge.entryFee === 0; return <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="join-title"><div className="w-full max-w-md rounded-t-[24px] bg-card p-6 shadow-2xl sm:rounded-[24px] sm:p-7"><div className="flex items-start justify-between"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">{leaving ? 'One last check' : free ? 'No wallet needed' : 'You are almost in'}</p><h2 id="join-title" className="mt-2 font-display text-2xl font-bold tracking-[-.04em]">{leaving ? `Leave ${challenge.name}?` : `Join ${challenge.name}?`}</h2></div><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog" data-testid="button-close-join-dialog"><X size={18} /></button></div>{leaving ? <p className="mt-5 text-sm leading-6 text-muted-foreground">Your ${challenge.entryFee} entry will return to your balance. You can rejoin while registration is open.</p> : <><p className="mt-5 text-sm leading-6 text-muted-foreground">{free ? 'A free community challenge for showing up together. No payment method or payout rules—just a shared rhythm.' : `A transparent commitment for ${challenge.days} days of showing up. Nothing is charged beyond the entry below.`}</p><div className="mt-5 rounded-xl bg-muted p-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Entry commitment</span><span className="font-bold">{free ? 'Free' : `$${challenge.entryFee}.00`}</span></div>{!free && <><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Platform fee</span><span className="font-bold text-primary">$0.00</span></div><div className="my-3 border-t border-border/80" /><div className="flex justify-between text-sm"><span className="text-muted-foreground">Current pool</span><span className="font-bold">${challenge.prizePool.toLocaleString()}</span></div><p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-muted-foreground"><LockKeyhole size={13} className="mt-0.5 shrink-0" /> Your entry stays held until the challenge finishes. Finishers share the pool.</p></>}</div></>}<div className="mt-6 flex gap-3"><Button variant="secondary" className="flex-1" onClick={onClose} data-testid="button-cancel-join">Not yet</Button><Button variant={leaving ? 'danger' : 'primary'} className="flex-1" onClick={onConfirm} data-testid="button-confirm-join">{leaving ? 'Leave pool' : free ? 'Join for free' : 'Confirm entry'}</Button></div></div></div>; }
 
 function WalletPage() {
-  const { wallet, compliance } = useApp();
-  const { data: ledger = [] } = useGetLedger({ userId: 'demo-user' });
+  const { wallet, compliance, auth } = useApp();
+  const { data: ledger = [] } = useGetLedger({ query: { queryKey: getGetLedgerQueryKey(), enabled: auth.isAuthenticated, staleTime: 30_000 } });
   const payoutOnboarding = useStartPayoutOnboarding();
   const [message, setMessage] = useState('');
   const startPayoutOnboarding = () => {
     setMessage('');
-    payoutOnboarding.mutate({ data: { userId: 'demo-user', idempotencyKey: `payout-${Date.now()}` } }, {
+    payoutOnboarding.mutate({ data: { idempotencyKey: `payout-${Date.now()}` } }, {
       onSuccess: (result) => setMessage(result.status === 'pending' ? 'Payout onboarding started with the provider.' : 'Payout onboarding is not complete yet.'),
       onError: () => setMessage('Payout onboarding is unavailable. No withdrawal was requested and no money moved.')
     });
@@ -314,9 +276,10 @@ function WalletStat({ label, value, detail, icon }: { label: string; value: stri
 function WalletRow({ activity }: { activity: Activity }) { const positive = activity.type === 'milestone'; return <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${positive ? 'bg-accent/35 text-accent-foreground' : 'bg-muted text-primary'}`}>{positive ? <Award size={16} /> : <ArrowUpRight size={16} />}</span><div className="flex-1"><p className="text-sm font-bold">{positive ? 'Earnings credited' : activity.title.replace('You ', '')}</p><p className="mt-0.5 text-xs text-muted-foreground">{activity.timestamp}</p></div><span className={`font-mono-app text-sm font-bold ${positive ? 'text-primary' : 'text-foreground'}`}>{positive ? '+$12.50' : `-$${activity.title.includes('Sunrise') ? '8.00' : '0.00'}`}</span></div>; }
 
 function ProfilePage() {
-  const { profile, toggleSetting } = useApp();
+  const { profile, toggleSetting, updateProfile } = useApp();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState('Alex Morgan');
+  const [name, setName] = useState(profile.displayName);
+  useEffect(() => { if (!editing && name.trim() && name.trim() !== profile.displayName) updateProfile({ displayName: name.trim() }); }, [editing]);
   return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => setEditing(false)} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{name}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Challenges completed</span><span className="font-bold">7</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Longest rhythm</span><span className="font-bold">12 days</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Steps this month</span><span className="font-bold">184,620</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}</section><section className="space-y-5"><SettingsGroup eyebrow="Connected source" title="Where your steps come from"><div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background"><HeartPulse size={19} /></span><div><p className="text-sm font-bold">Apple Health</p><p className="mt-0.5 text-xs text-muted-foreground">{profile.healthConnected ? 'Connected · syncing automatically' : 'Not connected'}</p></div><span className={`ml-auto flex items-center gap-1.5 text-xs font-bold ${profile.healthConnected ? 'text-primary' : 'text-muted-foreground'}`}><span className={`h-2 w-2 rounded-full ${profile.healthConnected ? 'bg-primary' : 'bg-muted-foreground'}`} /> {profile.healthConnected ? 'Active' : 'Paused'}</span></div><Button variant="secondary" className="mt-3 w-full" onClick={() => toggleSetting('healthConnected')} data-testid="button-toggle-health">{profile.healthConnected ? 'Pause connection' : 'Reconnect Apple Health'}</Button></SettingsGroup><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weeklyDigest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
 }
 function SettingsGroup({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) { return <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6"><p className="font-mono-app text-[10px] uppercase tracking-[.17em] text-primary">{eyebrow}</p><h2 className="mt-1 font-display text-xl font-bold tracking-[-.035em]">{title}</h2><div className="mt-5">{children}</div></div>; }

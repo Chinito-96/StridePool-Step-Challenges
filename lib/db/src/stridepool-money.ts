@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "./index";
-import { challengesTable, dailyStepRecordsTable, entriesTable, usersTable } from "./schema";
+import { challengesTable, dailyStepRecordsTable, entriesTable, usersTable, walletLedgerEntriesTable } from "./schema";
 
 export type WalletSnapshot = {
   balance: number;
@@ -96,6 +97,17 @@ export async function joinChallenge(userId: string, challengeId: string, now = n
       participantCount: sql`${challengesTable.participantCount} + 1`,
       prizePool: sql`${challengesTable.prizePool} + ${(feeCents / 100).toFixed(2)}`,
     }).where(eq(challengesTable.id, challengeId));
+    await tx.insert(walletLedgerEntriesTable).values({
+      id: `ledger_entry_${randomUUID()}`,
+      userId,
+      eventType: "entry_committed",
+      status: "recorded",
+      amountCents: feeCents,
+      currency: "usd",
+      challengeId,
+      metadata: { source: "challenge_join", entryId: existing?.id ?? null },
+      createdAt: now,
+    });
     return { wallet: walletFor(updatedUser), charged: true, refunded: false, freeCommunity: false };
   });
 }
@@ -128,6 +140,17 @@ export async function leaveChallenge(userId: string, challengeId: string, now = 
       participantCount: sql`greatest(${challengesTable.participantCount} - 1, 0)`,
       prizePool: sql`greatest(${challengesTable.prizePool} - ${(feeCents / 100).toFixed(2)}, 0)`,
     }).where(eq(challengesTable.id, challengeId));
+    await tx.insert(walletLedgerEntriesTable).values({
+      id: `ledger_refund_${randomUUID()}`,
+      userId,
+      eventType: "entry_refunded",
+      status: "recorded",
+      amountCents: feeCents,
+      currency: "usd",
+      challengeId,
+      metadata: { source: "challenge_leave", entryId: entry.id },
+      createdAt: now,
+    });
     return { wallet: walletFor(updatedUser), charged: false, refunded: true, freeCommunity: false };
   });
 }
@@ -206,6 +229,17 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
           walletPending: sql`greatest(${usersTable.walletPending} - ${(feeCents / 100).toFixed(2)}, 0)`,
         }).where(eq(usersTable.id, user.id));
         await tx.update(entriesTable).set({ settlementStatus: "refunded", settlementAmount: (feeCents / 100).toFixed(2), settledAt: now }).where(eq(entriesTable.id, entry.id));
+        await tx.insert(walletLedgerEntriesTable).values({
+          id: `ledger_settlement_refund_${entry.id}`,
+          userId: user.id,
+          eventType: "settlement_refunded",
+          status: "recorded",
+          amountCents: feeCents,
+          currency: "usd",
+          challengeId,
+          metadata: { source: "challenge_settlement", entryId: entry.id },
+          createdAt: now,
+        });
         refundedTotalCents += feeCents;
         continue;
       }
@@ -224,7 +258,19 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
         settlementAmount: (payoutCents / 100).toFixed(2),
         settledAt: now,
       }).where(eq(entriesTable.id, entry.id));
+      await tx.insert(walletLedgerEntriesTable).values({
+        id: `ledger_settlement_${entry.id}`,
+        userId: user.id,
+        eventType: isFinisher ? "settlement_earned" : "settlement_forfeited",
+        status: "recorded",
+        amountCents: payoutCents,
+        currency: "usd",
+        challengeId,
+        metadata: { source: "challenge_settlement", entryId: entry.id, committedCents: feeCents },
+        createdAt: now,
+      });
     }
+    if (finisherCount === 0) refundedTotalCents = poolTotalCents;
 
     await tx.update(challengesTable).set({
       settlementStatus: "settled",

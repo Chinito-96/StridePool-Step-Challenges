@@ -29,7 +29,6 @@ import type {
   EligibilityInput,
   EntryMutationResponse,
   ErrorResponse,
-  GetLedgerParams,
   HealthStatus,
   LedgerEntry,
   LogoutBrowserSessionParams,
@@ -443,27 +442,20 @@ export const useStartPayoutOnboarding = <TError = ErrorType<ErrorResponse>,
       return useMutation(getStartPayoutOnboardingMutationOptions(options));
     }
 
-export const getGetLedgerUrl = (params: GetLedgerParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetLedgerUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/money/ledger?${stringifiedParams}` : `/api/money/ledger`
+  return `/api/money/ledger`
 }
 
 /**
  * @summary Get auditable money events
  */
-export const getLedger = async (params: GetLedgerParams, options?: Parameters<typeof customFetch>[1]): Promise<LedgerEntry[]> => {
+export const getLedger = async ( options?: Parameters<typeof customFetch>[1]): Promise<LedgerEntry[]> => {
 
-  return customFetch<LedgerEntry[]>(getGetLedgerUrl(params),
+  return customFetch<LedgerEntry[]>(getGetLedgerUrl(),
   {
     ...options,
     method: 'GET'
@@ -476,23 +468,23 @@ export const getLedger = async (params: GetLedgerParams, options?: Parameters<ty
 
 
 
-export const getGetLedgerQueryKey = (params?: GetLedgerParams,) => {
+export const getGetLedgerQueryKey = () => {
     return [
-    `/api/money/ledger`, ...(params ? [params] : [])
+    `/api/money/ledger`
     ] as const;
     }
 
 
-export const getGetLedgerQueryOptions = <TData = Awaited<ReturnType<typeof getLedger>>, TError = ErrorType<ErrorResponse>>(params: GetLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetLedgerQueryOptions = <TData = Awaited<ReturnType<typeof getLedger>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetLedgerQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getGetLedgerQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLedger>>> = ({ signal }) => getLedger(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLedger>>> = ({ signal }) => getLedger({ signal, ...requestOptions });
 
 
 
@@ -510,11 +502,11 @@ export type GetLedgerQueryError = ErrorType<ErrorResponse>
  */
 
 export function useGetLedger<TData = Awaited<ReturnType<typeof getLedger>>, TError = ErrorType<ErrorResponse>>(
- params: GetLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetLedgerQueryOptions(params,options)
+  const queryOptions = getGetLedgerQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

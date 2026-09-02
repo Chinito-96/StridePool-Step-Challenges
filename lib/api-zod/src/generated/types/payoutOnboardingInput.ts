@@ -7,8 +7,6 @@
  */
 
 export interface PayoutOnboardingInput {
-  /** @minLength 1 */
-  userId: string;
   /** @minLength 8 */
   idempotencyKey: string;
 }

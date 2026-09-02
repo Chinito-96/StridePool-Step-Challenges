@@ -1,5 +1,5 @@
 import { createInsertSchema } from "drizzle-zod";
-import { date, index, integer, pgTable, serial, text, timestamp, uniqueIndex, varchar, boolean, numeric } from "drizzle-orm/pg-core";
+import { date, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, varchar, boolean, numeric } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { usersTable } from "./auth";
 
@@ -68,12 +68,34 @@ export const dailyStepRecordsTable = pgTable(
   ],
 );
 
+export const walletLedgerEntriesTable = pgTable(
+  "wallet_ledger_entries",
+  {
+    id: varchar("id").primaryKey(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type").notNull(),
+    status: varchar("status").notNull(),
+    amountCents: integer("amount_cents").notNull().default(0),
+    currency: varchar("currency").notNull().default("usd"),
+    providerEventId: varchar("provider_event_id"),
+    challengeId: varchar("challenge_id").references(() => challengesTable.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("wallet_ledger_provider_event_unique").on(table.providerEventId),
+    index("wallet_ledger_user_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 export const insertChallengeSchema = createInsertSchema(challengesTable);
 export const insertEntrySchema = createInsertSchema(entriesTable);
 export const insertDailyStepRecordSchema = createInsertSchema(dailyStepRecordsTable);
+export const insertWalletLedgerEntrySchema = createInsertSchema(walletLedgerEntriesTable);
 export type InsertChallenge = z.infer<typeof insertChallengeSchema>;
 export type InsertEntry = z.infer<typeof insertEntrySchema>;
 export type InsertDailyStepRecord = z.infer<typeof insertDailyStepRecordSchema>;
 export type Challenge = typeof challengesTable.$inferSelect;
 export type Entry = typeof entriesTable.$inferSelect;
 export type DailyStepRecord = typeof dailyStepRecordsTable.$inferSelect;
+export type WalletLedgerEntry = typeof walletLedgerEntriesTable.$inferSelect;

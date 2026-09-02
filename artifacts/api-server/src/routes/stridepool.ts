@@ -16,13 +16,14 @@ import {
   leaveChallenge as leaveMoneyChallenge,
   MoneyLogicError,
   usersTable,
+  walletLedgerEntriesTable,
   type Challenge,
 } from "@workspace/db";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 
 const router: IRouter = Router();
-const DEFAULT_PROFILE = { displayName: "Alex Morgan", reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500 };
+const DEFAULT_PROFILE = { displayName: "Alex Morgan", reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, eligibilityAge: 0, eligibilityState: "", identityStatus: "not_started" as const, acceptedTerms: false };
 const DEFAULT_WALLET = { balance: 0, pending: 0, totalEarned: 0 };
 
 function dateLabel(value: string): string {
@@ -49,6 +50,10 @@ function profileFor(user: typeof usersTable.$inferSelect) {
     publicProgress: user.publicProgress,
     healthConnected: user.healthConnected,
     goalBaseline: numberValue(user.goalBaseline),
+    eligibilityAge: user.eligibilityAge,
+    eligibilityState: user.eligibilityState,
+    identityStatus: user.eligibilityIdentityStatus,
+    acceptedTerms: user.eligibilityAcceptedTerms,
   };
 }
 function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
@@ -87,10 +92,28 @@ async function getBootstrap(req: Request) {
   const joinedIds = new Set(entries.map((entry) => entry.challengeId));
   const today = new Date().toISOString().slice(0, 10);
   const [stepTotal] = await db.select({ total: sql<number>`coalesce(sum(${dailyStepRecordsTable.steps}), 0)` }).from(dailyStepRecordsTable).where(and(eq(dailyStepRecordsTable.userId, user.id), eq(dailyStepRecordsTable.recordDate, today)));
-  const activities = entries.slice().sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime()).map((entry) => {
+  const [todaySteps] = await db.select().from(dailyStepRecordsTable).where(and(eq(dailyStepRecordsTable.userId, user.id), isNull(dailyStepRecordsTable.challengeId), eq(dailyStepRecordsTable.recordDate, today)));
+  const ledgerEntries = await db.select().from(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.userId, user.id)).orderBy(desc(walletLedgerEntriesTable.createdAt)).limit(20);
+  const entryActivities = entries.slice().sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime()).map((entry) => {
     const challenge = challenges.find((item) => item.id === entry.challengeId);
     return { id: `entry-${entry.id}`, type: "challenge", title: `You joined ${challenge?.name ?? "a challenge"}`, meta: `${numberValue(entry.entryFee) ? `$${numberValue(entry.entryFee)} committed` : "Free entry"} · persisted to your account`, timestamp: entry.joinedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }) };
   });
+  const ledgerActivities = ledgerEntries.map((entry) => {
+    const earned = entry.eventType.includes("earned");
+    const refunded = entry.eventType.includes("refund");
+    return {
+      id: `ledger-${entry.id}`,
+      type: earned ? "milestone" : "challenge",
+      title: earned ? "Earnings credited" : refunded ? "Entry refunded" : entry.eventType.replaceAll("_", " "),
+      meta: `${entry.amountCents > 0 ? `$${(entry.amountCents / 100).toFixed(2)}` : "No balance change"} · recorded in your wallet`,
+      timestamp: entry.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    };
+  });
+  const activities = [
+    ...(todaySteps ? [{ id: `sync-${todaySteps.id}`, type: "sync", title: "Verified steps synced", meta: `${todaySteps.steps.toLocaleString()} steps today · persisted to your account`, timestamp: todaySteps.recordDate }] : []),
+    ...entryActivities,
+    ...ledgerActivities,
+  ].slice(0, 20);
   return {
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, profileImageUrl: user.profileImageUrl },
     challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)),
@@ -174,7 +197,22 @@ router.patch("/stridepool/profile", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [user] = await db.update(usersTable).set(parsed.data).where(eq(usersTable.id, userId)).returning();
+  const [user] = await db.update(usersTable).set({
+    displayName: parsed.data.displayName,
+    reminders: parsed.data.reminders,
+    weeklyDigest: parsed.data.weeklyDigest,
+    publicProgress: parsed.data.publicProgress,
+    healthConnected: parsed.data.healthConnected,
+    eligibilityAge: parsed.data.eligibilityAge,
+    eligibilityState: parsed.data.eligibilityState,
+    eligibilityIdentityStatus: parsed.data.identityStatus,
+    eligibilityAcceptedTerms: parsed.data.acceptedTerms,
+    updatedAt: new Date(),
+  }).where(eq(usersTable.id, userId)).returning();
+  if (!user) {
+    res.status(404).json({ error: "Account not found." });
+    return;
+  }
   res.json(UpdateStridePoolProfileResponse.parse(profileFor(user)));
 });
 

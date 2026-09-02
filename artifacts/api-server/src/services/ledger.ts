@@ -1,5 +1,3 @@
-import { appendFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import type {
   CheckoutInput,
@@ -10,11 +8,10 @@ import type {
   PayoutOnboardingInput,
   ProviderWebhookInput,
 } from "@workspace/api-zod";
+import { db, challengesTable, usersTable, walletLedgerEntriesTable } from "@workspace/db";
+import { and, desc, eq } from "drizzle-orm";
 import { nextPayoutRetry } from "./settlement";
 
-type StoredLedgerEntry = LedgerEntry;
-
-const ledgerPath = process.env.LEDGER_PATH ?? "/tmp/stridepool-ledger.jsonl";
 const providerName = process.env.PAYMENT_PROVIDER_NAME?.trim() ?? "";
 const webhookSecretConfigured = Boolean(process.env.PAYMENT_PROVIDER_WEBHOOK_SECRET);
 const approvedStates = (process.env.PAID_PLAY_APPROVED_STATES ?? "")
@@ -22,26 +19,6 @@ const approvedStates = (process.env.PAID_PLAY_APPROVED_STATES ?? "")
   .map((state) => state.trim().toUpperCase())
   .filter(Boolean);
 const paidPlayEnabled = process.env.PAID_PLAY_ENABLED === "true";
-const entries: StoredLedgerEntry[] = loadEntries();
-
-function loadEntries(): StoredLedgerEntry[] {
-  if (!existsSync(ledgerPath)) return [];
-  try {
-    return readFileSync(ledgerPath, "utf8")
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as StoredLedgerEntry);
-  } catch (error) {
-    throw new Error(`Ledger file is unreadable: ${error instanceof Error ? error.message : "unknown error"}`);
-  }
-}
-
-function appendEntry(entry: StoredLedgerEntry): StoredLedgerEntry {
-  mkdirSync(dirname(ledgerPath), { recursive: true });
-  appendFileSync(ledgerPath, `${JSON.stringify(entry)}\n`, { encoding: "utf8", flag: "a" });
-  entries.push(entry);
-  return entry;
-}
 
 function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): string[] {
   const reasons: string[] = [];
@@ -91,32 +68,42 @@ export function checkEligibility(input: EligibilityInput): EligibilityDecision {
   };
 }
 
-export function createCheckout(input: CheckoutInput) {
-  const existing = entries.find(
-    (entry) =>
-      entry.eventType === "payment_intent_created" &&
-      entry.userId === input.userId &&
-      entry.metadata.idempotencyKey === input.idempotencyKey,
-  );
+export async function createCheckout(userId: string, input: CheckoutInput) {
+  const existingEntries = await db.select().from(walletLedgerEntriesTable).where(and(
+    eq(walletLedgerEntriesTable.userId, userId),
+    eq(walletLedgerEntriesTable.eventType, "payment_intent_created"),
+  ));
+  const existing = existingEntries.find((entry) => entry.metadata.idempotencyKey === input.idempotencyKey);
   if (existing) {
     return {
-      checkoutId: String(existing.metadata.checkoutId),
+      checkoutId: String(existing.metadata.checkoutId ?? ""),
       status: "requires_action" as const,
       provider: providerName,
       ledgerEntryId: existing.id,
     };
   }
 
-  const eligibility = checkEligibility(input.eligibility);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, input.challengeId));
+  if (!user || !challenge) throw new Error("Challenge or account was not found.");
+  if (Math.round(Number(challenge.entryFee) * 100) !== input.amountCents || challenge.community || input.amountCents < 1) {
+    throw new Error("Checkout amount does not match this challenge.");
+  }
+  const eligibility = checkEligibility({
+    age: user.eligibilityAge,
+    state: user.eligibilityState,
+    identityStatus: user.eligibilityIdentityStatus as EligibilityInput["identityStatus"],
+    acceptedTerms: user.eligibilityAcceptedTerms,
+  });
   if (!eligibility.eligible) {
     throw new Error(eligibility.reasons.join(" "));
   }
   if (!Number.isInteger(input.amountCents)) throw new Error("Money amounts must be whole cents.");
 
   const checkoutId = `checkout_${randomUUID()}`;
-  const entry = appendEntry({
+  const [entry] = await db.insert(walletLedgerEntriesTable).values({
     id: `ledger_${randomUUID()}`,
-    userId: input.userId,
+    userId,
     eventType: "payment_intent_created",
     status: "pending_provider",
     amountCents: input.amountCents,
@@ -128,8 +115,7 @@ export function createCheckout(input: CheckoutInput) {
       idempotencyKey: input.idempotencyKey,
       auditRule: "provider webhook required before funds are committed",
     },
-    createdAt: new Date(),
-  });
+  }).returning();
   return {
     checkoutId,
     status: "requires_action" as const,
@@ -138,24 +124,23 @@ export function createCheckout(input: CheckoutInput) {
   };
 }
 
-export function startPayoutOnboarding(input: PayoutOnboardingInput) {
-  const existing = entries.find(
-    (entry) =>
-      entry.eventType === "payout_onboarding_started" &&
-      entry.userId === input.userId &&
-      entry.metadata.idempotencyKey === input.idempotencyKey,
-  );
+export async function startPayoutOnboarding(userId: string, input: PayoutOnboardingInput) {
+  const existingEntries = await db.select().from(walletLedgerEntriesTable).where(and(
+    eq(walletLedgerEntriesTable.userId, userId),
+    eq(walletLedgerEntriesTable.eventType, "payout_onboarding_started"),
+  ));
+  const existing = existingEntries.find((entry) => entry.metadata.idempotencyKey === input.idempotencyKey);
   if (existing) {
     return {
-      onboardingId: String(existing.metadata.onboardingId),
+      onboardingId: String(existing.metadata.onboardingId ?? ""),
       status: "pending" as const,
       provider: providerName,
     };
   }
   const onboardingId = `onboarding_${randomUUID()}`;
-  appendEntry({
+  await db.insert(walletLedgerEntriesTable).values({
     id: `ledger_${randomUUID()}`,
-    userId: input.userId,
+    userId,
     eventType: "payout_onboarding_started",
     status: "pending_provider",
     amountCents: 0,
@@ -167,15 +152,16 @@ export function startPayoutOnboarding(input: PayoutOnboardingInput) {
       idempotencyKey: input.idempotencyKey,
       auditRule: "provider onboarding must complete before withdrawal",
     },
-    createdAt: new Date(),
   });
   return { onboardingId, status: "pending" as const, provider: providerName };
 }
 
-export function recordProviderWebhook(input: ProviderWebhookInput) {
-  const duplicate = entries.find((entry) => entry.providerEventId === input.providerEventId);
+export async function recordProviderWebhook(input: ProviderWebhookInput) {
+  const [duplicate] = await db.select().from(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.providerEventId, input.providerEventId));
   if (duplicate) return { accepted: true, duplicate: true, ledgerEntryId: duplicate.id };
-  const entry = appendEntry({
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, input.userId));
+  if (!user) throw new Error("Provider event references an unknown account.");
+  const [entry] = await db.insert(walletLedgerEntriesTable).values({
     id: `ledger_${randomUUID()}`,
     userId: input.userId,
     eventType: input.eventType,
@@ -191,13 +177,26 @@ export function recordProviderWebhook(input: ProviderWebhookInput) {
         ? nextPayoutRetry(Number(input.metadata.retryCount ?? 0)).retryCount
         : undefined,
     },
-    createdAt: new Date(),
-  });
+  }).returning();
   return { accepted: true, duplicate: false, ledgerEntryId: entry.id };
 }
 
-export function getLedger(userId: string) {
-  return entries.filter((entry) => entry.userId === userId);
+export async function getLedger(userId: string): Promise<LedgerEntry[]> {
+  const entries = await db.select().from(walletLedgerEntriesTable)
+    .where(eq(walletLedgerEntriesTable.userId, userId))
+    .orderBy(desc(walletLedgerEntriesTable.createdAt));
+  return entries.map((entry) => ({
+    id: entry.id,
+    userId: entry.userId,
+    eventType: entry.eventType,
+    status: entry.status,
+    amountCents: entry.amountCents,
+    currency: entry.currency,
+    providerEventId: entry.providerEventId,
+    challengeId: entry.challengeId,
+    metadata: entry.metadata,
+    createdAt: entry.createdAt,
+  }));
 }
 
 export function isProviderConfigured() {

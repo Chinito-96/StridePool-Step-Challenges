@@ -6,11 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CheckoutInputCurrency } from './checkoutInputCurrency';
-import type { EligibilityInput } from './eligibilityInput';
 
 export interface CheckoutInput {
-  /** @minLength 1 */
-  userId: string;
   /** @minLength 1 */
   challengeId: string;
   /** @minimum 1 */
@@ -18,5 +15,4 @@ export interface CheckoutInput {
   currency: CheckoutInputCurrency;
   /** @minLength 8 */
   idempotencyKey: string;
-  eligibility: EligibilityInput;
 }

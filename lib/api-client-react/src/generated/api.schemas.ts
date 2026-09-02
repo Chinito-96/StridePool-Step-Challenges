@@ -81,6 +81,15 @@ export interface WalletSummary {
   totalEarned: number;
 }
 
+export type ProfileSettingsIdentityStatus = typeof ProfileSettingsIdentityStatus[keyof typeof ProfileSettingsIdentityStatus];
+
+
+export const ProfileSettingsIdentityStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  verified: 'verified',
+} as const;
+
 export interface ProfileSettings {
   displayName: string;
   reminders: boolean;
@@ -88,7 +97,22 @@ export interface ProfileSettings {
   publicProgress: boolean;
   healthConnected: boolean;
   goalBaseline: number;
+  /** @minimum 0 */
+  eligibilityAge: number;
+  /** @maxLength 2 */
+  eligibilityState: string;
+  identityStatus: ProfileSettingsIdentityStatus;
+  acceptedTerms: boolean;
 }
+
+export type ProfileUpdateIdentityStatus = typeof ProfileUpdateIdentityStatus[keyof typeof ProfileUpdateIdentityStatus];
+
+
+export const ProfileUpdateIdentityStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  verified: 'verified',
+} as const;
 
 export interface ProfileUpdate {
   /**
@@ -100,6 +124,12 @@ export interface ProfileUpdate {
   weeklyDigest?: boolean;
   publicProgress?: boolean;
   healthConnected?: boolean;
+  /** @minimum 0 */
+  eligibilityAge?: number;
+  /** @maxLength 2 */
+  eligibilityState?: string;
+  identityStatus?: ProfileUpdateIdentityStatus;
+  acceptedTerms?: boolean;
 }
 
 export interface StridePoolBootstrap {
@@ -172,15 +202,12 @@ export const CheckoutInputCurrency = {
 
 export interface CheckoutInput {
   /** @minLength 1 */
-  userId: string;
-  /** @minLength 1 */
   challengeId: string;
   /** @minimum 1 */
   amountCents: number;
   currency: CheckoutInputCurrency;
   /** @minLength 8 */
   idempotencyKey: string;
-  eligibility: EligibilityInput;
 }
 
 export type CheckoutResponseStatus = typeof CheckoutResponseStatus[keyof typeof CheckoutResponseStatus];
@@ -200,8 +227,6 @@ export interface CheckoutResponse {
 }
 
 export interface PayoutOnboardingInput {
-  /** @minLength 1 */
-  userId: string;
   /** @minLength 8 */
   idempotencyKey: string;
 }
@@ -281,13 +306,6 @@ export interface WebhookResponse {
 }
 
 export type AuthorizationSessionHeaderParameter = string;
-
-export type GetLedgerParams = {
-/**
- * @minLength 1
- */
-userId: string;
-};
 
 export type BeginBrowserLoginParams = {
 returnTo?: string;

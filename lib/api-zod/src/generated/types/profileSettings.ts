@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ProfileSettingsIdentityStatus } from './profileSettingsIdentityStatus';
 
 export interface ProfileSettings {
   displayName: string;
@@ -13,4 +14,10 @@ export interface ProfileSettings {
   publicProgress: boolean;
   healthConnected: boolean;
   goalBaseline: number;
+  /** @minimum 0 */
+  eligibilityAge: number;
+  /** @maxLength 2 */
+  eligibilityState: string;
+  identityStatus: ProfileSettingsIdentityStatus;
+  acceptedTerms: boolean;
 }

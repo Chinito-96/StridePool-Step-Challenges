@@ -25,7 +25,7 @@ export const GetComplianceStatusResponse = zod.object({
   "paidPlayEnabled": zod.boolean(),
   "providerConfigured": zod.boolean(),
   "counselReviewRequired": zod.boolean(),
-  "minAge": zod.number(),
+  "minAge": zod.int(),
   "approvedStates": zod.array(zod.string()),
   "requirements": zod.array(zod.string()),
   "settlementPolicy": zod.array(zod.string())
@@ -61,28 +61,15 @@ export const CheckEligibilityResponse = zod.object({
  */
 
 
-
 export const createCheckoutBodyIdempotencyKeyMin = 8;
-
-export const createCheckoutBodyEligibilityAgeMin = 0;
-
-export const createCheckoutBodyEligibilityStateMin = 2;
-export const createCheckoutBodyEligibilityStateMax = 2;
 
 
 
 export const CreateCheckoutBody = zod.object({
-  "userId": zod.string().min(1),
   "challengeId": zod.string().min(1),
   "amountCents": zod.number().min(1),
   "currency": zod.enum(['usd']),
-  "idempotencyKey": zod.string().min(createCheckoutBodyIdempotencyKeyMin),
-  "eligibility": zod.object({
-  "age": zod.number().min(createCheckoutBodyEligibilityAgeMin),
-  "state": zod.string().min(createCheckoutBodyEligibilityStateMin).max(createCheckoutBodyEligibilityStateMax),
-  "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
-  "acceptedTerms": zod.boolean()
-})
+  "idempotencyKey": zod.string().min(createCheckoutBodyIdempotencyKeyMin)
 })
 
 export const CreateCheckoutResponse = zod.object({
@@ -96,13 +83,11 @@ export const CreateCheckoutResponse = zod.object({
 /**
  * @summary Start provider payout onboarding
  */
-
 export const startPayoutOnboardingBodyIdempotencyKeyMin = 8;
 
 
 
 export const StartPayoutOnboardingBody = zod.object({
-  "userId": zod.string().min(1),
   "idempotencyKey": zod.string().min(startPayoutOnboardingBodyIdempotencyKeyMin)
 })
 
@@ -116,13 +101,6 @@ export const StartPayoutOnboardingResponse = zod.object({
 /**
  * @summary Get auditable money events
  */
-
-
-
-export const GetLedgerQueryParams = zod.object({
-  "userId": zod.coerce.string().min(1)
-})
-
 export const GetLedgerResponseItem = zod.object({
   "id": zod.string(),
   "userId": zod.string(),
@@ -254,6 +232,12 @@ export const GetStridePoolBootstrapHeader = zod.object({
   "Authorization": zod.string().optional()
 })
 
+export const getStridePoolBootstrapResponseProfileEligibilityAgeMin = 0;
+
+export const getStridePoolBootstrapResponseProfileEligibilityStateMax = 2;
+
+
+
 export const GetStridePoolBootstrapResponse = zod.object({
   "user": zod.union([zod.object({
   "id": zod.string(),
@@ -269,20 +253,20 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "level": zod.string(),
   "startDate": zod.string(),
   "endDate": zod.string(),
-  "days": zod.number(),
-  "dailyGoal": zod.number(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
   "entryFee": zod.number(),
   "prizePool": zod.number(),
-  "participantCount": zod.number(),
-  "finishers": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
   "color": zod.string(),
   "goalType": zod.string(),
   "community": zod.boolean(),
-  "graceDays": zod.number(),
+  "graceDays": zod.int(),
   "joined": zod.boolean()
 })),
   "joinedIds": zod.array(zod.string()),
-  "steps": zod.number(),
+  "steps": zod.int(),
   "activities": zod.array(zod.object({
   "id": zod.string(),
   "type": zod.string(),
@@ -301,7 +285,11 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "weeklyDigest": zod.boolean(),
   "publicProgress": zod.boolean(),
   "healthConnected": zod.boolean(),
-  "goalBaseline": zod.number()
+  "goalBaseline": zod.int(),
+  "eligibilityAge": zod.int().min(getStridePoolBootstrapResponseProfileEligibilityAgeMin),
+  "eligibilityState": zod.string().max(getStridePoolBootstrapResponseProfileEligibilityStateMax),
+  "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
+  "acceptedTerms": zod.boolean()
 })
 })
 
@@ -356,7 +344,7 @@ export const SyncStridePoolStepsHeader = zod.object({
 })
 
 export const SyncStridePoolStepsResponse = zod.object({
-  "steps": zod.number(),
+  "steps": zod.int(),
   "activity": zod.object({
   "id": zod.string(),
   "type": zod.string(),
@@ -390,6 +378,10 @@ export const UpdateStridePoolProfileHeader = zod.object({
 
 export const updateStridePoolProfileBodyDisplayNameMax = 120;
 
+export const updateStridePoolProfileBodyEligibilityAgeMin = 0;
+
+export const updateStridePoolProfileBodyEligibilityStateMax = 2;
+
 
 
 export const UpdateStridePoolProfileBody = zod.object({
@@ -397,8 +389,18 @@ export const UpdateStridePoolProfileBody = zod.object({
   "reminders": zod.boolean().optional(),
   "weeklyDigest": zod.boolean().optional(),
   "publicProgress": zod.boolean().optional(),
-  "healthConnected": zod.boolean().optional()
+  "healthConnected": zod.boolean().optional(),
+  "eligibilityAge": zod.int().min(updateStridePoolProfileBodyEligibilityAgeMin).optional(),
+  "eligibilityState": zod.string().max(updateStridePoolProfileBodyEligibilityStateMax).optional(),
+  "identityStatus": zod.enum(['not_started', 'pending', 'verified']).optional(),
+  "acceptedTerms": zod.boolean().optional()
 })
+
+export const updateStridePoolProfileResponseEligibilityAgeMin = 0;
+
+export const updateStridePoolProfileResponseEligibilityStateMax = 2;
+
+
 
 export const UpdateStridePoolProfileResponse = zod.object({
   "displayName": zod.string(),
@@ -406,7 +408,11 @@ export const UpdateStridePoolProfileResponse = zod.object({
   "weeklyDigest": zod.boolean(),
   "publicProgress": zod.boolean(),
   "healthConnected": zod.boolean(),
-  "goalBaseline": zod.number()
+  "goalBaseline": zod.int(),
+  "eligibilityAge": zod.int().min(updateStridePoolProfileResponseEligibilityAgeMin),
+  "eligibilityState": zod.string().max(updateStridePoolProfileResponseEligibilityStateMax),
+  "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
+  "acceptedTerms": zod.boolean()
 })
 
 
