@@ -411,6 +411,19 @@ async function upsertDailySteps(
   source: string,
   verified: boolean,
 ) {
+  const [existing] = await db.select({ id: dailyStepRecordsTable.id })
+    .from(dailyStepRecordsTable)
+    .where(and(
+      eq(dailyStepRecordsTable.userId, userId),
+      challengeId === null
+        ? isNull(dailyStepRecordsTable.challengeId)
+        : eq(dailyStepRecordsTable.challengeId, challengeId),
+      eq(dailyStepRecordsTable.recordDate, recordDate),
+    ));
+  if (existing) {
+    await db.update(dailyStepRecordsTable).set({ steps, source, verified }).where(eq(dailyStepRecordsTable.id, existing.id));
+    return;
+  }
   await db.insert(dailyStepRecordsTable).values({
     userId,
     challengeId,
@@ -418,9 +431,6 @@ async function upsertDailySteps(
     steps,
     source,
     verified,
-  }).onConflictDoUpdate({
-    target: [dailyStepRecordsTable.userId, dailyStepRecordsTable.challengeId, dailyStepRecordsTable.recordDate],
-    set: { steps, source, verified },
   });
 }
 

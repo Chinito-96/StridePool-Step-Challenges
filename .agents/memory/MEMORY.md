@@ -9,3 +9,4 @@
 - [Native health bridge](native-health-bridge.md) — web code must call the companion bridge for HealthKit/Health Connect; browsers cannot request those permissions directly.
 - [Managed Stripe webhook rotation](stripe-managed-webhook-rotation.md) — persist and resolve signing secrets from the sync record; runtime docs may expose methods missing from the installed package.
 - [Browser persistence assertions](browser-persistence-assertions.md) — wait for persisted values, not placeholder elements, when bootstrap data loads after navigation.
+- [Nullable daily-record upserts](daily-record-null-upsert.md) — composite uniqueness does not deduplicate rows when the challenge reference is NULL.

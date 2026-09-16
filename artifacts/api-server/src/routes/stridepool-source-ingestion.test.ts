@@ -16,6 +16,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 
 const runId = `source-ingestion-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const userId = `${runId}-user`;
+const secondUserId = `${runId}-second-user`;
 const today = new Date().toISOString().slice(0, 10);
 
 type ApiResult = {
@@ -38,6 +39,7 @@ type IngestResponse = {
 let server: Server | undefined;
 let baseUrl = "";
 let session = "";
+let secondSession = "";
 
 function dateDaysAgo(days: number): string {
   const date = new Date();
@@ -73,10 +75,11 @@ function sample(
 async function request(
   path: string,
   options: RequestInit = {},
+  sessionId = session,
 ): Promise<ApiResult> {
   const { headers, ...init } = options;
   const requestHeaders = new Headers(headers);
-  requestHeaders.set("cookie", `sid=${session}`);
+  requestHeaders.set("cookie", `sid=${sessionId}`);
   if (init.body && !requestHeaders.has("content-type")) {
     requestHeaders.set("content-type", "application/json");
   }
@@ -96,11 +99,12 @@ async function request(
 async function ingest(
   source: "apple_health" | "health_connect",
   samples: ReturnType<typeof sample>[],
+  sessionId = session,
 ): Promise<IngestResponse> {
   const result = await request(`/stridepool/sources/${source}/samples`, {
     method: "POST",
     body: JSON.stringify({ samples }),
-  });
+  }, sessionId);
   assert.equal(result.status, 200);
   return result.body as IngestResponse;
 }
@@ -112,6 +116,11 @@ describe("StridePool source sample ingestion", () => {
       email: `${userId}@example.test`,
       displayName: "Source Ingestion Test",
     });
+    await db.insert(usersTable).values({
+      id: secondUserId,
+      email: `${secondUserId}@example.test`,
+      displayName: "Second Source Ingestion Test",
+    });
     session = await createSession({
       user: {
         id: userId,
@@ -121,6 +130,17 @@ describe("StridePool source sample ingestion", () => {
         profileImageUrl: null,
       },
       access_token: "test-access-token",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    });
+    secondSession = await createSession({
+      user: {
+        id: secondUserId,
+        email: `${secondUserId}@example.test`,
+        firstName: "Second",
+        lastName: "Ingestion",
+        profileImageUrl: null,
+      },
+      access_token: "second-test-access-token",
       expires_at: Math.floor(Date.now() / 1000) + 3600,
     });
 
@@ -144,10 +164,15 @@ describe("StridePool source sample ingestion", () => {
       });
     }
     await db.delete(stepSourceSamplesTable).where(eq(stepSourceSamplesTable.userId, userId));
+    await db.delete(stepSourceSamplesTable).where(eq(stepSourceSamplesTable.userId, secondUserId));
     await db.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, userId));
+    await db.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, secondUserId));
     await db.delete(healthSourceConnectionsTable).where(eq(healthSourceConnectionsTable.userId, userId));
+    await db.delete(healthSourceConnectionsTable).where(eq(healthSourceConnectionsTable.userId, secondUserId));
     await db.delete(sessionsTable).where(eq(sessionsTable.sid, session));
+    await db.delete(sessionsTable).where(eq(sessionsTable.sid, secondSession));
     await db.delete(usersTable).where(eq(usersTable.id, userId));
+    await db.delete(usersTable).where(eq(usersTable.id, secondUserId));
     await pool.end();
   });
 
@@ -346,6 +371,149 @@ describe("StridePool source sample ingestion", () => {
       { sourceSampleId: "pending-daily-sample", verificationStatus: "pending_review" },
       { sourceSampleId: "verified-daily-sample", verificationStatus: "verified" },
     ]);
+  });
+
+  it("isolates overlapping source IDs, daily totals, and review queues by account", async () => {
+    const beforeUserA = (await request("/stridepool/bootstrap")).body as {
+      steps: number;
+      healthSources: Array<{ source: string; verifiedSamples: number; pendingReview: number }>;
+    };
+    const beforeUserB = (await request("/stridepool/bootstrap", {}, secondSession)).body as {
+      steps: number;
+      healthSources: Array<{ source: string; verifiedSamples: number; pendingReview: number }>;
+    };
+    const beforeUserASamples = await db.select({
+      steps: stepSourceSamplesTable.steps,
+    }).from(stepSourceSamplesTable).where(and(
+      eq(stepSourceSamplesTable.userId, userId),
+      eq(stepSourceSamplesTable.recordDate, today),
+      eq(stepSourceSamplesTable.verificationStatus, "verified"),
+    ));
+    const beforeUserBSamples = await db.select({
+      steps: stepSourceSamplesTable.steps,
+    }).from(stepSourceSamplesTable).where(and(
+      eq(stepSourceSamplesTable.userId, secondUserId),
+      eq(stepSourceSamplesTable.recordDate, today),
+      eq(stepSourceSamplesTable.verificationStatus, "verified"),
+    ));
+    const beforeUserASourceSteps = beforeUserASamples.reduce((total, sample) => total + sample.steps, 0);
+    const beforeUserBSourceSteps = beforeUserBSamples.reduce((total, sample) => total + sample.steps, 0);
+    const sharedSampleId = "shared-account-sample";
+    const userAPendingSampleId = "user-a-pending-sample";
+    const userBPendingSampleId = "user-b-pending-sample";
+    const pendingDate = dateDaysAgo(1);
+    const fullDayStart = `${today}T00:00:00.000Z`;
+    const fullDayEnd = `${today}T23:59:00.000Z`;
+
+    const userAApple = await ingest("apple_health", [sample(sharedSampleId, {
+      steps: 1_000,
+      startTime: fullDayStart,
+      endTime: fullDayEnd,
+      recordedAt: fullDayEnd,
+    })]);
+    const userBApple = await ingest("apple_health", [sample(sharedSampleId, {
+      steps: 59_500,
+      startTime: fullDayStart,
+      endTime: fullDayEnd,
+      recordedAt: fullDayEnd,
+    })], secondSession);
+    const userAHealthConnect = await ingest("health_connect", [sample(sharedSampleId, {
+      steps: 700,
+      startTime: fullDayStart,
+      endTime: fullDayEnd,
+      recordedAt: fullDayEnd,
+    })]);
+    const userBHealthConnect = await ingest("health_connect", [sample(sharedSampleId, {
+      steps: 800,
+      startTime: fullDayStart,
+      endTime: fullDayEnd,
+      recordedAt: fullDayEnd,
+    })], secondSession);
+
+    assert.equal(userAApple.acceptedCount, 1);
+    assert.equal(userAApple.samples[0]?.verificationStatus, "verified");
+    assert.equal(userBApple.acceptedCount, 1);
+    assert.equal(userBApple.samples[0]?.verificationStatus, "verified");
+    assert.equal(userAHealthConnect.acceptedCount, 1);
+    assert.equal(userBHealthConnect.acceptedCount, 1);
+    assert.equal(userBHealthConnect.samples[0]?.verificationStatus, "pending_review");
+
+    const userAPending = await ingest("apple_health", [sample(userAPendingSampleId, {
+      recordDate: pendingDate,
+      steps: 1_600,
+      startTime: `${pendingDate}T12:00:00.000Z`,
+      endTime: `${pendingDate}T12:04:00.000Z`,
+      recordedAt: `${pendingDate}T12:05:00.000Z`,
+    })]);
+    const userBPending = await ingest("apple_health", [sample(userBPendingSampleId, {
+      recordDate: pendingDate,
+      steps: 1_700,
+      startTime: `${pendingDate}T12:00:00.000Z`,
+      endTime: `${pendingDate}T12:04:00.000Z`,
+      recordedAt: `${pendingDate}T12:05:00.000Z`,
+    })], secondSession);
+    assert.equal(userAPending.acceptedCount, 1);
+    assert.equal(userAPending.samples[0]?.verificationStatus, "pending_review");
+    assert.equal(userBPending.acceptedCount, 1);
+    assert.equal(userBPending.samples[0]?.verificationStatus, "pending_review");
+
+    const duplicateUserAApple = await ingest("apple_health", [sample(sharedSampleId, { steps: 9_999 })]);
+    const duplicateUserBApple = await ingest("apple_health", [sample(sharedSampleId, { steps: 9_999 })], secondSession);
+    const duplicateUserAHealthConnect = await ingest("health_connect", [sample(sharedSampleId, { steps: 9_999 })]);
+    const duplicateUserBHealthConnect = await ingest("health_connect", [sample(sharedSampleId, { steps: 9_999 })], secondSession);
+    assert.equal(duplicateUserAApple.acceptedCount, 0);
+    assert.equal(duplicateUserBApple.acceptedCount, 0);
+    assert.equal(duplicateUserAHealthConnect.acceptedCount, 0);
+    assert.equal(duplicateUserBHealthConnect.acceptedCount, 0);
+
+    const userABootstrap = (await request("/stridepool/bootstrap")).body as {
+      steps: number;
+      stepReviews: Array<{ sourceSampleId: string }>;
+      healthSources: Array<{ source: string; verifiedSamples: number; pendingReview: number }>;
+    };
+    const userBBootstrap = (await request("/stridepool/bootstrap", {}, secondSession)).body as {
+      steps: number;
+      stepReviews: Array<{ sourceSampleId: string }>;
+      healthSources: Array<{ source: string; verifiedSamples: number; pendingReview: number }>;
+    };
+
+    assert.equal(userAApple.steps, beforeUserASourceSteps + 1_000);
+    assert.equal(userAHealthConnect.steps, beforeUserASourceSteps + 1_700);
+    assert.equal(userBApple.steps, beforeUserBSourceSteps + 59_500);
+    assert.equal(userBHealthConnect.steps, beforeUserBSourceSteps + 59_500);
+    assert.equal(userABootstrap.steps, userAHealthConnect.steps);
+    assert.equal(userBBootstrap.steps, userBHealthConnect.steps);
+    assert.ok(userABootstrap.stepReviews.some((review) => review.sourceSampleId === userAPendingSampleId));
+    assert.ok(!userABootstrap.stepReviews.some((review) => review.sourceSampleId === userBPendingSampleId));
+    assert.ok(userBBootstrap.stepReviews.some((review) => review.sourceSampleId === userBPendingSampleId));
+    assert.ok(!userBBootstrap.stepReviews.some((review) => review.sourceSampleId === userAPendingSampleId));
+    assert.deepEqual(
+      userABootstrap.healthSources.map(({ source, verifiedSamples, pendingReview }) => ({ source, verifiedSamples, pendingReview })),
+      beforeUserA.healthSources.map(({ source, verifiedSamples, pendingReview }) => ({
+        source,
+        verifiedSamples: verifiedSamples + 1,
+        pendingReview: pendingReview + (source === "apple_health" ? 1 : 0),
+      })),
+    );
+    assert.deepEqual(
+      userBBootstrap.healthSources.map(({ source, verifiedSamples, pendingReview }) => ({ source, verifiedSamples, pendingReview })),
+      beforeUserB.healthSources.map(({ source, verifiedSamples, pendingReview }) => ({
+        source,
+        verifiedSamples: verifiedSamples + (source === "apple_health" ? 1 : 0),
+        pendingReview: pendingReview + 1,
+      })),
+    );
+
+    const storedSharedSamples = await db.select({
+      userId: stepSourceSamplesTable.userId,
+      source: stepSourceSamplesTable.source,
+      sourceSampleId: stepSourceSamplesTable.sourceSampleId,
+    }).from(stepSourceSamplesTable).where(and(
+      inArray(stepSourceSamplesTable.userId, [userId, secondUserId]),
+      inArray(stepSourceSamplesTable.sourceSampleId, [sharedSampleId, userAPendingSampleId, userBPendingSampleId]),
+    ));
+    assert.equal(storedSharedSamples.length, 6);
+    assert.equal(new Set(storedSharedSamples.map((row) => `${row.userId}:${row.source}:${row.sourceSampleId}`)).size, 6);
   });
 
   it("records denied, stale, and revoked native permission states", async () => {
