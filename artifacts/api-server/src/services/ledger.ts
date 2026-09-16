@@ -26,11 +26,33 @@ import {
 } from "./stripe-provider";
 
 const providerName = "Stripe";
-const approvedStates = (process.env.PAID_PLAY_APPROVED_STATES ?? "")
-  .split(",")
-  .map((state) => state.trim().toUpperCase())
-  .filter(Boolean);
-const counselApproved = process.env.PAID_PLAY_COUNSEL_APPROVED === "true";
+type StripeProviderStatus = ReturnType<typeof getStripeProviderStatus>;
+type LaunchEnvironment = Readonly<Record<string, string | undefined>>;
+
+function readApprovedStates(environment: LaunchEnvironment): string[] {
+  return (environment.PAID_PLAY_APPROVED_STATES ?? "")
+    .split(",")
+    .map((state) => state.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+export function isPaidPlayLaunchEnabled(input: {
+  enabled: boolean;
+  counselApproved: boolean;
+  approvedStates: string[];
+  providerReady: boolean;
+  webhookReady: boolean;
+  backfillReady: boolean;
+  sandboxReconciliationPassed: boolean;
+}): boolean {
+  return input.enabled
+    && input.counselApproved
+    && input.approvedStates.length > 0
+    && input.providerReady
+    && input.webhookReady
+    && input.backfillReady
+    && input.sandboxReconciliationPassed;
+}
 
 function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): string[] {
   const reasons: string[] = [];
@@ -38,7 +60,7 @@ function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): 
   if (input.age < status.minAge) reasons.push(`Paid play is available only to people ${status.minAge}+.`);
   if (!status.approvedStates.length) {
     reasons.push("Paid play is paused while state-by-state counsel review is pending.");
-  } else if (!counselApproved) {
+  } else if (status.counselReviewRequired) {
     reasons.push("Paid play is paused until written qualified-counsel approval is recorded.");
   } else if (!status.approvedStates.includes(input.state.toUpperCase())) {
     reasons.push("Paid play is not available in this state.");
@@ -49,15 +71,22 @@ function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): 
   return reasons;
 }
 
-export function getComplianceStatus(): ComplianceStatus {
-  const provider = getStripeProviderStatus();
+export function getComplianceStatus(
+  provider: StripeProviderStatus = getStripeProviderStatus(),
+  environment: LaunchEnvironment = process.env,
+): ComplianceStatus {
+  const approvedStates = readApprovedStates(environment);
+  const counselApproved = environment.PAID_PLAY_COUNSEL_APPROVED === "true";
   const providerConfigured = provider.providerReady && provider.webhookReady;
-  const paidPlayEnabled =
-    process.env.PAID_PLAY_ENABLED === "true"
-    && counselApproved
-    && providerConfigured
-    && provider.backfillReady
-    && provider.sandboxReconciliationPassed;
+  const paidPlayEnabled = isPaidPlayLaunchEnabled({
+    enabled: environment.PAID_PLAY_ENABLED === "true",
+    counselApproved,
+    approvedStates,
+    providerReady: provider.providerReady,
+    webhookReady: provider.webhookReady,
+    backfillReady: provider.backfillReady,
+    sandboxReconciliationPassed: provider.sandboxReconciliationPassed,
+  });
   return {
     paidPlayEnabled,
     providerConfigured,
@@ -84,8 +113,12 @@ export function getComplianceStatus(): ComplianceStatus {
   };
 }
 
-export function checkEligibility(input: EligibilityInput): EligibilityDecision {
-  const status = getComplianceStatus();
+export function checkEligibility(
+  input: EligibilityInput,
+  provider?: StripeProviderStatus,
+  environment?: LaunchEnvironment,
+): EligibilityDecision {
+  const status = getComplianceStatus(provider, environment);
   const reasons = eligibilityReasons(input, status);
   return {
     eligible: reasons.length === 0 && status.paidPlayEnabled,
