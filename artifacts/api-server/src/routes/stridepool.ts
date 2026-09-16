@@ -36,6 +36,7 @@ import {
   challengeRecoveryCasesTable,
   challengeInvitesTable,
   challengesTable,
+  calculatePodiumPayouts,
   dailyStepRecordsTable,
   db,
   entriesTable,
@@ -57,7 +58,7 @@ import { challengeParticipantOverridesTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { buildLifetimeLeaderboard, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
+import { buildLifetimeLeaderboard, calculateProjectedPayouts, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
 import { buildGroupMemberJoinedCandidate, buildParticipantNotificationCandidates } from "../services/stridepool-notifications";
 import { checkEligibility, getComplianceStatus } from "../services/ledger";
 
@@ -777,26 +778,31 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
     return { entryId: entry.id, userId: user.id, displayName: publicUser(user).displayName, steps, completedDays, completionPercent: Math.min(100, Math.round((completedDays / challenge.days) * 100)), status: participant.status, isCurrentUser: user.id === currentUserId };
   }));
   leaderboard.sort((a, b) => b.steps - a.steps || b.completedDays - a.completedDays || a.displayName.localeCompare(b.displayName));
-  const eligible = leaderboard.filter((entry) => entry.status !== "eliminated");
-  const disqualifiedCount = leaderboard.length - eligible.length;
-  const poolCents = Math.round(numberValue(challenge.prizePool) * 100);
-  const basePayoutCents = eligible.length ? Math.floor(poolCents / eligible.length) : 0;
-  const roundingRemainder = eligible.length ? poolCents % eligible.length : 0;
-  const payoutByUserId = new Map(eligible.map((entry, index) => [
-    entry.userId,
-    (basePayoutCents + (index < roundingRemainder ? 1 : 0)) / 100,
-  ]));
+  const projection = challenge.challengeType === "ranking"
+    ? (() => {
+        const payouts = calculatePodiumPayouts(
+          leaderboard.map((entry) => ({ entryId: entry.entryId, steps: entry.steps })),
+          Math.round(numberValue(challenge.prizePool) * 100),
+        );
+        const payoutByEntryId = new Map(payouts.map((payout) => [payout.entryId, payout.payoutCents / 100]));
+        return {
+          eligibleParticipantCount: leaderboard.length,
+          disqualifiedCount: 0,
+          payoutByUserId: new Map(leaderboard.map((entry) => [entry.userId, payoutByEntryId.get(entry.entryId) ?? 0])),
+        };
+      })()
+    : calculateProjectedPayouts(leaderboard, numberValue(challenge.prizePool));
   res.json(GetStridePoolChallengeLeaderboardResponse.parse({
     challengeId: challenge.id,
     dailyGoal: challenge.dailyGoal,
     days: challenge.days,
     prizePool: numberValue(challenge.prizePool),
-    eligibleParticipantCount: eligible.length,
-    disqualifiedCount,
+    eligibleParticipantCount: projection.eligibleParticipantCount,
+    disqualifiedCount: projection.disqualifiedCount,
     leaderboard: leaderboard.map(({ entryId: _entryId, ...entry }, index) => ({
       rank: index + 1,
       ...entry,
-      projectedPayout: payoutByUserId.get(entry.userId) ?? 0,
+      projectedPayout: projection.payoutByUserId.get(entry.userId) ?? 0,
     })),
   }));
 });
@@ -1111,9 +1117,7 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
     reason: parsed.data.reason,
     reviewMessage: parsed.data.type === "grace_day"
       ? "Your grace-day request is recorded and will be applied before settlement."
-      : parsed.data.type === "injury_pause"
-        ? "Your injury pause is pending. Support will protect the affected days while reviewing your source history."
-        : "Support review is open. We will compare source samples, timestamps, and challenge rules before settlement.",
+      : "Support review is open. We will compare source samples, timestamps, and challenge rules before settlement.",
   }).returning();
   await db.update(challengesTable).set({ settlementStatus: "pending_review" }).where(eq(challengesTable.id, challenge.id));
   const result = {

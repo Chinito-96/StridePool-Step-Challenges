@@ -958,7 +958,7 @@ export const GetStridePoolRecoveryCasesResponse = zod.object({
 
 
 /**
- * @summary Request a grace day, injury pause, or support review
+ * @summary Request a grace day or support review
  */
 export const RequestStridePoolRecoveryHeader = zod.object({
   "Authorization": zod.string().optional()
@@ -971,7 +971,7 @@ export const requestStridePoolRecoveryBodyReasonMax = 1000;
 
 export const RequestStridePoolRecoveryBody = zod.object({
   "challengeId": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "type": zod.enum(['grace_day', 'support_review']),
   "reason": zod.string().min(requestStridePoolRecoveryBodyReasonMin).max(requestStridePoolRecoveryBodyReasonMax)
 })
 

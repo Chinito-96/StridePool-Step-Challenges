@@ -12,6 +12,7 @@ type Activity = { id: string; type: string; title: string; meta: string; timesta
 type WalletSummary = { balance: number; pending: number; totalEarned: number };
 type ProfileSettings = ApiProfileSettings;
 type EligibilityProfile = EligibilityInput;
+type RecoveryRequestType = Exclude<RecoveryCase['type'], 'injury_pause'>;
 type AppState = {
   challenges: Challenge[];
   joinedIds: string[];
@@ -32,7 +33,7 @@ type AppState = {
   updateEligibility: (eligibility: EligibilityProfile) => void;
   syncSteps: (source?: 'demo' | 'manual' | object, stepTotal?: number, recordDate?: string) => void;
   importCsv: (samples: Array<{ sourceSampleId: string; recordDate: string; steps: number; startTime: string; endTime: string; recordedAt: string; rawPayload: Record<string, unknown> }>) => void;
-  requestRecovery: (challengeId: string, type: RecoveryCase['type'], reason: string) => void;
+  requestRecovery: (challengeId: string, type: RecoveryRequestType, reason: string) => void;
   addFunds: () => void;
   toggleSetting: (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => void;
   updateProfile: (updates: ProfileUpdate) => void;
@@ -102,7 +103,7 @@ function AppProvider({ children }: { children: ReactNode }) {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
     sourceMutation.mutate({ source: 'csv_import', data: { samples } }, { onSuccess: invalidateBootstrap });
   };
-  const requestRecovery = (challengeId: string, type: RecoveryCase['type'], reason: string) => {
+  const requestRecovery = (challengeId: string, type: RecoveryRequestType, reason: string) => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
     recoveryMutation.mutate({ data: { challengeId, type, reason } }, { onSuccess: invalidateBootstrap });
   };
@@ -301,19 +302,20 @@ function StepSyncControls() {
   return <div className="mt-5 grid gap-4 rounded-xl border border-border/80 bg-background p-4 sm:grid-cols-[1fr_auto]"><form className="space-y-3" onSubmit={submitManual}><div><p className="text-sm font-bold">Manual daily total</p><p className="mt-1 text-[11px] leading-4 text-muted-foreground">A realistic web fallback when no native source is available.</p></div><div className="grid gap-2 sm:grid-cols-[1fr_145px_auto]"><input type="number" min="0" max="100000" value={manualSteps} onChange={(event) => setManualSteps(event.target.value)} placeholder="e.g. 7284" aria-label="Daily step total" className="h-10 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-manual-steps" /><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} aria-label="Step record date" className="h-10 rounded-lg border border-border bg-card px-3 text-xs outline-none focus:border-primary" data-testid="input-manual-step-date" /><Button type="submit" className="h-10 px-3 text-xs" data-testid="button-submit-manual-steps">Save total</Button></div></form><label className="flex cursor-pointer flex-col justify-end gap-2 border-t border-border pt-3 text-xs font-bold sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"><span>Import CSV</span><span className="font-normal text-muted-foreground">YYYY-MM-DD,steps</span><input type="file" accept=".csv,text/csv" onChange={importFile} className="block w-full text-[11px]" data-testid="input-steps-csv" /></label>{message && <p className="text-[11px] text-primary sm:col-span-2" role="status" data-testid="status-step-sync">{message}</p>}</div>;
 }
 
-function RecoveryPanel({ challenge, cases, requestRecovery }: { challenge: Challenge; cases: RecoveryCase[]; requestRecovery: (challengeId: string, type: RecoveryCase['type'], reason: string) => void }) {
-  const [type, setType] = useState<RecoveryCase['type']>('grace_day');
+function RecoveryPanel({ challenge, cases, requestRecovery }: { challenge: Challenge; cases: RecoveryCase[]; requestRecovery: (challengeId: string, type: RecoveryRequestType, reason: string) => void }) {
+  const [type, setType] = useState<RecoveryRequestType>('grace_day');
   const [reason, setReason] = useState('');
   const existing = cases[0];
   const labels = { grace_day: 'Use a grace day', injury_pause: 'Request an injury pause', support_review: 'Ask support to review' };
+  const requestOptions = ['grace_day', 'support_review'] as const;
   return <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8" data-testid="panel-recovery">
     <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><HeartPulse size={18} /></span><div><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Settlement care</p><h2 className="mt-1 font-display text-xl font-bold">Need a fair recovery path?</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Requests are attached to this challenge and reviewed against your source history before settlement.</p></div></div>
-    {existing ? <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">{labels[existing.type]}</p><Badge tone="teal">{existing.status.replaceAll('_', ' ')}</Badge></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{existing.reviewMessage}</p></div> : <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); if (reason.trim().length >= 8) { requestRecovery(challenge.id, type, reason.trim()); setReason(''); } }}><label className="block text-xs font-bold">What do you need?<select value={type} onChange={(event) => setType(event.target.value as RecoveryCase['type'])} className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" data-testid="select-recovery-type">{Object.entries(labels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label className="block text-xs font-bold">A little context<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={8} maxLength={1000} rows={3} placeholder="For example: my watch was off for an afternoon..." className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-sm outline-none focus:border-primary" data-testid="textarea-recovery-reason" /></label><Button type="submit" variant="secondary" disabled={reason.trim().length < 8} data-testid="button-request-recovery">Send recovery request</Button></form>}
+    {existing ? <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">{labels[existing.type]}</p><Badge tone="teal">{existing.status.replaceAll('_', ' ')}</Badge></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{existing.reviewMessage}</p></div> : <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); if (reason.trim().length >= 8) { requestRecovery(challenge.id, type, reason.trim()); setReason(''); } }}><label className="block text-xs font-bold">What do you need?<select value={type} onChange={(event) => setType(event.target.value as RecoveryRequestType)} className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" data-testid="select-recovery-type">{requestOptions.map((value) => <option value={value} key={value}>{labels[value]}</option>)}</select></label><label className="block text-xs font-bold">A little context<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={8} maxLength={1000} rows={3} placeholder="For example: my watch was off for an afternoon..." className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-sm outline-none focus:border-primary" data-testid="textarea-recovery-reason" /></label><Button type="submit" variant="secondary" disabled={reason.trim().length < 8} data-testid="button-request-recovery">Send recovery request</Button></form>}
   </section>;
 }
 
 function RadioDot() { return <span className="flex items-center gap-1.5 font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground"><span className="pulse-dot h-1.5 w-1.5 rounded-full bg-primary" /> updates live</span>; }
-function StatLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { return <div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary">{icon}</span><span className="text-xs text-muted-foreground">{label}</span><span className="ml-auto text-sm font-bold">{value}</span></div>; }
+function StatLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { const isPayoutProjection = label === 'Est. finisher share'; return <div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary">{icon}</span><span className="text-xs text-muted-foreground">{isPayoutProjection ? 'Payout if you finish' : label}</span><span className="ml-auto text-sm font-bold">{isPayoutProjection ? value.replace(/^~/, '') : value}</span></div>; }
 function ChallengeMiniCard({ challenge }: { challenge: Challenge }) { const progress = Math.round((challenge.finishers / challenge.participantCount) * 100); return <Link href={`/challenge/${challenge.id}`} className="lift-card block rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]" data-testid={`card-joined-challenge-${challenge.id}`}><div className="flex items-start justify-between"><span className="h-3 w-3 rounded-full" style={{ backgroundColor: challenge.color }} /><Badge tone="lime">Joined</Badge></div><h3 className="mt-5 font-display text-lg font-bold">{challenge.name}</h3><div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground"><Clock3 size={13} /> {challenge.days} day challenge <span className="text-border">/</span> ends {challenge.endDate}</div><div className="mt-5"><div className="mb-2 flex justify-between font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground"><span>Group progress</span><span>{progress}%</span></div><div className="h-1.5 rounded-full bg-muted"><div className="progress-fill h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: challenge.color }} /></div></div></Link>; }
 function ActivityRow({ activity }: { activity: Activity }) { const Icon = activity.type === 'sync' ? RefreshCw : activity.type === 'milestone' ? Trophy : Footprints; return <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0 sm:px-5"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-primary"><Icon size={16} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{activity.title}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{activity.meta}</p></div><span className="shrink-0 font-mono-app text-[10px] text-muted-foreground">{activity.timestamp}</span></div>; }
 
@@ -501,13 +503,14 @@ function ChallengeDetail() {
   const { challenges, joinChallenge: joinFreeChallenge, leaveChallenge, eligibility, compliance } = useApp();
   const communityQuery = useGetStridePoolCommunityChallenges(undefined, { query: { queryKey: getGetStridePoolCommunityChallengesQueryKey(), staleTime: 30_000 } });
   const challenge = challenges.find((item) => item.id === id) ?? communityQuery.data?.challenges.find((item) => item.id === id);
-  const leaderboard = useGetStridePoolChallengeLeaderboard(id ?? '', { query: { queryKey: getGetStridePoolChallengeLeaderboardQueryKey(id ?? ''), enabled: Boolean(id && challenge?.community), staleTime: 15_000 } });
+  const leaderboard = useGetStridePoolChallengeLeaderboard(id ?? '', { query: { queryKey: getGetStridePoolChallengeLeaderboardQueryKey(id ?? ''), enabled: Boolean(id && challenge), staleTime: 15_000, refetchInterval: 60_000 } });
   const [confirming, setConfirming] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState('');
   const checkout = useCreateCheckout();
    if (!challenge) return communityQuery.isLoading ? <DetailLoading /> : <NotFound />;
   const feeTotal = challenge.entryFee * challenge.participantCount;
-  const winnerShare = Math.round(challenge.prizePool / Math.max(1, challenge.finishers || challenge.participantCount));
+  const currentProjection = leaderboard.data?.leaderboard.find((entry) => entry.isCurrentUser)?.projectedPayout ?? leaderboard.data?.leaderboard.find((entry) => entry.status !== 'eliminated')?.projectedPayout ?? 0;
+  const winnerShare = `${currentProjection.toFixed(2)} · ${leaderboard.data?.disqualifiedCount ?? 0} disqualified`;
   const paidEligible = eligibility.age >= 18 && eligibility.state.length === 2 && eligibility.identityStatus === 'verified' && eligibility.acceptedTerms && compliance.paidPlayEnabled;
   const joinChallenge = (challengeId: string) => {
     const selected = challenges.find((item) => item.id === challengeId);

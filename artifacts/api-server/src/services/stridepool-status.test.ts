@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Challenge, DailyStepRecord } from "@workspace/db";
-import { buildLifetimeLeaderboard, getParticipantStatus } from "./stridepool-status";
+import { buildLifetimeLeaderboard, calculateProjectedPayouts, getParticipantStatus } from "./stridepool-status";
 
 const challenge = (overrides: Partial<Challenge> = {}) => ({
   id: "test",
@@ -66,4 +66,26 @@ test("lifetime ranking counts mirrored free rows once per user and date", () => 
     { userId: "a", steps: 16000, daysLogged: 2, isCurrentUser: true },
     { userId: "b", steps: 15000, daysLogged: 1, isCurrentUser: false },
   ]);
+});
+
+test("projected payouts divide the pool only among contestants still qualified", () => {
+  const result = calculateProjectedPayouts([
+    { userId: "a", status: "on_track" },
+    { userId: "b", status: "eliminated" },
+    { userId: "c", status: "on_track" },
+  ], 30);
+  assert.equal(result.eligibleParticipantCount, 2);
+  assert.equal(result.disqualifiedCount, 1);
+  assert.equal(result.payoutByUserId.get("a"), 15);
+  assert.equal(result.payoutByUserId.get("b"), undefined);
+  assert.equal(result.payoutByUserId.get("c"), 15);
+});
+
+test("projected payouts allocate indivisible cents deterministically", () => {
+  const result = calculateProjectedPayouts([
+    { userId: "a", status: "on_track" },
+    { userId: "b", status: "on_track" },
+    { userId: "c", status: "on_track" },
+  ], 10);
+  assert.deepEqual([...result.payoutByUserId.values()], [3.34, 3.33, 3.33]);
 });

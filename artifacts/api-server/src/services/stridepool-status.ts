@@ -2,6 +2,7 @@ import type { Challenge, DailyStepRecord } from "@workspace/db";
 
 export type ParticipantStatus = "on_track" | "eliminated" | "finished";
 export type LifetimeLeaderboardRow = { userId: string; displayName: string | null; recordDate: string; steps: number };
+export type ProjectedPayoutRow = { userId: string; status: ParticipantStatus };
 
 function shiftDate(value: string, amount: number): string {
   const date = new Date(`${value}T12:00:00Z`);
@@ -63,4 +64,19 @@ export function buildLifetimeLeaderboard(rows: LifetimeLeaderboardRow[], current
     .map(([userId, total]) => ({ userId, displayName: names.get(userId) ?? "StridePool walker", ...total, isCurrentUser: userId === currentUserId }))
     .sort((a, b) => b.steps - a.steps || b.daysLogged - a.daysLogged || a.displayName.localeCompare(b.displayName))
     .map((entry, index) => ({ rank: index + 1, ...entry }));
+}
+
+export function calculateProjectedPayouts(rows: ProjectedPayoutRow[], prizePool: number) {
+  const eligible = rows.filter((row) => row.status !== "eliminated");
+  const poolCents = Math.round(prizePool * 100);
+  const baseCents = eligible.length ? Math.floor(poolCents / eligible.length) : 0;
+  const remainder = eligible.length ? poolCents % eligible.length : 0;
+  return {
+    eligibleParticipantCount: eligible.length,
+    disqualifiedCount: rows.length - eligible.length,
+    payoutByUserId: new Map(eligible.map((row, index) => [
+      row.userId,
+      (baseCents + (index < remainder ? 1 : 0)) / 100,
+    ])),
+  };
 }

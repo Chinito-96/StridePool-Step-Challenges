@@ -677,7 +677,7 @@ paths:
     post:
       tags: [stridepool]
       operationId: requestStridePoolRecovery
-      summary: Request a grace day, injury pause, or support review
+      summary: Request a grace day or support review
       parameters:
         - $ref: "#/components/parameters/AuthorizationSessionHeader"
         - $ref: "#/components/parameters/SessionCookie"
@@ -1343,7 +1343,7 @@ components:
       required: [challengeId, type, reason]
       properties:
         challengeId: { type: string }
-        type: { type: string, enum: [grace_day, injury_pause, support_review] }
+        type: { type: string, enum: [grace_day, support_review] }
         reason: { type: string, minLength: 8, maxLength: 1000 }
     RecoveryCase:
       type: object
