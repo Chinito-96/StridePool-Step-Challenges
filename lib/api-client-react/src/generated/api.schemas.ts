@@ -309,6 +309,11 @@ export interface ChallengeInput {
   startDate: string;
   endDate: string;
   /**
+     * @minimum 1
+     * @maximum 500
+     */
+  entryFee: number;
+  /**
      * @minLength 4
      * @maxLength 30
      */
@@ -680,6 +685,33 @@ export interface PayoutOnboardingResponse {
   provider: string;
 }
 
+export interface PayoutAccount {
+  linked: boolean;
+  payoutsEnabled: boolean;
+  provider: string;
+  minimumWithdrawal: number;
+}
+
+export interface WithdrawalInput {
+  /** @minLength 8 */
+  idempotencyKey: string;
+}
+
+export type WithdrawalResponseStatus = typeof WithdrawalResponseStatus[keyof typeof WithdrawalResponseStatus];
+
+
+export const WithdrawalResponseStatus = {
+  pending: 'pending',
+  paid: 'paid',
+} as const;
+
+export interface WithdrawalResponse {
+  withdrawalId: string;
+  amountCents: number;
+  status: WithdrawalResponseStatus;
+  provider: string;
+}
+
 export type LedgerEntryMetadata = { [key: string]: unknown };
 
 export interface LedgerEntry {
@@ -986,3 +1018,4 @@ q: string;
 export type SearchAdminUsersParams = {
 q?: string;
 };
+

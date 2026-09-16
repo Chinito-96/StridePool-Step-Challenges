@@ -119,6 +119,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /money/payout-account:
+    get:
+      operationId: getPayoutAccount
+      tags: [money]
+      summary: Get the current bank payout connection status
+      responses:
+        "200":
+          description: Current payout account status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayoutAccount"
+  /money/withdrawal:
+    post:
+      operationId: createWithdrawal
+      tags: [money]
+      summary: Withdraw the full available wallet balance to the linked bank account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawalInput"
+      responses:
+        "201":
+          description: Withdrawal submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawalResponse"
+        "409":
+          description: Withdrawal requirements are not met
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /money/ledger:
     get:
       operationId: getLedger
@@ -1116,12 +1152,13 @@ components:
           items: { $ref: "#/components/schemas/Challenge" }
     ChallengeInput:
       type: object
-      required: [name, theme, startDate, endDate, color]
+      required: [name, theme, startDate, endDate, entryFee, color]
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         theme: { type: string, minLength: 1, maxLength: 240 }
         startDate: { type: string, format: date }
         endDate: { type: string, format: date }
+        entryFee: { type: number, minimum: 1, maximum: 500 }
         color: { type: string, minLength: 4, maxLength: 30 }
     MembershipSummary:
       type: object
@@ -1453,6 +1490,27 @@ components:
         status: { type: string, enum: [requires_provider, pending, complete] }
         provider: { type: string }
       required: [onboardingId, onboardingUrl, status, provider]
+    PayoutAccount:
+      type: object
+      properties:
+        linked: { type: boolean }
+        payoutsEnabled: { type: boolean }
+        provider: { type: string }
+        minimumWithdrawal: { type: number }
+      required: [linked, payoutsEnabled, provider, minimumWithdrawal]
+    WithdrawalInput:
+      type: object
+      properties:
+        idempotencyKey: { type: string, minLength: 8 }
+      required: [idempotencyKey]
+    WithdrawalResponse:
+      type: object
+      properties:
+        withdrawalId: { type: string }
+        amountCents: { type: integer }
+        status: { type: string, enum: [pending, paid] }
+        provider: { type: string }
+      required: [withdrawalId, amountCents, status, provider]
     LedgerEntry:
       type: object
       properties:

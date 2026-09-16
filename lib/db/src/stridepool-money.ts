@@ -155,7 +155,9 @@ export async function joinChallenge(userId: string, challengeId: string, now = n
 export async function activateProviderChallengeEntry(
   userId: string,
   challengeId: string,
-  amountCents: number,
+  challengeEntryCents: number,
+  platformFeeCents: number,
+  totalAmountCents: number,
   paymentReference: string,
   now = new Date(),
 ): Promise<{ activated: boolean }> {
@@ -165,7 +167,11 @@ export async function activateProviderChallengeEntry(
     if (!user || !challenge) throw new MoneyLogicError("NOT_FOUND");
     if (challenge.settlementStatus === "settled") throw new MoneyLogicError("ALREADY_SETTLED");
     if (now >= toDate(challenge.startDate)) throw new MoneyLogicError("ALREADY_STARTED");
-    if (amountCents !== 100 && amountCents !== 200) {
+    const expectedEntryCents = cents(challenge.entryFee);
+    const expectedPlatformFeeCents = membershipPolicyFor(user).challengeJoinPriceCents;
+    if (challengeEntryCents !== expectedEntryCents
+      || platformFeeCents !== expectedPlatformFeeCents
+      || totalAmountCents !== challengeEntryCents + platformFeeCents) {
       throw new MoneyLogicError("PRICE_MISMATCH");
     }
     const [existing] = await tx.select().from(entriesTable)
@@ -179,7 +185,7 @@ export async function activateProviderChallengeEntry(
     if (Number(active?.count ?? 0) >= membershipPolicyFor(user).activeChallengeLimit) {
       throw new MoneyLogicError("CHALLENGE_LIMIT");
     }
-    const amount = (amountCents / 100).toFixed(2);
+    const amount = (challengeEntryCents / 100).toFixed(2);
     if (existing) {
       await tx.update(entriesTable).set({
         status: "active",

@@ -104,6 +104,36 @@ export const StartPayoutOnboardingResponse = zod.object({
 
 
 /**
+ * @summary Get the current bank payout connection status
+ */
+export const GetPayoutAccountResponse = zod.object({
+  "linked": zod.boolean(),
+  "payoutsEnabled": zod.boolean(),
+  "provider": zod.string(),
+  "minimumWithdrawal": zod.number()
+})
+
+
+/**
+ * @summary Withdraw the full available wallet balance to the linked bank account
+ */
+export const createWithdrawalBodyIdempotencyKeyMin = 8;
+
+
+
+export const CreateWithdrawalBody = zod.object({
+  "idempotencyKey": zod.string().min(createWithdrawalBodyIdempotencyKeyMin)
+})
+
+export const CreateWithdrawalResponse = zod.object({
+  "withdrawalId": zod.string(),
+  "amountCents": zod.int(),
+  "status": zod.enum(['pending', 'paid']),
+  "provider": zod.string()
+})
+
+
+/**
  * @summary Get auditable money events
  */
 export const GetLedgerResponseItem = zod.object({
@@ -458,6 +488,8 @@ export const createStridePoolChallengeBodyNameMax = 120;
 
 export const createStridePoolChallengeBodyThemeMax = 240;
 
+export const createStridePoolChallengeBodyEntryFeeMax = 500;
+
 export const createStridePoolChallengeBodyColorMin = 4;
 export const createStridePoolChallengeBodyColorMax = 30;
 
@@ -468,6 +500,7 @@ export const CreateStridePoolChallengeBody = zod.object({
   "theme": zod.string().min(1).max(createStridePoolChallengeBodyThemeMax),
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date(),
+  "entryFee": zod.number().min(1).max(createStridePoolChallengeBodyEntryFeeMax),
   "color": zod.string().min(createStridePoolChallengeBodyColorMin).max(createStridePoolChallengeBodyColorMax)
 })
 

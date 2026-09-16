@@ -64,6 +64,7 @@ import type {
   MobileTokenExchangeSuccess,
   NotificationMutationResponse,
   NotificationsResponse,
+  PayoutAccount,
   PayoutOnboardingInput,
   PayoutOnboardingResponse,
   PendingInvitesResponse,
@@ -75,7 +76,9 @@ import type {
   StridePoolBootstrap,
   StripeWebhookPayload,
   UserSearchResponse,
-  WalletSummary
+  WalletSummary,
+  WithdrawalInput,
+  WithdrawalResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -137,6 +140,8 @@ export const getHealthCheckQueryKey = () => {
     `/api/healthz`
     ] as const;
     }
+
+
 export const getHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -470,6 +475,154 @@ export const useStartPayoutOnboarding = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getStartPayoutOnboardingMutationOptions(options));
+    }
+
+export const getGetPayoutAccountUrl = () => {
+
+
+
+
+  return `/api/money/payout-account`
+}
+
+/**
+ * @summary Get the current bank payout connection status
+ */
+export const getPayoutAccount = async ( options?: Parameters<typeof customFetch>[1]): Promise<PayoutAccount> => {
+
+  return customFetch<PayoutAccount>(getGetPayoutAccountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayoutAccountQueryKey = () => {
+    return [
+    `/api/money/payout-account`
+    ] as const;
+    }
+
+
+export const getGetPayoutAccountQueryOptions = <TData = Awaited<ReturnType<typeof getPayoutAccount>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayoutAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayoutAccountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayoutAccount>>> = ({ signal }) => getPayoutAccount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayoutAccount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayoutAccountQueryResult = NonNullable<Awaited<ReturnType<typeof getPayoutAccount>>>
+export type GetPayoutAccountQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current bank payout connection status
+ */
+
+export function useGetPayoutAccount<TData = Awaited<ReturnType<typeof getPayoutAccount>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayoutAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayoutAccountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateWithdrawalUrl = () => {
+
+
+
+
+  return `/api/money/withdrawal`
+}
+
+/**
+ * @summary Withdraw the full available wallet balance to the linked bank account
+ */
+export const createWithdrawal = async (withdrawalInput: WithdrawalInput, options?: Parameters<typeof customFetch>[1]): Promise<WithdrawalResponse> => {
+
+  return customFetch<WithdrawalResponse>(getCreateWithdrawalUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(withdrawalInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWithdrawalMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWithdrawal>>, TError,{data: BodyType<WithdrawalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWithdrawal>>, TError,{data: BodyType<WithdrawalInput>}, TContext> => {
+
+const mutationKey = ['createWithdrawal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWithdrawal>>, {data: BodyType<WithdrawalInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWithdrawal(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWithdrawalMutationResult = NonNullable<Awaited<ReturnType<typeof createWithdrawal>>>
+    export type CreateWithdrawalMutationBody = BodyType<WithdrawalInput>
+    export type CreateWithdrawalMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Withdraw the full available wallet balance to the linked bank account
+ */
+export const useCreateWithdrawal = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWithdrawal>>, TError,{data: BodyType<WithdrawalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWithdrawal>>,
+        TError,
+        {data: BodyType<WithdrawalInput>},
+        TContext
+      > => {
+      return useMutation(getCreateWithdrawalMutationOptions(options));
     }
 
 export const getGetLedgerUrl = () => {
@@ -3331,3 +3484,4 @@ export const useOverrideAdminChallengeParticipant = <TError = ErrorType<ErrorRes
       > => {
       return useMutation(getOverrideAdminChallengeParticipantMutationOptions(options));
     }
+

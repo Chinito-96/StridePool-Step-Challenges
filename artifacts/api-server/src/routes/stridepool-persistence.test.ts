@@ -204,7 +204,7 @@ describe("StridePool authenticated persistence across sessions", () => {
       acceptedTerms: true,
     });
 
-    await activateProviderChallengeEntry(userId, challengeId, 200, `${runId}-payment`, new Date());
+    await activateProviderChallengeEntry(userId, challengeId, 500, 200, 700, `${runId}-payment`, new Date());
     await db.insert(walletLedgerEntriesTable).values({
       id: `${runId}-payment-ledger`,
       userId,

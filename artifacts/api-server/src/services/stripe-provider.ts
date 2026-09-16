@@ -150,6 +150,8 @@ export async function createStripeCheckout(
   user: typeof usersTable.$inferSelect,
   challenge: typeof import("@workspace/db").challengesTable.$inferSelect,
   amountCents: number,
+  challengeEntryCents: number,
+  platformFeeCents: number,
   idempotencyKey: string,
 ) {
   const stripe = await getUncachableStripeClient();
@@ -160,6 +162,8 @@ export async function createStripeCheckout(
     stridepool_user_id: user.id,
     stridepool_challenge_id: challenge.id,
     stridepool_idempotency_key: idempotencyKey,
+    stridepool_challenge_entry_cents: String(challengeEntryCents),
+    stridepool_platform_fee_cents: String(platformFeeCents),
   };
   return stripe.checkout.sessions.create({
     customer: customerId,
@@ -246,6 +250,53 @@ export async function createStripePayoutOnboarding(
     return_url: `${baseUrl}/wallet?onboarding=return`,
   });
   return { accountId, accountLink };
+}
+
+export async function getStripePayoutAccount(user: typeof usersTable.$inferSelect) {
+  if (!user.stripeConnectAccountId) return { linked: false, payoutsEnabled: false };
+  const stripe = await getUncachableStripeClient();
+  const account = await stripe.accounts.retrieve(user.stripeConnectAccountId);
+  return {
+    linked: Boolean(account.details_submitted && account.external_accounts?.data.length),
+    payoutsEnabled: account.payouts_enabled,
+  };
+}
+
+export async function createStripeWithdrawal(
+  user: typeof usersTable.$inferSelect,
+  amountCents: number,
+  idempotencyKey: string,
+) {
+  if (!user.stripeConnectAccountId) throw new Error("Link a bank account before withdrawing.");
+  const stripe = await getUncachableStripeClient();
+  const transfer = await stripe.transfers.create({
+    amount: amountCents,
+    currency: "usd",
+    destination: user.stripeConnectAccountId,
+    metadata: { stridepool_user_id: user.id, stridepool_idempotency_key: idempotencyKey },
+  }, { idempotencyKey: `${idempotencyKey}-transfer` });
+  let payout: Stripe.Payout;
+  try {
+    payout = await stripe.payouts.create({
+      amount: amountCents,
+      currency: "usd",
+      metadata: {
+        stridepool_user_id: user.id,
+        stridepool_transfer_id: transfer.id,
+        stridepool_idempotency_key: idempotencyKey,
+      },
+    }, {
+      stripeAccount: user.stripeConnectAccountId,
+      idempotencyKey: `${idempotencyKey}-payout`,
+    });
+  } catch (error) {
+    await stripe.transfers.createReversal(transfer.id, {
+      amount: amountCents,
+      metadata: { stridepool_user_id: user.id, stridepool_idempotency_key: idempotencyKey },
+    }, { idempotencyKey: `${idempotencyKey}-transfer-reversal` });
+    throw error;
+  }
+  return { transferId: transfer.id, payoutId: payout.id };
 }
 
 async function metadataFromPaymentIntent(
@@ -349,9 +400,13 @@ export async function processStripeWebhook(payload: Buffer, signature: string) {
   const recorded = await recordProviderWebhook(normalized);
   if (normalized.eventType === "payment_succeeded" && normalized.challengeId) {
     try {
+      const challengeEntryCents = Number(normalized.metadata.stridepool_challenge_entry_cents);
+      const platformFeeCents = Number(normalized.metadata.stridepool_platform_fee_cents);
       await activateProviderChallengeEntry(
         normalized.userId,
         normalized.challengeId,
+        challengeEntryCents,
+        platformFeeCents,
         normalized.amountCents,
         normalized.providerEventId,
       );

@@ -157,13 +157,13 @@ describe("wallet join and leave transactions", () => {
   });
 });
 
-describe("membership challenge limits and fixed entry prices", () => {
-  it("limits Free accounts to one active challenge and a $2 provider entry", async () => {
+describe("membership challenge limits and platform fees", () => {
+  it("limits Free accounts to one active challenge and validates its $2 platform fee", async () => {
     const first = await addChallenge();
     const second = await addChallenge();
-    await activateProviderChallengeEntry(userIds[0], first, 200, "pi_free_1", beforeStart);
+    await activateProviderChallengeEntry(userIds[0], first, 1_000, 200, 1_200, "pi_free_1", beforeStart);
     await assert.rejects(
-      () => activateProviderChallengeEntry(userIds[0], second, 200, "pi_free_2", beforeStart),
+      () => activateProviderChallengeEntry(userIds[0], second, 1_000, 200, 1_200, "pi_free_2", beforeStart),
       (error: unknown) => error instanceof MoneyLogicError && error.code === "CHALLENGE_LIMIT",
     );
     const membership = await getMembershipSummary(userIds[0], beforeStart);
@@ -173,14 +173,14 @@ describe("membership challenge limits and fixed entry prices", () => {
     assert.equal(membership.activeChallengeLimit, 1);
   });
 
-  it("allows Pro accounts five active challenges at $1 each", async () => {
+  it("allows Pro accounts five active challenges with a $1 platform fee", async () => {
     await db.update(usersTable).set({ membershipPlan: "pro", subscriptionStatus: "active" }).where(eq(usersTable.id, userIds[0]));
     const challengeIds = await Promise.all(Array.from({ length: 6 }, () => addChallenge()));
     for (const [index, challengeId] of challengeIds.slice(0, 5).entries()) {
-      await activateProviderChallengeEntry(userIds[0], challengeId, 100, `pi_pro_${index}`, beforeStart);
+      await activateProviderChallengeEntry(userIds[0], challengeId, 1_000, 100, 1_100, `pi_pro_${index}`, beforeStart);
     }
     await assert.rejects(
-      () => activateProviderChallengeEntry(userIds[0], challengeIds[5], 100, "pi_pro_6", beforeStart),
+      () => activateProviderChallengeEntry(userIds[0], challengeIds[5], 1_000, 100, 1_100, "pi_pro_6", beforeStart),
       (error: unknown) => error instanceof MoneyLogicError && error.code === "CHALLENGE_LIMIT",
     );
     const membership = await getMembershipSummary(userIds[0], beforeStart);

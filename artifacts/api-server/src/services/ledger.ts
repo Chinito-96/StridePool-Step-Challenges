@@ -7,6 +7,7 @@ import type {
   LedgerEntry,
   PayoutOnboardingInput,
   ProviderWebhookInput,
+  WithdrawalInput,
 } from "@workspace/api-zod";
 import {
   db,
@@ -27,10 +28,13 @@ import {
   createStripeCheckout,
   createStripePayoutOnboarding,
   createStripeProCheckout,
+  createStripeWithdrawal,
+  getStripePayoutAccount,
   getStripeProviderStatus,
 } from "./stripe-provider";
 
 const providerName = "Stripe";
+export const MINIMUM_WITHDRAWAL_CENTS = 2_000;
 type StripeProviderStatus = ReturnType<typeof getStripeProviderStatus>;
 type LaunchEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -162,8 +166,10 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
   const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, input.challengeId));
   if (!user || !challenge) throw new Error("Challenge or account was not found.");
   const policy = membershipPolicyFor(user);
-  if (policy.challengeJoinPriceCents !== input.amountCents) {
-    throw new Error(`This ${membershipPlanFor(user) === "pro" ? "Pro" : "Free"} account joins challenges for $${(policy.challengeJoinPriceCents / 100).toFixed(2)}.`);
+  const challengeEntryCents = Math.round(Number(challenge.entryFee) * 100);
+  const totalCents = challengeEntryCents + policy.challengeJoinPriceCents;
+  if (totalCents !== input.amountCents) {
+    throw new Error(`This entry costs $${(totalCents / 100).toFixed(2)}: $${(challengeEntryCents / 100).toFixed(2)} for the challenge plus the ${membershipPlanFor(user) === "pro" ? "Pro" : "Free"} platform fee of $${(policy.challengeJoinPriceCents / 100).toFixed(2)}.`);
   }
   const [existingEntry] = await db.select({ id: entriesTable.id }).from(entriesTable).where(and(
     eq(entriesTable.userId, userId),
@@ -186,7 +192,7 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
   }
   if (!Number.isInteger(input.amountCents)) throw new Error("Money amounts must be whole cents.");
 
-  const checkout = await createStripeCheckout(user, challenge, input.amountCents, input.idempotencyKey);
+  const checkout = await createStripeCheckout(user, challenge, totalCents, challengeEntryCents, policy.challengeJoinPriceCents, input.idempotencyKey);
   if (!checkout.url) throw new Error("Stripe did not return a hosted checkout URL.");
   const entry = await db.transaction(async (tx) => {
     const [racedEntry] = await tx.select().from(walletLedgerEntriesTable).where(and(
@@ -210,6 +216,8 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
         checkoutUrl: checkout.url,
         idempotencyKey: input.idempotencyKey,
         auditRule: "provider webhook required before funds are committed",
+        challengeEntryCents,
+        platformFeeCents: policy.challengeJoinPriceCents,
       },
     }).onConflictDoNothing().returning();
     if (inserted) return inserted;
@@ -289,6 +297,99 @@ export async function startPayoutOnboarding(userId: string, input: PayoutOnboard
   return {
     onboardingId: accountId,
     onboardingUrl: accountLink.url,
+    status: "pending" as const,
+    provider: providerName,
+  };
+}
+
+export async function getPayoutAccount(userId: string) {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) throw new Error("Account was not found.");
+  const status = await getStripePayoutAccount(user);
+  return {
+    ...status,
+    provider: providerName,
+    minimumWithdrawal: MINIMUM_WITHDRAWAL_CENTS / 100,
+  };
+}
+
+export async function withdrawAvailableBalance(userId: string, input: WithdrawalInput) {
+  const existing = await db.select().from(walletLedgerEntriesTable).where(and(
+    eq(walletLedgerEntriesTable.userId, userId),
+    eq(walletLedgerEntriesTable.idempotencyKey, input.idempotencyKey),
+  ));
+  if (existing[0]) {
+    return {
+      withdrawalId: String(existing[0].metadata.payoutId ?? existing[0].id),
+      amountCents: existing[0].amountCents,
+      status: "pending" as const,
+      provider: providerName,
+    };
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) throw new Error("Account was not found.");
+  const amountCents = Math.round(Number(user.walletBalance) * 100);
+  if (amountCents < MINIMUM_WITHDRAWAL_CENTS) {
+    throw new Error(`Keep at least $${(MINIMUM_WITHDRAWAL_CENTS / 100).toFixed(2)} available before withdrawing.`);
+  }
+  const account = await getStripePayoutAccount(user);
+  if (!account.linked || !account.payoutsEnabled) {
+    throw new Error("Link and verify a bank account before withdrawing.");
+  }
+  const ledgerId = `ledger_${randomUUID()}`;
+  const reservedAmountCents = await db.transaction(async (tx) => {
+    const [lockedUser] = await tx.select().from(usersTable).where(eq(usersTable.id, userId)).for("update");
+    const lockedAmountCents = Math.round(Number(lockedUser?.walletBalance ?? 0) * 100);
+    if (!lockedUser || lockedAmountCents < MINIMUM_WITHDRAWAL_CENTS) {
+      throw new Error("Available balance changed before the withdrawal could be recorded.");
+    }
+    await tx.update(usersTable).set({
+      walletBalance: "0.00",
+    }).where(eq(usersTable.id, userId));
+    await tx.insert(walletLedgerEntriesTable).values({
+      id: ledgerId,
+      userId,
+      eventType: "withdrawal_requested",
+      status: "pending_provider",
+      amountCents: lockedAmountCents,
+      currency: "usd",
+      providerEventId: null,
+      idempotencyKey: input.idempotencyKey,
+      challengeId: null,
+      metadata: {
+        auditRule: "available wallet balance reserved before provider payout reconciliation",
+      },
+    });
+    return lockedAmountCents;
+  });
+  let withdrawal: Awaited<ReturnType<typeof createStripeWithdrawal>>;
+  try {
+    withdrawal = await createStripeWithdrawal(user, reservedAmountCents, input.idempotencyKey);
+  } catch (error) {
+    await db.transaction(async (tx) => {
+      const [entry] = await tx.select().from(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.id, ledgerId)).for("update");
+      if (entry?.status === "pending_provider") {
+        await tx.update(usersTable).set({
+          walletBalance: sql`${usersTable.walletBalance} + ${(entry.amountCents / 100).toFixed(2)}`,
+        }).where(eq(usersTable.id, userId));
+        await tx.update(walletLedgerEntriesTable).set({
+          status: "provider_failed",
+          metadata: { ...entry.metadata, failure: error instanceof Error ? error.message : "Provider withdrawal failed." },
+        }).where(eq(walletLedgerEntriesTable.id, ledgerId));
+      }
+    });
+    throw error;
+  }
+  await db.update(walletLedgerEntriesTable).set({
+    metadata: {
+      payoutId: withdrawal.payoutId,
+      transferId: withdrawal.transferId,
+      auditRule: "available wallet balance reserved before provider payout reconciliation",
+    },
+  }).where(eq(walletLedgerEntriesTable.id, ledgerId));
+  return {
+    withdrawalId: withdrawal.payoutId,
+    amountCents: reservedAmountCents,
     status: "pending" as const,
     provider: providerName,
   };

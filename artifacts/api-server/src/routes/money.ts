@@ -1,14 +1,17 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   CreateCheckoutBody,
+  CreateWithdrawalBody,
   StartPayoutOnboardingBody,
 } from "@workspace/api-zod";
 import {
   createCheckout,
+  getPayoutAccount,
   createProSubscriptionCheckout,
   getLedger,
   isProviderConfigured,
   startPayoutOnboarding,
+  withdrawAvailableBalance,
 } from "../services/ledger";
 
 const router: IRouter = Router();
@@ -66,7 +69,40 @@ router.post("/money/payout-onboarding", async (req, res): Promise<void> => {
     res.status(409).json({ error: "Payout onboarding is unavailable until a payment provider and signed webhook secret are configured." });
     return;
   }
-  res.status(201).json(await startPayoutOnboarding(userId, parsed.data));
+  try {
+    res.status(201).json(await startPayoutOnboarding(userId, parsed.data));
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error ? error.message : "Payout onboarding is unavailable." });
+  }
+});
+
+router.get("/money/payout-account", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  try {
+    res.json(await getPayoutAccount(userId));
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error ? error.message : "Payout account status is unavailable." });
+  }
+});
+
+router.post("/money/withdrawal", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const parsed = CreateWithdrawalBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Withdrawal details are invalid." });
+    return;
+  }
+  if (!isProviderConfigured()) {
+    res.status(409).json({ error: "Withdrawals are unavailable until Stripe is configured." });
+    return;
+  }
+  try {
+    res.status(201).json(await withdrawAvailableBalance(userId, parsed.data));
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error ? error.message : "Withdrawal is unavailable." });
+  }
 });
 
 router.get("/money/ledger", async (req, res): Promise<void> => {
