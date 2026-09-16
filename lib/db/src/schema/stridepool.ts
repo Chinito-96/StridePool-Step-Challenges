@@ -147,6 +147,7 @@ export const challengeRecoveryCasesTable = pgTable(
     type: varchar("type").notNull(),
     status: varchar("status").notNull().default("requested"),
     reason: text("reason").notNull(),
+    sourceFlags: jsonb("source_flags").$type<string[]>().notNull().default([]),
     reviewMessage: text("review_message").notNull().default("Support will review this with your source history before settlement."),
     requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -154,6 +155,22 @@ export const challengeRecoveryCasesTable = pgTable(
   (table) => [
     index("challenge_recovery_cases_user_idx").on(table.userId, table.updatedAt),
     index("challenge_recovery_cases_challenge_idx").on(table.challengeId),
+  ],
+);
+
+export const challengeRecoveryDecisionsTable = pgTable(
+  "challenge_recovery_decisions",
+  {
+    id: serial("id").primaryKey(),
+    recoveryCaseId: integer("recovery_case_id").notNull().references(() => challengeRecoveryCasesTable.id, { onDelete: "cascade" }),
+    adminUserId: varchar("admin_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    decision: varchar("decision").notNull(),
+    explanation: text("explanation").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("challenge_recovery_decisions_case_idx").on(table.recoveryCaseId, table.createdAt),
+    index("challenge_recovery_decisions_admin_idx").on(table.adminUserId, table.createdAt),
   ],
 );
 

@@ -1,6 +1,9 @@
 import {
   GetAdminChallengesResponse,
   GetAdminFlaggedStepRecordsResponse,
+  GetAdminRecoveryCasesResponse,
+  DecideAdminRecoveryCaseBody,
+  DecideAdminRecoveryCaseResponse,
   GetAdminSettlementHistoryResponse,
   GetAdminUserResponse,
   OverrideAdminChallengeParticipantBody,
@@ -9,6 +12,8 @@ import {
 } from "@workspace/api-zod";
 import {
   challengesTable,
+  challengeRecoveryCasesTable,
+  challengeRecoveryDecisionsTable,
   challengeParticipantOverridesTable,
   dailyStepRecordsTable,
   db,
@@ -97,6 +102,131 @@ router.get("/admin/flagged-step-records", async (req, res): Promise<void> => {
       flagReasons: reasonsByDate.get(`${record.userId}:${record.recordDate}`) ?? ["unverified_daily_record"],
       createdAt: record.createdAt.toISOString(),
     })),
+  }));
+});
+
+router.get("/admin/recovery-cases", async (req, res): Promise<void> => {
+  if (!await requireAdmin(req, res)) return;
+  const rows = await db.select({
+    recovery: challengeRecoveryCasesTable,
+    challengeName: challengesTable.name,
+    user: usersTable,
+  }).from(challengeRecoveryCasesTable)
+    .innerJoin(challengesTable, eq(challengeRecoveryCasesTable.challengeId, challengesTable.id))
+    .innerJoin(usersTable, eq(challengeRecoveryCasesTable.userId, usersTable.id))
+    .where(eq(challengeRecoveryCasesTable.status, "requested"))
+    .orderBy(asc(challengeRecoveryCasesTable.requestedAt))
+    .limit(200);
+  res.json(GetAdminRecoveryCasesResponse.parse({
+    cases: rows.map(({ recovery, challengeName, user }) => ({
+      id: String(recovery.id),
+      challengeId: recovery.challengeId,
+      challengeName,
+      userId: user.id,
+      userName: displayName(user),
+      userEmail: user.email ?? "",
+      type: recovery.type,
+      status: recovery.status,
+      reason: recovery.reason,
+      sourceFlags: recovery.sourceFlags,
+      requestedAt: recovery.requestedAt.toISOString(),
+      updatedAt: recovery.updatedAt.toISOString(),
+    })),
+  }));
+});
+
+router.post("/admin/recovery-cases/:recoveryCaseId/decision", async (req, res): Promise<void> => {
+  const adminUserId = await requireAdmin(req, res);
+  if (!adminUserId) return;
+  const rawRecoveryCaseId = typeof req.params.recoveryCaseId === "string" ? req.params.recoveryCaseId : "";
+  const recoveryCaseId = Number.parseInt(rawRecoveryCaseId, 10);
+  const parsed = DecideAdminRecoveryCaseBody.safeParse(req.body ?? {});
+  if (!Number.isInteger(recoveryCaseId) || recoveryCaseId < 1 || !parsed.success) {
+    res.status(400).json({ error: "Choose approve, deny, or resolve and provide an explanation of at least 8 characters." });
+    return;
+  }
+  const explanation = parsed.data.explanation.trim();
+  if (explanation.length < 8 || explanation.length > 1000) {
+    res.status(400).json({ error: "Provide an explanation between 8 and 1000 non-whitespace characters." });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx.select({
+      recovery: challengeRecoveryCasesTable,
+      challenge: challengesTable,
+      user: usersTable,
+    }).from(challengeRecoveryCasesTable)
+      .innerJoin(challengesTable, eq(challengeRecoveryCasesTable.challengeId, challengesTable.id))
+      .innerJoin(usersTable, eq(challengeRecoveryCasesTable.userId, usersTable.id))
+      .where(eq(challengeRecoveryCasesTable.id, recoveryCaseId));
+    if (!row) return { kind: "not_found" as const };
+    if (row.recovery.status !== "requested") return { kind: "already_decided" as const };
+
+    const now = new Date();
+    const [recovery] = await tx.update(challengeRecoveryCasesTable).set({
+      status: parsed.data.decision,
+      reviewMessage: explanation,
+      updatedAt: now,
+    }).where(and(
+      eq(challengeRecoveryCasesTable.id, recoveryCaseId),
+      eq(challengeRecoveryCasesTable.status, "requested"),
+    )).returning();
+    if (!recovery) return { kind: "already_decided" as const };
+    const [decision] = await tx.insert(challengeRecoveryDecisionsTable).values({
+      recoveryCaseId,
+      adminUserId,
+      decision: parsed.data.decision,
+      explanation,
+      createdAt: now,
+    }).returning();
+
+    const [pending] = await tx.select({ count: sql<number>`count(*)` })
+      .from(challengeRecoveryCasesTable)
+      .where(and(
+        eq(challengeRecoveryCasesTable.challengeId, recovery.challengeId),
+        eq(challengeRecoveryCasesTable.status, "requested"),
+      ));
+    if (Number(pending?.count ?? 0) === 0) {
+      await tx.update(challengesTable).set({ settlementStatus: "open" }).where(and(
+        eq(challengesTable.id, recovery.challengeId),
+        eq(challengesTable.settlementStatus, "pending_review"),
+      ));
+    }
+    return { kind: "ok" as const, recovery, decision, challenge: row.challenge, user: row.user };
+  });
+
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Recovery case not found." });
+    return;
+  }
+  if (result.kind === "already_decided") {
+    res.status(409).json({ error: "This recovery case has already been decided." });
+    return;
+  }
+  res.json(DecideAdminRecoveryCaseResponse.parse({
+    recoveryCase: {
+      id: String(result.recovery.id),
+      challengeId: result.recovery.challengeId,
+      challengeName: result.challenge.name,
+      userId: result.user.id,
+      userName: displayName(result.user),
+      userEmail: result.user.email ?? "",
+      type: result.recovery.type,
+      status: result.recovery.status,
+      reason: result.recovery.reason,
+      sourceFlags: result.recovery.sourceFlags,
+      requestedAt: result.recovery.requestedAt.toISOString(),
+      updatedAt: result.recovery.updatedAt.toISOString(),
+    },
+    decision: {
+      id: String(result.decision.id),
+      recoveryCaseId: String(result.decision.recoveryCaseId),
+      adminUserId: result.decision.adminUserId,
+      decision: result.decision.decision,
+      explanation: result.decision.explanation,
+      createdAt: result.decision.createdAt.toISOString(),
+    },
   }));
 });
 

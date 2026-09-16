@@ -294,8 +294,10 @@ async function getRecoveryCases(userId: string) {
     type: recovery.type,
     status: recovery.status,
     reason: recovery.reason,
+    sourceFlags: recovery.sourceFlags,
     reviewMessage: recovery.reviewMessage,
     requestedAt: recovery.requestedAt.toISOString(),
+    updatedAt: recovery.updatedAt.toISOString(),
   }));
 }
 
@@ -1084,6 +1086,10 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Challenge not found." });
     return;
   }
+  if (challenge.settlementStatus === "settling" || challenge.settlementStatus === "settled") {
+    res.status(400).json({ error: "Recovery requests close when challenge settlement has started." });
+    return;
+  }
   if (challenge.groupId && (!req.isAuthenticated() || !(await isGroupMember(challenge.groupId, req.user.id)))) {
     res.status(req.isAuthenticated() ? 403 : 401).json({ error: "This private challenge is limited to its group members." });
     return;
@@ -1109,17 +1115,31 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
       return;
     }
   }
-  const [recovery] = await db.insert(challengeRecoveryCasesTable).values({
-    userId,
-    challengeId: challenge.id,
-    type: parsed.data.type,
-    status: "requested",
-    reason: parsed.data.reason,
-    reviewMessage: parsed.data.type === "grace_day"
-      ? "Your grace-day request is recorded and will be applied before settlement."
-      : "Support review is open. We will compare source samples, timestamps, and challenge rules before settlement.",
-  }).returning();
-  await db.update(challengesTable).set({ settlementStatus: "pending_review" }).where(eq(challengesTable.id, challenge.id));
+  const pendingSamples = await db.select({ reviewFlags: stepSourceSamplesTable.reviewFlags })
+    .from(stepSourceSamplesTable)
+    .where(and(
+      eq(stepSourceSamplesTable.userId, userId),
+      eq(stepSourceSamplesTable.verificationStatus, "pending_review"),
+    ));
+  const sourceFlags = [...new Set(pendingSamples.flatMap((sample) => sample.reviewFlags))];
+  const reviewMessage = parsed.data.type === "grace_day"
+    ? "Your grace-day request is recorded and will be applied before settlement."
+    : parsed.data.type === "injury_pause"
+      ? "Your injury pause is pending. Support will protect the affected days while reviewing your source history."
+      : "Support review is open. We will compare source samples, timestamps, and challenge rules before settlement.";
+  const recovery = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(challengeRecoveryCasesTable).values({
+      userId,
+      challengeId: challenge.id,
+      type: parsed.data.type,
+      status: "requested",
+      reason: parsed.data.reason,
+      sourceFlags,
+      reviewMessage,
+    }).returning();
+    await tx.update(challengesTable).set({ settlementStatus: "pending_review" }).where(eq(challengesTable.id, challenge.id));
+    return created;
+  });
   const result = {
     id: String(recovery.id),
     challengeId: challenge.id,
@@ -1127,8 +1147,10 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
     type: recovery.type,
     status: recovery.status,
     reason: recovery.reason,
+    sourceFlags: recovery.sourceFlags,
     reviewMessage: recovery.reviewMessage,
     requestedAt: recovery.requestedAt.toISOString(),
+    updatedAt: recovery.updatedAt.toISOString(),
   };
   res.status(201).json(RequestStridePoolRecoveryResponse.parse(result));
 });

@@ -1,6 +1,6 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type Notification as ApiNotification, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
+import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminRecoveryCasesQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminRecoveryCase, type AdminRecoveryDecisionBody, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type Notification as ApiNotification, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert, CircleHelp, CircleUserRound, Clock3, Compass, Copy, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, UserCheck, UserPlus, Users, UsersRound, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
@@ -691,11 +691,12 @@ function AdminPage() {
   const [userQuery, setUserQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const flagged = useGetAdminFlaggedStepRecords({ query: { queryKey: getGetAdminFlaggedStepRecordsQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
+  const recovery = useGetAdminRecoveryCases({ query: { queryKey: getGetAdminRecoveryCasesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const challenges = useGetAdminChallenges({ query: { queryKey: getGetAdminChallengesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const settlements = useGetAdminSettlementHistory({ query: { queryKey: getGetAdminSettlementHistoryQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const users = useSearchAdminUsers(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined, { query: { queryKey: getSearchAdminUsersQueryKey(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined), enabled: auth.isAuthenticated && userQuery.trim().length >= 2, staleTime: 10_000 } });
   const user = useGetAdminUser(selectedUserId, { query: { queryKey: getGetAdminUserQueryKey(selectedUserId), enabled: auth.isAuthenticated && Boolean(selectedUserId), staleTime: 15_000 } });
-  const requests = [flagged, challenges, settlements];
+  const requests = [flagged, recovery, challenges, settlements];
   const forbidden = requests.find((request) => adminErrorStatus(request.error) === 403) || (users.error && adminErrorStatus(users.error) === 403 ? users : null) || (user.error && adminErrorStatus(user.error) === 403 ? user : null);
   const unauthenticated = !auth.isLoading && !auth.isAuthenticated;
 
@@ -707,6 +708,7 @@ function AdminPage() {
   }
 
   const flaggedRecords = flagged.data?.records ?? [];
+  const recoveryRows = recovery.data?.cases ?? [];
   const challengeRows = challenges.data?.challenges ?? [];
   const settlementRows = settlements.data?.settlements ?? [];
   const searchUsers = users.data?.users ?? [];
@@ -718,13 +720,15 @@ function AdminPage() {
       <Badge tone="teal">Admin only</Badge>
     </div>
 
-    <section className="mb-8 grid gap-4 sm:grid-cols-3">
+     <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <AdminMetric label="Flagged records" value={flagged.isLoading ? '…' : String(flaggedRecords.length)} detail="Unverified daily totals" />
+       <AdminMetric label="Recovery queue" value={recovery.isLoading ? '…' : String(recoveryRows.length)} detail="Cases awaiting a decision" />
       <AdminMetric label="Challenges" value={challenges.isLoading ? '…' : String(challengeRows.length)} detail="Current status overview" />
       <AdminMetric label="Settlements" value={settlements.isLoading ? '…' : String(settlementRows.length)} detail="Recorded settlement runs" />
     </section>
 
     <div className="grid gap-8">
+       <AdminRecoveryQueue cases={recoveryRows} />
       <AdminPanel eyebrow="Anti-cheat queue" title="Flagged step records" count={flaggedRecords.length}>
         {flagged.isLoading ? <AdminLoading /> : flaggedRecords.length === 0 ? <AdminEmpty text="No suspicious daily records are waiting for review." /> : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="border-b border-border bg-muted/45 font-mono-app text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Walker</th><th className="px-4 py-3">Challenge</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Steps</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Flag reason</th></tr></thead><tbody>{flaggedRecords.map((record: AdminFlaggedStepRecord) => <tr className="border-b border-border/70 last:border-0" key={record.id}><td className="px-4 py-3"><button className="text-left font-bold hover:text-primary" onClick={() => { setSelectedUserId(record.userId); setUserQuery(record.userEmail || record.userName); }} data-testid={`button-admin-record-user-${record.id}`}>{record.userName}<span className="mt-0.5 block font-normal text-muted-foreground">{record.userEmail || record.userId}</span></button></td><td className="px-4 py-3 font-semibold">{record.challengeName}</td><td className="px-4 py-3 whitespace-nowrap">{record.recordDate}</td><td className="px-4 py-3 font-mono-app font-bold">{record.steps.toLocaleString()}</td><td className="px-4 py-3 text-muted-foreground">{record.source.replaceAll('_', ' ')}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{record.flagReasons.map((reason) => <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary" key={reason}>{reason.replaceAll('_', ' ')}</span>)}</div></td></tr>)}</tbody></table></div>}
       </AdminPanel>
@@ -748,6 +752,68 @@ function AdminPage() {
   </div>;
 }
 
+function AdminRecoveryQueue({ cases }: { cases: AdminRecoveryCase[] }) {
+  const mutation = useDecideAdminRecoveryCase();
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [decision, setDecision] = useState<AdminRecoveryDecisionBody['decision']>('approved');
+  const [explanation, setExplanation] = useState('');
+  const [message, setMessage] = useState('');
+
+  const chooseDecision = (id: string, nextDecision: AdminRecoveryDecisionBody['decision']) => {
+    setActiveId(id);
+    setDecision(nextDecision);
+    setExplanation('');
+    setMessage('');
+  };
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeId || explanation.trim().length < 8) return;
+    mutation.mutate({ recoveryCaseId: Number(activeId), data: { decision, explanation: explanation.trim() } }, {
+      onSuccess: (result) => {
+        setActiveId(null);
+        setExplanation('');
+        setMessage(`Case ${result.decision.decision} and logged to the recovery audit.`);
+        queryClient.invalidateQueries({ queryKey: getGetAdminRecoveryCasesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetAdminChallengesQueryKey() });
+        queryClient.invalidateQueries({ predicate: (query) => typeof query.queryKey[0] === 'string' && query.queryKey[0].includes('/bootstrap') });
+      },
+      onError: () => setMessage('That decision could not be saved. No recovery or settlement status changed.'),
+    });
+  };
+
+  return <AdminPanel eyebrow="Recovery queue" title="Pending recovery cases" count={cases.length}>
+    {cases.length === 0 ? <AdminEmpty text="No recovery cases are waiting for support." /> : <div className="divide-y divide-border/70">
+      {cases.map((item) => <article className="p-5 sm:p-6" key={item.id} data-testid={`admin-recovery-case-${item.id}`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-bold">{item.challengeName}</p>
+              <Badge tone="coral">{item.type.replaceAll('_', ' ')}</Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{item.userName} · {item.userEmail || item.userId}</p>
+            <p className="mt-4 max-w-3xl text-sm leading-6">{item.reason}</p>
+            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-muted-foreground">
+              <span>Requested {adminDate(item.requestedAt)}</span>
+              <span>Updated {adminDate(item.updatedAt)}</span>
+            </div>
+            <div className="mt-4">
+              <p className="font-mono-app text-[10px] uppercase tracking-[.14em] text-muted-foreground">Source flags</p>
+              {item.sourceFlags.length ? <div className="mt-2 flex flex-wrap gap-1.5">{item.sourceFlags.map((flag) => <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary" key={flag}>{flag.replaceAll('_', ' ')}</span>)}</div> : <p className="mt-1 text-xs text-muted-foreground">No flagged source samples were attached.</p>}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2 lg:max-w-[310px] lg:justify-end">
+            {(['approved', 'denied', 'resolved'] as const).map((nextDecision) => <Button key={nextDecision} variant={nextDecision === 'denied' ? 'danger' : nextDecision === 'approved' ? 'primary' : 'secondary'} onClick={() => chooseDecision(item.id, nextDecision)} data-testid={`button-admin-recovery-${nextDecision}-${item.id}`}>{nextDecision === 'approved' ? 'Approve' : nextDecision === 'denied' ? 'Deny' : 'Resolve'}</Button>)}
+          </div>
+        </div>
+        {activeId === item.id && <form className="mt-5 rounded-xl border border-border bg-muted/45 p-4" onSubmit={submit}>
+          <label className="block text-xs font-bold">Explanation for {decision} decision<textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} minLength={8} maxLength={1000} rows={3} placeholder="Record what was reviewed and why this decision is appropriate…" className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-sm font-normal outline-none focus:border-primary" data-testid={`textarea-admin-recovery-explanation-${item.id}`} /></label>
+          <div className="mt-3 flex flex-wrap items-center gap-3"><Button type="submit" disabled={mutation.isPending || explanation.trim().length < 8} data-testid={`button-submit-admin-recovery-${item.id}`}>{mutation.isPending ? 'Saving…' : `Record ${decision} decision`}</Button><Button type="button" variant="quiet" onClick={() => setActiveId(null)}>Cancel</Button></div>
+        </form>}
+      </article>)}
+    </div>}
+    {message && <p className="border-t border-border/70 px-5 py-4 text-xs font-semibold text-primary" role="status" data-testid="status-admin-recovery">{message}</p>}
+  </AdminPanel>;
+}
 function AdminGate({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
   return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={26} /></div><h1 className="mt-5 font-display text-2xl font-bold">{title}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>{action && <div className="mt-5">{action}</div>}</div>;
 }

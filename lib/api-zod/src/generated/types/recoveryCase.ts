@@ -15,6 +15,8 @@ export interface RecoveryCase {
   type: RecoveryCaseType;
   status: RecoveryCaseStatus;
   reason: string;
+  sourceFlags: string[];
   reviewMessage: string;
   requestedAt: Date;
+  updatedAt: Date;
 }
