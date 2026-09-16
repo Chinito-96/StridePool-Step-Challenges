@@ -1133,17 +1133,20 @@ components:
         email: { type: string }
     ChallengeLeaderboardResponse:
       type: object
-      required: [challengeId, dailyGoal, days, leaderboard]
+      required: [challengeId, dailyGoal, days, prizePool, eligibleParticipantCount, disqualifiedCount, leaderboard]
       properties:
         challengeId: { type: string }
         dailyGoal: { type: integer }
         days: { type: integer }
+        prizePool: { type: number }
+        eligibleParticipantCount: { type: integer }
+        disqualifiedCount: { type: integer }
         leaderboard:
           type: array
           items: { $ref: "#/components/schemas/LeaderboardEntry" }
     LeaderboardEntry:
       type: object
-      required: [rank, userId, displayName, steps, completedDays, completionPercent, status, isCurrentUser]
+      required: [rank, userId, displayName, steps, completedDays, completionPercent, status, isCurrentUser, projectedPayout]
       properties:
         rank: { type: integer }
         userId: { type: string }
@@ -1153,6 +1156,7 @@ components:
         completionPercent: { type: integer }
         status: { type: string, enum: [on_track, eliminated, finished] }
         isCurrentUser: { type: boolean }
+        projectedPayout: { type: number }
     LifetimeLeaderboardResponse:
       type: object
       required: [leaderboard]

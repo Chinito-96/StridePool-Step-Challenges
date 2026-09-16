@@ -16,4 +16,5 @@ export interface LeaderboardEntry {
   completionPercent: number;
   status: LeaderboardEntryStatus;
   isCurrentUser: boolean;
+  projectedPayout: number;
 }

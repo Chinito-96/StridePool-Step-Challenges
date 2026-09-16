@@ -774,14 +774,30 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
     const steps = userRecords.filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate).reduce((total, record) => total + record.steps, 0);
     const completedDays = userRecords.filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate && (challenge.challengeType === "ranking" ? record.steps > 0 : record.steps >= dailyGoal)).length;
     const participant = getParticipantStatus(challenge, userRecords, dailyGoal, latestOverrides.get(entry.userId));
-    return { userId: user.id, displayName: publicUser(user).displayName, steps, completedDays, completionPercent: Math.min(100, Math.round((completedDays / challenge.days) * 100)), status: participant.status, isCurrentUser: user.id === currentUserId };
+    return { entryId: entry.id, userId: user.id, displayName: publicUser(user).displayName, steps, completedDays, completionPercent: Math.min(100, Math.round((completedDays / challenge.days) * 100)), status: participant.status, isCurrentUser: user.id === currentUserId };
   }));
   leaderboard.sort((a, b) => b.steps - a.steps || b.completedDays - a.completedDays || a.displayName.localeCompare(b.displayName));
+  const eligible = leaderboard.filter((entry) => entry.status !== "eliminated");
+  const disqualifiedCount = leaderboard.length - eligible.length;
+  const poolCents = Math.round(numberValue(challenge.prizePool) * 100);
+  const basePayoutCents = eligible.length ? Math.floor(poolCents / eligible.length) : 0;
+  const roundingRemainder = eligible.length ? poolCents % eligible.length : 0;
+  const payoutByUserId = new Map(eligible.map((entry, index) => [
+    entry.userId,
+    (basePayoutCents + (index < roundingRemainder ? 1 : 0)) / 100,
+  ]));
   res.json(GetStridePoolChallengeLeaderboardResponse.parse({
     challengeId: challenge.id,
     dailyGoal: challenge.dailyGoal,
     days: challenge.days,
-    leaderboard: leaderboard.map((entry, index) => ({ rank: index + 1, ...entry })),
+    prizePool: numberValue(challenge.prizePool),
+    eligibleParticipantCount: eligible.length,
+    disqualifiedCount,
+    leaderboard: leaderboard.map(({ entryId: _entryId, ...entry }, index) => ({
+      rank: index + 1,
+      ...entry,
+      projectedPayout: payoutByUserId.get(entry.userId) ?? 0,
+    })),
   }));
 });
 

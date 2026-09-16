@@ -11,5 +11,8 @@ export interface ChallengeLeaderboardResponse {
   challengeId: string;
   dailyGoal: number;
   days: number;
+  prizePool: number;
+  eligibleParticipantCount: number;
+  disqualifiedCount: number;
   leaderboard: LeaderboardEntry[];
 }

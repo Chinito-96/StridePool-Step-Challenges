@@ -597,6 +597,9 @@ export const GetStridePoolChallengeLeaderboardResponse = zod.object({
   "challengeId": zod.string(),
   "dailyGoal": zod.int(),
   "days": zod.int(),
+  "prizePool": zod.number(),
+  "eligibleParticipantCount": zod.int(),
+  "disqualifiedCount": zod.int(),
   "leaderboard": zod.array(zod.object({
   "rank": zod.int(),
   "userId": zod.string(),
@@ -605,7 +608,8 @@ export const GetStridePoolChallengeLeaderboardResponse = zod.object({
   "completedDays": zod.int(),
   "completionPercent": zod.int(),
   "status": zod.enum(['on_track', 'eliminated', 'finished']),
-  "isCurrentUser": zod.boolean()
+  "isCurrentUser": zod.boolean(),
+  "projectedPayout": zod.number()
 }))
 })
 
