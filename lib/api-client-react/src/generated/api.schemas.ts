@@ -165,9 +165,6 @@ export type HealthSourceSource = typeof HealthSourceSource[keyof typeof HealthSo
 
 
 export const HealthSourceSource = {
-  demo: 'demo',
-  manual: 'manual',
-  csv_import: 'csv_import',
   apple_health: 'apple_health',
   health_connect: 'health_connect',
 } as const;
@@ -514,53 +511,6 @@ export interface InviteAcceptResponse {
   challenge: Challenge;
 }
 
-export type SyncStepsResponseSource = typeof SyncStepsResponseSource[keyof typeof SyncStepsResponseSource];
-
-
-export const SyncStepsResponseSource = {
-  demo: 'demo',
-  manual: 'manual',
-} as const;
-
-export type SyncStepsResponseVerificationStatus = typeof SyncStepsResponseVerificationStatus[keyof typeof SyncStepsResponseVerificationStatus];
-
-
-export const SyncStepsResponseVerificationStatus = {
-  verified: 'verified',
-  pending_review: 'pending_review',
-} as const;
-
-export interface SyncStepsResponse {
-  steps: number;
-  activity: Activity;
-  source: SyncStepsResponseSource;
-  verificationStatus: SyncStepsResponseVerificationStatus;
-  reviewFlags: string[];
-}
-
-export type SyncStepsBodySource = typeof SyncStepsBodySource[keyof typeof SyncStepsBodySource];
-
-
-export const SyncStepsBodySource = {
-  demo: 'demo',
-  manual: 'manual',
-} as const;
-
-export interface SyncStepsBody {
-  source?: SyncStepsBodySource;
-  recordDate?: string;
-  /**
-     * @minimum 0
-     * @maximum 100000
-     */
-  steps?: number;
-  /**
-     * @minLength 1
-     * @maxLength 180
-     */
-  sourceSampleId?: string;
-}
-
 export interface HealthSourcesResponse {
   sources: HealthSource[];
 }
@@ -625,9 +575,6 @@ export type IngestStepSamplesResponseSource = typeof IngestStepSamplesResponseSo
 
 
 export const IngestStepSamplesResponseSource = {
-  demo: 'demo',
-  manual: 'manual',
-  csv_import: 'csv_import',
   apple_health: 'apple_health',
   health_connect: 'health_connect',
 } as const;

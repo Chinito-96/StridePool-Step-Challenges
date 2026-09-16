@@ -77,8 +77,6 @@ import type {
   SearchStridePoolUsersParams,
   StridePoolBootstrap,
   StripeWebhookPayload,
-  SyncStepsBody,
-  SyncStepsResponse,
   UserSearchResponse,
   WalletSummary
 } from './api.schemas';
@@ -2290,77 +2288,6 @@ export const useAcceptStridePoolInvite = <TError = ErrorType<void>,
       return useMutation(getAcceptStridePoolInviteMutationOptions(options));
     }
 
-export const getSyncStridePoolStepsUrl = () => {
-
-
-
-
-  return `/api/stridepool/sync`
-}
-
-/**
- * @summary Sync a daily step total for the authenticated user
- */
-export const syncStridePoolSteps = async (syncStepsBody?: SyncStepsBody, options?: Parameters<typeof customFetch>[1]): Promise<SyncStepsResponse> => {
-
-  return customFetch<SyncStepsResponse>(getSyncStridePoolStepsUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(syncStepsBody)
-  }
-);}
-
-
-
-
-
-export const getSyncStridePoolStepsMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncStridePoolSteps>>, TError,{data?: BodyType<SyncStepsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof syncStridePoolSteps>>, TError,{data?: BodyType<SyncStepsBody>}, TContext> => {
-
-const mutationKey = ['syncStridePoolSteps'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncStridePoolSteps>>, {data?: BodyType<SyncStepsBody>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  syncStridePoolSteps(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SyncStridePoolStepsMutationResult = NonNullable<Awaited<ReturnType<typeof syncStridePoolSteps>>>
-    export type SyncStridePoolStepsMutationBody = BodyType<SyncStepsBody> | undefined
-    export type SyncStridePoolStepsMutationError = ErrorType<void>
-
-    /**
- * @summary Sync a daily step total for the authenticated user
- */
-export const useSyncStridePoolSteps = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncStridePoolSteps>>, TError,{data?: BodyType<SyncStepsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof syncStridePoolSteps>>,
-        TError,
-        {data?: BodyType<SyncStepsBody>},
-        TContext
-      > => {
-      return useMutation(getSyncStridePoolStepsMutationOptions(options));
-    }
-
 export const getGetStridePoolHealthSourcesUrl = () => {
 
 
@@ -2438,7 +2365,7 @@ export function useGetStridePoolHealthSources<TData = Awaited<ReturnType<typeof 
 
 
 
-export const getIngestStridePoolSourceSamplesUrl = (source: 'demo' | 'manual' | 'csv_import' | 'apple_health' | 'health_connect',) => {
+export const getIngestStridePoolSourceSamplesUrl = (source: 'apple_health' | 'health_connect',) => {
 
 
 
@@ -2449,7 +2376,7 @@ export const getIngestStridePoolSourceSamplesUrl = (source: 'demo' | 'manual' | 
 /**
  * @summary Store and evaluate normalized step-source samples
  */
-export const ingestStridePoolSourceSamples = async (source: 'demo' | 'manual' | 'csv_import' | 'apple_health' | 'health_connect',
+export const ingestStridePoolSourceSamples = async (source: 'apple_health' | 'health_connect',
     ingestStepSamplesBody: IngestStepSamplesBody, options?: Parameters<typeof customFetch>[1]): Promise<IngestStepSamplesResponse> => {
 
   return customFetch<IngestStepSamplesResponse>(getIngestStridePoolSourceSamplesUrl(source),
@@ -2466,8 +2393,8 @@ export const ingestStridePoolSourceSamples = async (source: 'demo' | 'manual' | 
 
 
 export const getIngestStridePoolSourceSamplesMutationOptions = <TError = ErrorType<ErrorResponse | void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'demo' | 'manual' | 'csv_import' | 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'demo' | 'manual' | 'csv_import' | 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext> => {
 
 const mutationKey = ['ingestStridePoolSourceSamples'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -2479,7 +2406,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, {source: 'demo' | 'manual' | 'csv_import' | 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, {source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}> = (props) => {
           const {source,data} = props ?? {};
 
           return  ingestStridePoolSourceSamples(source,data,requestOptions)
@@ -2500,11 +2427,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Store and evaluate normalized step-source samples
  */
 export const useIngestStridePoolSourceSamples = <TError = ErrorType<ErrorResponse | void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'demo' | 'manual' | 'csv_import' | 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof ingestStridePoolSourceSamples>>,
         TError,
-        {source: 'demo' | 'manual' | 'csv_import' | 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>},
+        {source: 'apple_health' | 'health_connect';data: BodyType<IngestStepSamplesBody>},
         TContext
       > => {
       return useMutation(getIngestStridePoolSourceSamplesMutationOptions(options));

@@ -28,8 +28,6 @@ import {
   RequestStridePoolRecoveryBody,
   RequestStridePoolRecoveryResponse,
   SearchStridePoolUsersResponse,
-  SyncStridePoolStepsBody,
-  SyncStridePoolStepsResponse,
   UpdateStridePoolProfileBody,
   UpdateStridePoolProfileResponse,
 } from "@workspace/api-zod";
@@ -1269,91 +1267,6 @@ router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> 
     }
     throw error;
   }
-});
-
-router.post("/stridepool/sync", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const parsed = SyncStridePoolStepsBody.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: "Send a valid daily step total." });
-    return;
-  }
-  const now = new Date();
-  const source = parsed.data.source ?? "demo";
-  const recordDate = parsed.data.recordDate?.toISOString().slice(0, 10) ?? now.toISOString().slice(0, 10);
-  const steps = parsed.data.steps ?? 628;
-  const startTime = source === "manual" ? new Date(`${recordDate}T00:00:00.000Z`) : new Date(now.getTime() - 30 * 60 * 1000);
-  const endTime = source === "manual" ? new Date(`${recordDate}T23:59:59.999Z`) : now;
-  const sourceSampleId = parsed.data.sourceSampleId ?? `${source}-${userId}-${recordDate}-${now.getTime()}`;
-  const [existingSample] = await db.select().from(stepSourceSamplesTable).where(and(
-    eq(stepSourceSamplesTable.userId, userId),
-    eq(stepSourceSamplesTable.source, source),
-    eq(stepSourceSamplesTable.sourceSampleId, sourceSampleId),
-  ));
-  const [historicalTotal] = await db.select({
-    total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
-  }).from(stepSourceSamplesTable).where(and(
-    eq(stepSourceSamplesTable.userId, userId),
-    eq(stepSourceSamplesTable.recordDate, recordDate),
-    eq(stepSourceSamplesTable.verificationStatus, "verified"),
-    ...(existingSample ? [sql`${stepSourceSamplesTable.id} <> ${existingSample.id}`] : []),
-  ));
-  const flags = reviewStepSample({ steps, startTime, endTime, recordedAt: now });
-  if (Number(historicalTotal?.total ?? 0) + steps > 60_000) flags.push("implausible_daily_total");
-  const verificationStatus = flags.length ? "pending_review" : "verified";
-  if (existingSample) {
-    await db.update(stepSourceSamplesTable).set({
-      recordDate,
-      steps,
-      startTime,
-      endTime,
-      recordedAt: now,
-      rawPayload: { source, sync: "web" },
-      verificationStatus,
-      reviewFlags: flags,
-    }).where(eq(stepSourceSamplesTable.id, existingSample.id));
-  } else {
-    await db.insert(stepSourceSamplesTable).values({
-      userId,
-      source,
-      sourceSampleId,
-      recordDate,
-      steps,
-      startTime,
-      endTime,
-      recordedAt: now,
-      rawPayload: { source, sync: "web" },
-      verificationStatus,
-      reviewFlags: flags,
-    });
-  }
-  const [todayTotal] = await db.select({
-    total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
-  }).from(stepSourceSamplesTable).where(and(
-    eq(stepSourceSamplesTable.userId, userId),
-    eq(stepSourceSamplesTable.recordDate, recordDate),
-    eq(stepSourceSamplesTable.verificationStatus, "verified"),
-  ));
-  const verifiedSteps = Number(todayTotal?.total ?? 0);
-  await upsertDailySteps(userId, null, recordDate, verifiedSteps, source, verifiedSteps > 0);
-  await mirrorFreeCommunitySteps(userId, recordDate, verifiedSteps, source, verifiedSteps > 0);
-  const activityMeta = flags.length
-    ? `${steps.toLocaleString()} steps held for review · daily record unchanged`
-    : `${steps.toLocaleString()} steps · persisted to your account`;
-  res.json(SyncStridePoolStepsResponse.parse({
-    steps: verifiedSteps,
-    source,
-    verificationStatus,
-    reviewFlags: flags,
-    activity: {
-      id: `sync-${existingSample?.id ?? Date.now()}`,
-      type: flags.length ? "review" : "sync",
-      title: flags.length ? "Steps held for review" : "Verified steps synced",
-      meta: activityMeta,
-      timestamp: "Just now",
-    },
-  }));
 });
 
 router.post("/stridepool/wallet/demo-funds", async (req, res): Promise<void> => {

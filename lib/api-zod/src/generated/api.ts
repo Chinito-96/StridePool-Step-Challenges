@@ -16,6 +16,7 @@ export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
 
+
 /**
  * Returns the server-side controls that must pass before a paid entry can be offered.
  * @summary Get paid-play launch controls
@@ -281,7 +282,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "acceptedTerms": zod.boolean()
 }),
   "healthSources": zod.array(zod.object({
-  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
+  "source": zod.enum(['apple_health', 'health_connect']),
   "label": zod.string(),
   "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),
@@ -349,6 +350,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
 }))
 })
 
+
 /**
  * @summary Join a challenge for the authenticated user
  */
@@ -368,6 +370,8 @@ export const JoinStridePoolChallengeResponse = zod.object({
   "totalEarned": zod.number()
 })
 })
+
+
 /**
  * @summary Leave a challenge for the authenticated user
  */
@@ -835,42 +839,6 @@ export const AcceptStridePoolInviteResponse = zod.object({
 
 
 /**
- * @summary Sync a daily step total for the authenticated user
- */
-export const SyncStridePoolStepsHeader = zod.object({
-  "Authorization": zod.string().optional()
-})
-
-export const syncStridePoolStepsBodyStepsMin = 0;
-export const syncStridePoolStepsBodyStepsMax = 100000;
-
-export const syncStridePoolStepsBodySourceSampleIdMax = 180;
-
-
-
-export const SyncStridePoolStepsBody = zod.object({
-  "source": zod.enum(['demo', 'manual']).optional(),
-  "recordDate": zod.coerce.date().optional(),
-  "steps": zod.int().min(syncStridePoolStepsBodyStepsMin).max(syncStridePoolStepsBodyStepsMax).optional(),
-  "sourceSampleId": zod.string().min(1).max(syncStridePoolStepsBodySourceSampleIdMax).optional()
-})
-
-export const SyncStridePoolStepsResponse = zod.object({
-  "steps": zod.int(),
-  "activity": zod.object({
-  "id": zod.string(),
-  "type": zod.string(),
-  "title": zod.string(),
-  "meta": zod.string(),
-  "timestamp": zod.string()
-}),
-  "source": zod.enum(['demo', 'manual']),
-  "verificationStatus": zod.enum(['verified', 'pending_review']),
-  "reviewFlags": zod.array(zod.string())
-})
-
-
-/**
  * @summary List supported health sources and verification status
  */
 export const GetStridePoolHealthSourcesHeader = zod.object({
@@ -879,7 +847,7 @@ export const GetStridePoolHealthSourcesHeader = zod.object({
 
 export const GetStridePoolHealthSourcesResponse = zod.object({
   "sources": zod.array(zod.object({
-  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
+  "source": zod.enum(['apple_health', 'health_connect']),
   "label": zod.string(),
   "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),
@@ -893,7 +861,7 @@ export const GetStridePoolHealthSourcesResponse = zod.object({
  * @summary Store and evaluate normalized step-source samples
  */
 export const IngestStridePoolSourceSamplesParams = zod.object({
-  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect'])
+  "source": zod.enum(['apple_health', 'health_connect'])
 })
 
 export const IngestStridePoolSourceSamplesHeader = zod.object({
@@ -922,7 +890,7 @@ export const IngestStridePoolSourceSamplesBody = zod.object({
 })
 
 export const IngestStridePoolSourceSamplesResponse = zod.object({
-  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
+  "source": zod.enum(['apple_health', 'health_connect']),
   "acceptedCount": zod.int(),
   "pendingReviewCount": zod.int(),
   "steps": zod.int(),
@@ -950,7 +918,7 @@ export const UpdateStridePoolHealthSourceConnectionBody = zod.object({
 })
 
 export const UpdateStridePoolHealthSourceConnectionResponse = zod.object({
-  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
+  "source": zod.enum(['apple_health', 'health_connect']),
   "label": zod.string(),
   "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),

@@ -10,9 +10,6 @@ export type IngestStepSamplesResponseSource = typeof IngestStepSamplesResponseSo
 
 
 export const IngestStepSamplesResponseSource = {
-  demo: 'demo',
-  manual: 'manual',
-  csv_import: 'csv_import',
   apple_health: 'apple_health',
   health_connect: 'health_connect',
 } as const;

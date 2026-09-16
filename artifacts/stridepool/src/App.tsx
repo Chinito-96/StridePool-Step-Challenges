@@ -1,6 +1,6 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminRecoveryCasesQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useUpdateStridePoolHealthSourceConnection, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminRecoveryCase, type AdminRecoveryDecisionBody, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type Notification as ApiNotification, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
+import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminRecoveryCasesQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useUpdateStridePoolProfile, useUpdateStridePoolHealthSourceConnection, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminRecoveryCase, type AdminRecoveryDecisionBody, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type Notification as ApiNotification, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert, CircleHelp, CircleUserRound, Clock3, Compass, Copy, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, UserCheck, UserPlus, Users, UsersRound, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
@@ -33,8 +33,6 @@ type AppState = {
   joinChallenge: (id: string) => boolean;
   leaveChallenge: (id: string) => boolean;
   updateEligibility: (eligibility: EligibilityProfile) => void;
-  syncSteps: (source?: 'demo' | 'manual' | object, stepTotal?: number, recordDate?: string) => void;
-  importCsv: (samples: Array<{ sourceSampleId: string; recordDate: string; steps: number; startTime: string; endTime: string; recordedAt: string; rawPayload: Record<string, unknown> }>) => void;
   syncNativeSource: (source: 'apple_health' | 'health_connect') => void;
   requestRecovery: (challengeId: string, type: RecoveryRequestType, reason: string) => void;
   addFunds: () => void;
@@ -59,7 +57,6 @@ function AppProvider({ children }: { children: ReactNode }) {
   const bootstrapQuery = useGetStridePoolBootstrap();
   const joinMutation = useJoinStridePoolChallenge();
   const leaveMutation = useLeaveStridePoolChallenge();
-  const syncMutation = useSyncStridePoolSteps();
   const sourceMutation = useIngestStridePoolSourceSamples();
   const connectionMutation = useUpdateStridePoolHealthSourceConnection();
   const recoveryMutation = useRequestStridePoolRecovery();
@@ -99,14 +96,6 @@ function AppProvider({ children }: { children: ReactNode }) {
     if (!auth.isAuthenticated && challenge && !challenge.community) { loginIfNeeded(); return false; }
     leaveMutation.mutate({ id }, { onSuccess: invalidateSocial });
     return true;
-  };
-  const syncSteps = (source: 'demo' | 'manual' | object = 'demo', stepTotal?: number, recordDate?: string) => {
-    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    syncMutation.mutate({ data: { source: typeof source === 'string' ? source : 'demo', ...(stepTotal === undefined ? {} : { steps: stepTotal }), ...(recordDate ? { recordDate } : {}) } }, { onSuccess: invalidateBootstrap });
-  };
-  const importCsv = (samples: Array<{ sourceSampleId: string; recordDate: string; steps: number; startTime: string; endTime: string; recordedAt: string; rawPayload: Record<string, unknown> }>) => {
-    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    sourceMutation.mutate({ source: 'csv_import', data: { samples } }, { onSuccess: invalidateBootstrap });
   };
   const syncNativeSource = async (source: 'apple_health' | 'health_connect') => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
@@ -152,7 +141,7 @@ function AppProvider({ children }: { children: ReactNode }) {
     profileMutation.mutate({ data: updates }, { onSuccess: invalidateBootstrap });
   };
   const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => { const actualKey = key === 'weekly-digest' ? 'weeklyDigest' : key; if (actualKey === 'healthConnected') { void syncNativeSource('apple_health'); return; } updateProfile({ [actualKey]: !profile[actualKey] }); };
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncSteps, importCsv, syncNativeSource, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites]);
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncNativeSource, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -267,7 +256,7 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities, syncSteps, healthSources, recoveryCases } = useApp();
+  const { challenges, steps, activities, healthSources, recoveryCases } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
   const goal = 10_000;
   const percent = Math.min(100, Math.round((steps / goal) * 100));
@@ -275,7 +264,7 @@ function Dashboard() {
   const upcoming = challenges.find((item) => !item.joined) ?? spotlight;
   if (!spotlight || !upcoming) return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary"><Footprints size={25} /></div><h1 className="mt-5 font-display text-2xl font-bold">Your challenges are loading</h1><p className="mt-2 text-sm text-muted-foreground">We’re fetching the latest pools and your saved rhythm.</p></div>;
   return <div className="mx-auto max-w-[1280px]">
-    <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="rise-in"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">{dateLabel}</p><h1 className="font-display text-[clamp(2.15rem,5vw,3.7rem)] font-bold leading-[.97] tracking-[-.06em]">Keep your <span className="text-primary">rhythm.</span></h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">A little movement today keeps tomorrow feeling lighter.</p></div><Button onClick={syncSteps} data-testid="button-sync-steps"><RefreshCw size={16} /> Sync steps</Button></div>
+    <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="rise-in"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">{dateLabel}</p><h1 className="font-display text-[clamp(2.15rem,5vw,3.7rem)] font-bold leading-[.97] tracking-[-.06em]">Keep your <span className="text-primary">rhythm.</span></h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">A little movement today keeps tomorrow feeling lighter.</p></div></div>
     <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
       <div className="rise-in delay-1 relative overflow-hidden rounded-[22px] bg-foreground p-6 text-background shadow-[var(--shadow-soft)] sm:p-8"><div className="absolute -right-10 -top-16 h-56 w-56 rounded-full border-[28px] border-accent/80 opacity-80" /><div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full border-[20px] border-primary/80 opacity-70" /><div className="relative flex flex-col justify-between gap-8 sm:flex-row"><div><div className="flex items-center gap-2 text-background/60"><span className="h-2 w-2 rounded-full bg-accent" /><span className="font-mono-app text-[10px] uppercase tracking-[.18em]">Today's movement</span></div><div className="mt-6 flex items-baseline gap-2"><span className="font-display text-6xl font-bold tracking-[-.08em] sm:text-7xl" data-testid="text-todays-steps">{steps.toLocaleString()}</span><span className="font-mono-app text-xs text-background/50">/ {goal.toLocaleString()}</span></div><p className="mt-2 text-sm text-background/60">{goal - steps > 0 ? `${(goal - steps).toLocaleString()} steps to your daily goal` : 'Daily goal met — beautifully done.'}</p></div><div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-[10px] border-background/15 sm:h-36 sm:w-36" style={{ background: `conic-gradient(#bdcf57 ${percent}%, rgba(255,255,255,.1) 0)` }}><div className="flex h-[78%] w-[78%] flex-col items-center justify-center rounded-full bg-foreground"><span className="font-display text-2xl font-bold">{percent}%</span><span className="font-mono-app text-[9px] uppercase text-background/45">of goal</span></div></div></div><div className="relative mt-8 flex items-center justify-between border-t border-background/10 pt-4 text-xs text-background/55"><span className="flex items-center gap-2"><Flame size={15} className="text-primary" /> 4 day rhythm</span><span className="font-mono-app">Last sync 8:42 AM</span></div></div>
        <div className="rise-in delay-2 rounded-[22px] border border-border bg-card p-6 shadow-[var(--shadow-card)]"><div className="flex items-center justify-between"><Badge tone="coral">Live now</Badge><RadioDot /></div><h2 className="mt-5 font-display text-2xl font-bold tracking-[-.045em]">{spotlight.name}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{spotlight.theme}</p><div className="mt-6 space-y-4"><StatLine icon={<Target size={16} />} label={spotlight.goalType === 'personalized' ? 'Your daily target' : 'Daily target'} value={`${spotlight.dailyGoal.toLocaleString()} steps`} /><StatLine icon={<Users size={16} />} label="Walking together" value={`${spotlight.participantCount} people`} /><StatLine icon={<Award size={16} />} label="Pool so far" value={spotlight.community ? 'Free to join' : `$${spotlight.prizePool.toLocaleString()}`} /></div><Link href={`/challenge/${spotlight.id}`} className="mt-6 flex items-center justify-between border-t border-border pt-4 text-sm font-bold text-primary" data-testid={`link-spotlight-${spotlight.id}`}>Open challenge <ArrowUpRight size={17} /></Link></div>
@@ -295,13 +284,12 @@ function SourceTrustPanel({ sources, recoveryCases }: { sources: HealthSource[];
   const recoveryChallenge = challenges.find((item) => item.joined);
   return <><section className="mt-8 grid gap-5 lg:grid-cols-[1.25fr_.75fr]" data-testid="panel-source-trust">
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
-      <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your sources, plainly</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Free community progress accepts a daily total from a source you control. Every record is stored, checked for suspicious patterns, and kept separate from wallet and paid-challenge logic.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
-      <StepSyncControls />
+      <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your health sources</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">All challenge steps must come from Apple Health on iPhone or Health Connect on Android. StridePool checks every uploaded sample before it can affect progress or payouts.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
       <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-start gap-3"><HeartPulse size={17} className="mt-0.5 shrink-0 text-secondary-foreground" /><div><p className="text-sm font-bold text-secondary-foreground">Native health data stays permissioned</p><p className="mt-1 text-[11px] leading-5 text-secondary-foreground/75">StridePool never asks the browser for health data. The iOS and Android companion requests the platform permission, reads step records, and sends only normalized samples for server-side verification.</p></div></div></div>
       <NativeSourceCards sources={sources} />
       {stepReviews.length > 0 && <div className="mt-5 rounded-xl border border-primary/25 bg-primary/10 p-4" data-testid="panel-step-reviews"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-primary">Records held for review</p><Badge tone="coral">{stepReviews.length} flagged</Badge></div><div className="mt-3 space-y-2">{stepReviews.slice(0, 5).map((review) => <div className="rounded-lg bg-background/70 p-3" key={review.id}><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold">{review.steps.toLocaleString()} steps · {review.recordDate}</p><span className="font-mono-app text-[9px] uppercase text-primary">not counted</span></div><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{review.reviewFlags.map((flag) => flag.replaceAll('_', ' ')).join(' · ')} · {review.source.replaceAll('_', ' ')}</p></div>)}</div></div>}
     </div>
-    <div className="rounded-2xl border border-border bg-secondary/55 p-5 sm:p-6"><div className="flex items-center gap-2 text-secondary-foreground"><HeartPulse size={18} /><p className="font-mono-app text-[10px] uppercase tracking-[.16em]">Fair recovery</p></div><h2 className="mt-2 font-display text-xl font-bold text-secondary-foreground">Life happens. The ledger waits.</h2><p className="mt-2 text-xs leading-5 text-secondary-foreground/75">Grace days, injury pauses, and support review keep a questionable day from deciding your payout without a human look.</p>{pendingCases.length ? <div className="mt-4 space-y-2">{pendingCases.slice(0, 2).map((item) => <div className="rounded-xl bg-background/60 p-3" key={item.id}><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">{item.challengeName}</p><Badge tone="teal">{item.status.replaceAll('_', ' ')}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">{item.type.replaceAll('_', ' ')}</p></div>)}</div> : <p className="mt-4 rounded-xl bg-background/60 p-3 text-[11px] leading-5 text-secondary-foreground/75">No recovery requests are open. Open a joined challenge to request one before settlement.</p>}</div>
+    <div className="rounded-2xl border border-border bg-secondary/55 p-5 sm:p-6"><div className="flex items-center gap-2 text-secondary-foreground"><HeartPulse size={18} /><p className="font-mono-app text-[10px] uppercase tracking-[.16em]">Fair recovery</p></div><h2 className="mt-2 font-display text-xl font-bold text-secondary-foreground">Life happens. The ledger waits.</h2><p className="mt-2 text-xs leading-5 text-secondary-foreground/75">Grace days and support review keep a questionable day from deciding your payout without a human look.</p>{pendingCases.length ? <div className="mt-4 space-y-2">{pendingCases.slice(0, 2).map((item) => <div className="rounded-xl bg-background/60 p-3" key={item.id}><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">{item.challengeName}</p><Badge tone="teal">{item.status.replaceAll('_', ' ')}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">{item.type.replaceAll('_', ' ')}</p></div>)}</div> : <p className="mt-4 rounded-xl bg-background/60 p-3 text-[11px] leading-5 text-secondary-foreground/75">No recovery requests are open. Open a joined challenge to request one before settlement.</p>}</div>
   </section>{recoveryChallenge && <RecoveryPanel challenge={recoveryChallenge} cases={recoveryCases.filter((item) => item.challengeId === recoveryChallenge.id)} requestRecovery={requestRecovery} />}</>;
 }
 
@@ -342,39 +330,6 @@ function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
       {canSync && <Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" disabled={isBusy} onClick={async () => { setBusySource(source.source); await syncNativeSource(source.source as 'apple_health' | 'health_connect'); setBusySource(null); }} data-testid={`button-connect-${source.source}`}>{isBusy ? 'Checking permission…' : actionLabels[source.status]}</Button>}
     </div>;
   })}</div>;
-}
-
-function StepSyncControls() {
-  const { syncSteps, importCsv } = useApp();
-  const [manualSteps, setManualSteps] = useState('');
-  const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10));
-  const [message, setMessage] = useState('');
-  const submitManual = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const steps = Number(manualSteps);
-    if (!Number.isInteger(steps) || steps < 0) return;
-    syncSteps('manual', steps, manualDate);
-    setMessage(`${steps.toLocaleString()} steps sent for verification.`);
-  };
-  const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const rows = (await file.text()).trim().split(/\r?\n/).slice(1).map((line) => line.split(',').map((cell) => cell.trim()));
-    const samples = rows.flatMap((cells, index) => {
-      const [recordDate, rawSteps] = cells;
-      const steps = Number(rawSteps);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(recordDate) || !Number.isInteger(steps) || steps < 0) return [];
-      return [{ sourceSampleId: `csv-${file.lastModified}-${recordDate}-${index}`, recordDate, steps, startTime: `${recordDate}T00:00:00.000Z`, endTime: `${recordDate}T23:59:59.999Z`, recordedAt: new Date().toISOString(), rawPayload: { import: 'csv', fileName: file.name } }];
-    });
-    if (samples.length) {
-      importCsv(samples);
-      setMessage(`${samples.length} CSV day${samples.length === 1 ? '' : 's'} sent for verification.`);
-    } else {
-      setMessage('Use a CSV with a header and rows in YYYY-MM-DD,steps format.');
-    }
-    event.target.value = '';
-  };
-  return <div className="mt-5 grid gap-4 rounded-xl border border-border/80 bg-background p-4 sm:grid-cols-[1fr_auto]"><form className="space-y-3" onSubmit={submitManual}><div><p className="text-sm font-bold">Manual daily total</p><p className="mt-1 text-[11px] leading-4 text-muted-foreground">A realistic web fallback when no native source is available.</p></div><div className="grid gap-2 sm:grid-cols-[1fr_145px_auto]"><input type="number" min="0" max="100000" value={manualSteps} onChange={(event) => setManualSteps(event.target.value)} placeholder="e.g. 7284" aria-label="Daily step total" className="h-10 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-manual-steps" /><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} aria-label="Step record date" className="h-10 rounded-lg border border-border bg-card px-3 text-xs outline-none focus:border-primary" data-testid="input-manual-step-date" /><Button type="submit" className="h-10 px-3 text-xs" data-testid="button-submit-manual-steps">Save total</Button></div></form><label className="flex cursor-pointer flex-col justify-end gap-2 border-t border-border pt-3 text-xs font-bold sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"><span>Import CSV</span><span className="font-normal text-muted-foreground">YYYY-MM-DD,steps</span><input type="file" accept=".csv,text/csv" onChange={importFile} className="block w-full text-[11px]" data-testid="input-steps-csv" /></label>{message && <p className="text-[11px] text-primary sm:col-span-2" role="status" data-testid="status-step-sync">{message}</p>}</div>;
 }
 
 function RecoveryPanel({ challenge, cases, requestRecovery }: { challenge: Challenge; cases: RecoveryCase[]; requestRecovery: (challengeId: string, type: RecoveryRequestType, reason: string) => void }) {

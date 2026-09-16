@@ -215,18 +215,25 @@ describe("StridePool authenticated persistence across sessions", () => {
       totalEarned: 7,
     });
 
-    const sync = await request("/stridepool/sync", {
+    const today = new Date().toISOString().slice(0, 10);
+    const sync = await request("/stridepool/sources/apple_health/samples", {
       method: "POST",
       session: firstSession,
       body: JSON.stringify({
-        source: "manual",
-        steps: 4321,
-        sourceSampleId: `${runId}-steps`,
+        samples: [{
+          sourceSampleId: `${runId}-steps`,
+          recordDate: today,
+          steps: 4321,
+          startTime: `${today}T08:00:00.000Z`,
+          endTime: `${today}T09:00:00.000Z`,
+          recordedAt: `${today}T09:00:01.000Z`,
+          rawPayload: { source: "apple_health", device: "test" },
+        }],
       }),
     });
     assert.equal(sync.status, 200);
     assert.equal((sync.body as { steps: number }).steps, 4321);
-    assert.equal((sync.body as { verificationStatus: string }).verificationStatus, "verified");
+    assert.equal((sync.body as { samples: Array<{ verificationStatus: string }> }).samples[0]?.verificationStatus, "verified");
 
     const firstBootstrap = await request("/stridepool/bootstrap", { session: firstSession });
     assert.equal(firstBootstrap.status, 200);

@@ -582,29 +582,6 @@ paths:
           description: Login required.
         "404":
           description: Invite not found or no longer available.
-  /stridepool/sync:
-    post:
-      tags: [stridepool]
-      operationId: syncStridePoolSteps
-      summary: Sync a daily step total for the authenticated user
-      parameters:
-        - $ref: "#/components/parameters/AuthorizationSessionHeader"
-        - $ref: "#/components/parameters/SessionCookie"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SyncStepsBody"
-      responses:
-        "200":
-          description: Steps synchronized.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SyncStepsResponse"
-        "401":
-          description: Login required.
   /stridepool/sources:
     get:
       tags: [stridepool]
@@ -633,7 +610,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [demo, manual, csv_import, apple_health, health_connect]
+            enum: [apple_health, health_connect]
         - $ref: "#/components/parameters/AuthorizationSessionHeader"
         - $ref: "#/components/parameters/SessionCookie"
       requestBody:
@@ -1342,29 +1319,11 @@ components:
         current: { type: integer }
         best: { type: integer }
         lastGoalDate: { type: [string, "null"], format: date }
-    SyncStepsResponse:
-      type: object
-      required: [steps, activity, source, verificationStatus, reviewFlags]
-      properties:
-        steps: { type: integer }
-        activity: { $ref: "#/components/schemas/Activity" }
-        source: { type: string, enum: [demo, manual] }
-        verificationStatus: { type: string, enum: [verified, pending_review] }
-        reviewFlags:
-          type: array
-          items: { type: string }
-    SyncStepsBody:
-      type: object
-      properties:
-        source: { type: string, enum: [demo, manual] }
-        recordDate: { type: string, format: date }
-        steps: { type: integer, minimum: 0, maximum: 100000 }
-        sourceSampleId: { type: string, minLength: 1, maxLength: 180 }
     HealthSource:
       type: object
       required: [source, label, status, lastSyncedAt, verifiedSamples, pendingReview]
       properties:
-        source: { type: string, enum: [demo, manual, csv_import, apple_health, health_connect] }
+        source: { type: string, enum: [apple_health, health_connect] }
         label: { type: string }
         status: { type: string, enum: [available, connected, denied, stale, revoked] }
         lastSyncedAt: { type: [string, "null"], format: date-time }
@@ -1415,7 +1374,7 @@ components:
       type: object
       required: [source, acceptedCount, pendingReviewCount, steps, samples]
       properties:
-        source: { type: string, enum: [demo, manual, csv_import, apple_health, health_connect] }
+        source: { type: string, enum: [apple_health, health_connect] }
         acceptedCount: { type: integer }
         pendingReviewCount: { type: integer }
         steps: { type: integer }

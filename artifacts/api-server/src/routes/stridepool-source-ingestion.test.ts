@@ -86,9 +86,10 @@ async function request(
     headers: requestHeaders,
   });
   const text = await response.text();
+  const isJson = response.headers.get("content-type")?.includes("application/json");
   return {
     status: response.status,
-    body: text ? JSON.parse(text) : null,
+    body: text ? (isJson ? JSON.parse(text) : text) : null,
   };
 }
 
@@ -148,6 +149,22 @@ describe("StridePool source sample ingestion", () => {
     await db.delete(sessionsTable).where(eq(sessionsTable.sid, session));
     await db.delete(usersTable).where(eq(usersTable.id, userId));
     await pool.end();
+  });
+
+  it("rejects legacy manual, CSV, and demo ingestion routes", async () => {
+    for (const source of ["manual", "csv_import", "demo"]) {
+      const result = await request(`/stridepool/sources/${source}/samples`, {
+        method: "POST",
+        body: JSON.stringify({ samples: [sample(`${source}-sample`)] }),
+      });
+      assert.equal(result.status, 400);
+    }
+
+    const legacySync = await request("/stridepool/sync", {
+      method: "POST",
+      body: JSON.stringify({ source: "manual", steps: 4_321 }),
+    });
+    assert.equal(legacySync.status, 404);
   });
 
   it("normalizes Apple Health samples and makes duplicate uploads idempotent", async () => {
