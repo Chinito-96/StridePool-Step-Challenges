@@ -9,6 +9,9 @@ import {
   OverrideAdminChallengeParticipantBody,
   OverrideAdminChallengeParticipantResponse,
   SearchAdminUsersResponse,
+  DecideAdminStepSampleBody,
+  DecideAdminStepSampleResponse,
+  GetAdminStepSamplesResponse,
 } from "@workspace/api-zod";
 import {
   challengesTable,
@@ -25,6 +28,7 @@ import {
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getParticipantStatus, type ParticipantStatus } from "../services/stridepool-status";
+import { rebuildVerifiedDailyTotal } from "./stridepool";
 
 const router: IRouter = Router();
 
@@ -102,6 +106,100 @@ router.get("/admin/flagged-step-records", async (req, res): Promise<void> => {
       flagReasons: reasonsByDate.get(`${record.userId}:${record.recordDate}`) ?? ["unverified_daily_record"],
       createdAt: record.createdAt.toISOString(),
     })),
+  }));
+});
+
+router.get("/admin/step-samples", async (req, res): Promise<void> => {
+  if (!await requireAdmin(req, res)) return;
+  const samples = await db.select({
+    sample: stepSourceSamplesTable,
+    user: usersTable,
+  }).from(stepSourceSamplesTable)
+    .innerJoin(usersTable, eq(stepSourceSamplesTable.userId, usersTable.id))
+    .where(eq(stepSourceSamplesTable.verificationStatus, "pending_review"))
+    .orderBy(asc(stepSourceSamplesTable.createdAt))
+    .limit(200);
+  res.json(GetAdminStepSamplesResponse.parse({
+    samples: samples.map(({ sample, user }) => ({
+      id: String(sample.id),
+      userId: user.id,
+      userName: displayName(user),
+      userEmail: user.email ?? "",
+      source: sample.source,
+      sourceSampleId: sample.sourceSampleId,
+      recordDate: sample.recordDate,
+      steps: sample.steps,
+      verificationStatus: "pending_review" as const,
+      reviewFlags: sample.reviewFlags,
+      rawPayload: sample.rawPayload,
+      createdAt: sample.createdAt.toISOString(),
+    })),
+  }));
+});
+
+router.post("/admin/step-samples/:sampleId/decision", async (req, res): Promise<void> => {
+  const adminUserId = await requireAdmin(req, res);
+  if (!adminUserId) return;
+  const rawSampleId = typeof req.params.sampleId === "string" ? req.params.sampleId : "";
+  const sampleId = Number.parseInt(rawSampleId, 10);
+  const parsed = DecideAdminStepSampleBody.safeParse(req.body ?? {});
+  if (!Number.isInteger(sampleId) || sampleId < 1 || !parsed.success) {
+    res.status(400).json({ error: "Choose approve or reject and provide an explanation of at least 8 characters." });
+    return;
+  }
+  const explanation = parsed.data.explanation.trim();
+  if (explanation.length < 8 || explanation.length > 1000) {
+    res.status(400).json({ error: "Provide an explanation between 8 and 1000 non-whitespace characters." });
+    return;
+  }
+
+  const [sample] = await db.select().from(stepSourceSamplesTable).where(eq(stepSourceSamplesTable.id, sampleId));
+  if (!sample) {
+    res.status(404).json({ error: "Step sample not found." });
+    return;
+  }
+  if (sample.verificationStatus !== "pending_review") {
+    res.status(409).json({ error: "This step sample has already been decided." });
+    return;
+  }
+
+  const verificationStatus = parsed.data.decision === "approve" ? "verified" : "rejected";
+  const [updated] = await db.update(stepSourceSamplesTable).set({
+    verificationStatus,
+  }).where(and(
+    eq(stepSourceSamplesTable.id, sampleId),
+    eq(stepSourceSamplesTable.verificationStatus, "pending_review"),
+  )).returning();
+  if (!updated) {
+    res.status(409).json({ error: "This step sample has already been decided." });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId));
+  if (!user) {
+    res.status(404).json({ error: "Step sample owner not found." });
+    return;
+  }
+  const dailyTotal = await rebuildVerifiedDailyTotal(updated.userId, updated.recordDate, updated.source);
+  res.json(DecideAdminStepSampleResponse.parse({
+    sample: {
+      id: String(updated.id),
+      userId: updated.userId,
+      userName: displayName(user),
+      userEmail: user.email ?? "",
+      source: updated.source,
+      sourceSampleId: updated.sourceSampleId,
+      recordDate: updated.recordDate,
+      steps: updated.steps,
+      verificationStatus,
+      reviewFlags: updated.reviewFlags,
+      rawPayload: updated.rawPayload,
+      createdAt: updated.createdAt.toISOString(),
+    },
+    decision: parsed.data.decision,
+    explanation,
+    decidedBy: adminUserId,
+    dailyTotal,
   }));
 });
 

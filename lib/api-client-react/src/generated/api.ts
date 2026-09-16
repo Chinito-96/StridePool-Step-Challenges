@@ -28,6 +28,9 @@ import type {
   AdminRecoveryDecisionBody,
   AdminRecoveryDecisionResponse,
   AdminSettlementHistoryResponse,
+  AdminStepSampleDecisionBody,
+  AdminStepSampleDecisionResponse,
+  AdminStepSamplesResponse,
   AdminUserResponse,
   AdminUserSearchResponse,
   AuthUserEnvelope,
@@ -2946,6 +2949,155 @@ export function useGetAdminFlaggedStepRecords<TData = Awaited<ReturnType<typeof 
 
 
 
+
+export const getGetAdminStepSamplesUrl = () => {
+
+
+
+
+  return `/api/admin/step-samples`
+}
+
+/**
+ * @summary List source samples waiting for support review
+ */
+export const getAdminStepSamples = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminStepSamplesResponse> => {
+
+  return customFetch<AdminStepSamplesResponse>(getGetAdminStepSamplesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminStepSamplesQueryKey = () => {
+    return [
+    `/api/admin/step-samples`
+    ] as const;
+    }
+
+
+export const getGetAdminStepSamplesQueryOptions = <TData = Awaited<ReturnType<typeof getAdminStepSamples>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStepSamples>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminStepSamplesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminStepSamples>>> = ({ signal }) => getAdminStepSamples({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminStepSamples>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminStepSamplesQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminStepSamples>>>
+export type GetAdminStepSamplesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List source samples waiting for support review
+ */
+
+export function useGetAdminStepSamples<TData = Awaited<ReturnType<typeof getAdminStepSamples>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStepSamples>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminStepSamplesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDecideAdminStepSampleUrl = (sampleId: number,) => {
+
+
+
+
+  return `/api/admin/step-samples/${sampleId}/decision`
+}
+
+/**
+ * @summary Approve or reject a source sample after support review
+ */
+export const decideAdminStepSample = async (sampleId: number,
+    adminStepSampleDecisionBody: AdminStepSampleDecisionBody, options?: Parameters<typeof customFetch>[1]): Promise<AdminStepSampleDecisionResponse> => {
+
+  return customFetch<AdminStepSampleDecisionResponse>(getDecideAdminStepSampleUrl(sampleId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminStepSampleDecisionBody)
+  }
+);}
+
+
+
+
+
+export const getDecideAdminStepSampleMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideAdminStepSample>>, TError,{sampleId: number;data: BodyType<AdminStepSampleDecisionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideAdminStepSample>>, TError,{sampleId: number;data: BodyType<AdminStepSampleDecisionBody>}, TContext> => {
+
+const mutationKey = ['decideAdminStepSample'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideAdminStepSample>>, {sampleId: number;data: BodyType<AdminStepSampleDecisionBody>}> = (props) => {
+          const {sampleId,data} = props ?? {};
+
+          return  decideAdminStepSample(sampleId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideAdminStepSampleMutationResult = NonNullable<Awaited<ReturnType<typeof decideAdminStepSample>>>
+    export type DecideAdminStepSampleMutationBody = BodyType<AdminStepSampleDecisionBody>
+    export type DecideAdminStepSampleMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Approve or reject a source sample after support review
+ */
+export const useDecideAdminStepSample = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideAdminStepSample>>, TError,{sampleId: number;data: BodyType<AdminStepSampleDecisionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideAdminStepSample>>,
+        TError,
+        {sampleId: number;data: BodyType<AdminStepSampleDecisionBody>},
+        TContext
+      > => {
+      return useMutation(getDecideAdminStepSampleMutationOptions(options));
+    }
 
 export const getGetAdminRecoveryCasesUrl = () => {
 

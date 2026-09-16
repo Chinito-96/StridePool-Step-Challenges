@@ -54,7 +54,7 @@ import {
   notificationsTable,
 } from "@workspace/db";
 import { challengeParticipantOverridesTable } from "@workspace/db";
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { buildLifetimeLeaderboard, calculateProjectedPayouts, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
@@ -436,7 +436,7 @@ async function upsertDailySteps(
   });
 }
 
-async function mirrorFreeCommunitySteps(
+async function mirrorActiveChallengeSteps(
   userId: string,
   recordDate: string,
   steps: number,
@@ -448,9 +448,24 @@ async function mirrorFreeCommunitySteps(
   }).from(entriesTable).innerJoin(challengesTable, eq(entriesTable.challengeId, challengesTable.id)).where(and(
     eq(entriesTable.userId, userId),
     eq(entriesTable.status, "active"),
-    eq(challengesTable.community, true),
+    lte(challengesTable.startDate, recordDate),
+    gte(challengesTable.endDate, recordDate),
   ));
   await Promise.all(freeEntries.map(({ challengeId }) => upsertDailySteps(userId, challengeId, recordDate, steps, source, verified)));
+}
+
+export async function rebuildVerifiedDailyTotal(userId: string, recordDate: string, source: string) {
+  const [verifiedTotal] = await db.select({
+    total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
+  }).from(stepSourceSamplesTable).where(and(
+    eq(stepSourceSamplesTable.userId, userId),
+    eq(stepSourceSamplesTable.recordDate, recordDate),
+    eq(stepSourceSamplesTable.verificationStatus, "verified"),
+  ));
+  const verifiedSteps = Number(verifiedTotal?.total ?? 0);
+  await upsertDailySteps(userId, null, recordDate, verifiedSteps, source, verifiedSteps > 0);
+  await mirrorActiveChallengeSteps(userId, recordDate, verifiedSteps, source, verifiedSteps > 0);
+  return verifiedSteps;
 }
 
 function sampleReviewResult(source: StepSourceId, sample: {
@@ -1092,18 +1107,7 @@ router.post("/stridepool/sources/:source/samples", async (req, res): Promise<voi
     set: { status: "connected", lastSyncedAt: now, updatedAt: now },
   });
 
-  for (const [recordDate] of dayTotals) {
-    const [verifiedTotal] = await db.select({
-      total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
-    }).from(stepSourceSamplesTable).where(and(
-      eq(stepSourceSamplesTable.userId, userId),
-      eq(stepSourceSamplesTable.recordDate, recordDate),
-      eq(stepSourceSamplesTable.verificationStatus, "verified"),
-    ));
-    const verifiedSteps = Number(verifiedTotal?.total ?? 0);
-    await upsertDailySteps(userId, null, recordDate, verifiedSteps, source, verifiedSteps > 0);
-    await mirrorFreeCommunitySteps(userId, recordDate, verifiedSteps, source, verifiedSteps > 0);
-  }
+  for (const [recordDate] of dayTotals) await rebuildVerifiedDailyTotal(userId, recordDate, source);
 
   const today = now.toISOString().slice(0, 10);
   const [todayTotal] = await db.select({

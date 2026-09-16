@@ -816,6 +816,69 @@ export interface AdminFlaggedStepRecordsResponse {
   records: AdminFlaggedStepRecord[];
 }
 
+export type AdminStepSampleVerificationStatus = typeof AdminStepSampleVerificationStatus[keyof typeof AdminStepSampleVerificationStatus];
+
+
+export const AdminStepSampleVerificationStatus = {
+  pending_review: 'pending_review',
+  verified: 'verified',
+  rejected: 'rejected',
+} as const;
+
+export type AdminStepSampleRawPayload = { [key: string]: unknown };
+
+export interface AdminStepSample {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  source: string;
+  sourceSampleId: string;
+  recordDate: string;
+  steps: number;
+  verificationStatus: AdminStepSampleVerificationStatus;
+  reviewFlags: string[];
+  rawPayload: AdminStepSampleRawPayload;
+  createdAt: string;
+}
+
+export interface AdminStepSamplesResponse {
+  samples: AdminStepSample[];
+}
+
+export type AdminStepSampleDecisionBodyDecision = typeof AdminStepSampleDecisionBodyDecision[keyof typeof AdminStepSampleDecisionBodyDecision];
+
+
+export const AdminStepSampleDecisionBodyDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface AdminStepSampleDecisionBody {
+  decision: AdminStepSampleDecisionBodyDecision;
+  /**
+     * @minLength 8
+     * @maxLength 1000
+     */
+  explanation: string;
+}
+
+export type AdminStepSampleDecisionResponseDecision = typeof AdminStepSampleDecisionResponseDecision[keyof typeof AdminStepSampleDecisionResponseDecision];
+
+
+export const AdminStepSampleDecisionResponseDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface AdminStepSampleDecisionResponse {
+  sample: AdminStepSample;
+  decision: AdminStepSampleDecisionResponseDecision;
+  explanation: string;
+  decidedBy: string;
+  dailyTotal: number;
+}
+
 export type AdminRecoveryCaseType = typeof AdminRecoveryCaseType[keyof typeof AdminRecoveryCaseType];
 
 

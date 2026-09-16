@@ -25,6 +25,14 @@ The raw sample remains available to support even when it is held for review.
 The daily verified total is rebuilt from verified samples, so a pending sample
 cannot silently increase a challenge result.
 
+Support can review pending samples through the admin step-sample review action.
+An approval changes only the sample's verification status to `verified` and
+rebuilds that user's affected date from all verified samples, including active
+challenge records whose date contains the sample. A rejection changes the status to `rejected`
+and rebuilds the same date without counting the sample. In both cases the raw
+payload and original review flags remain intact, and repeating a decision is
+rejected rather than counting the sample again.
+
 ## Recovery and settlement
 
 Participants can request one of three visible recovery states:

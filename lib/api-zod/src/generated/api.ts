@@ -1098,6 +1098,74 @@ export const GetAdminFlaggedStepRecordsResponse = zod.object({
 
 
 /**
+ * @summary List source samples waiting for support review
+ */
+export const GetAdminStepSamplesHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetAdminStepSamplesResponse = zod.object({
+  "samples": zod.array(zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "userName": zod.string(),
+  "userEmail": zod.string(),
+  "source": zod.string(),
+  "sourceSampleId": zod.string(),
+  "recordDate": zod.coerce.date(),
+  "steps": zod.int(),
+  "verificationStatus": zod.enum(['pending_review', 'verified', 'rejected']),
+  "reviewFlags": zod.array(zod.string()),
+  "rawPayload": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Approve or reject a source sample after support review
+ */
+export const DecideAdminStepSampleParams = zod.object({
+  "sampleId": zod.coerce.number().int()
+})
+
+export const DecideAdminStepSampleHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const decideAdminStepSampleBodyExplanationMin = 8;
+export const decideAdminStepSampleBodyExplanationMax = 1000;
+
+
+
+export const DecideAdminStepSampleBody = zod.object({
+  "decision": zod.enum(['approve', 'reject']),
+  "explanation": zod.string().min(decideAdminStepSampleBodyExplanationMin).max(decideAdminStepSampleBodyExplanationMax)
+})
+
+export const DecideAdminStepSampleResponse = zod.object({
+  "sample": zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "userName": zod.string(),
+  "userEmail": zod.string(),
+  "source": zod.string(),
+  "sourceSampleId": zod.string(),
+  "recordDate": zod.coerce.date(),
+  "steps": zod.int(),
+  "verificationStatus": zod.enum(['pending_review', 'verified', 'rejected']),
+  "reviewFlags": zod.array(zod.string()),
+  "rawPayload": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date()
+}),
+  "decision": zod.enum(['approve', 'reject']),
+  "explanation": zod.string(),
+  "decidedBy": zod.string(),
+  "dailyTotal": zod.int()
+})
+
+
+/**
  * @summary List pending recovery cases
  */
 export const GetAdminRecoveryCasesHeader = zod.object({

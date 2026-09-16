@@ -798,6 +798,64 @@ paths:
           description: Login required.
         "403":
           description: Admin access required.
+  /admin/step-samples:
+    get:
+      tags: [admin]
+      operationId: getAdminStepSamples
+      summary: List source samples waiting for support review
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Source samples held for review.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStepSamplesResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+  /admin/step-samples/{sampleId}/decision:
+    post:
+      tags: [admin]
+      operationId: decideAdminStepSample
+      summary: Approve or reject a source sample after support review
+      parameters:
+        - name: sampleId
+          in: path
+          required: true
+          schema: { type: integer }
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminStepSampleDecisionBody"
+      responses:
+        "200":
+          description: Source sample decision recorded and totals rebuilt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStepSampleDecisionResponse"
+        "400":
+          description: Invalid decision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
+        "404":
+          description: Source sample not found.
+        "409":
+          description: Source sample was already decided.
   /admin/recovery-cases:
     get:
       tags: [admin]
@@ -1593,6 +1651,51 @@ components:
           items:
             $ref: "#/components/schemas/AdminFlaggedStepRecord"
       required: [records]
+    AdminStepSample:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        userName: { type: string }
+        userEmail: { type: string }
+        source: { type: string }
+        sourceSampleId: { type: string }
+        recordDate: { type: string, format: date }
+        steps: { type: integer }
+        verificationStatus: { type: string, enum: [pending_review, verified, rejected] }
+        reviewFlags:
+          type: array
+          items: { type: string }
+        rawPayload:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+      required: [id, userId, userName, userEmail, source, sourceSampleId, recordDate, steps, verificationStatus, reviewFlags, rawPayload, createdAt]
+    AdminStepSamplesResponse:
+      type: object
+      properties:
+        samples:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminStepSample"
+      required: [samples]
+    AdminStepSampleDecisionBody:
+      type: object
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        explanation: { type: string, minLength: 8, maxLength: 1000 }
+      required: [decision, explanation]
+    AdminStepSampleDecisionResponse:
+      type: object
+      properties:
+        sample:
+          allOf:
+            - $ref: "#/components/schemas/AdminStepSample"
+        decision: { type: string, enum: [approve, reject] }
+        explanation: { type: string }
+        decidedBy: { type: string }
+        dailyTotal: { type: integer }
+      required: [sample, decision, explanation, decidedBy, dailyTotal]
     AdminRecoveryCase:
       type: object
       properties:
