@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startPodiumCloseoutScheduler } from "./services/podium-closeout";
 import { initializeStripeProvider } from "./services/stripe-provider";
 
 const rawPort = process.env["PORT"];
@@ -25,4 +26,5 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  startPodiumCloseoutScheduler();
 });
