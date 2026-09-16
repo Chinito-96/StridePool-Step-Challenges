@@ -30,6 +30,7 @@ const approvedStates = (process.env.PAID_PLAY_APPROVED_STATES ?? "")
   .split(",")
   .map((state) => state.trim().toUpperCase())
   .filter(Boolean);
+const counselApproved = process.env.PAID_PLAY_COUNSEL_APPROVED === "true";
 
 function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): string[] {
   const reasons: string[] = [];
@@ -37,6 +38,8 @@ function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): 
   if (input.age < status.minAge) reasons.push(`Paid play is available only to people ${status.minAge}+.`);
   if (!status.approvedStates.length) {
     reasons.push("Paid play is paused while state-by-state counsel review is pending.");
+  } else if (!counselApproved) {
+    reasons.push("Paid play is paused until written qualified-counsel approval is recorded.");
   } else if (!status.approvedStates.includes(input.state.toUpperCase())) {
     reasons.push("Paid play is not available in this state.");
   }
@@ -51,6 +54,7 @@ export function getComplianceStatus(): ComplianceStatus {
   const providerConfigured = provider.providerReady && provider.webhookReady;
   const paidPlayEnabled =
     process.env.PAID_PLAY_ENABLED === "true"
+    && counselApproved
     && providerConfigured
     && provider.backfillReady
     && provider.sandboxReconciliationPassed;
@@ -60,7 +64,7 @@ export function getComplianceStatus(): ComplianceStatus {
     providerName,
     webhookReady: provider.webhookReady,
     sandboxReconciliationPassed: provider.sandboxReconciliationPassed,
-    counselReviewRequired: approvedStates.length === 0,
+    counselReviewRequired: !counselApproved || approvedStates.length === 0,
     minAge: 18,
     approvedStates,
     requirements: [
@@ -68,6 +72,7 @@ export function getComplianceStatus(): ComplianceStatus {
       "Identity verified by the payment provider",
       "State eligibility confirmed after counsel review",
       "Paid-challenge terms and refund policy accepted",
+      "Geolocation, tax, dispute, responsible-play, and record-retention notices acknowledged",
       "Settlement, refund, dispute, and payout-retry events reconciled from the provider",
     ],
     settlementPolicy: [

@@ -1,6 +1,6 @@
 # StridePool real-money launch gate
 
-This is a launch-control memo, not legal advice. Paid pooled challenges remain disabled by default. A qualified attorney must review and sign off before `PAID_PLAY_ENABLED=true` or any state is added to `PAID_PLAY_APPROVED_STATES`.
+This is a launch-control memo, not legal advice. Paid pooled challenges remain disabled by default. A qualified attorney must review and sign off before `PAID_PLAY_ENABLED=true` or any state is added to `PAID_PLAY_APPROVED_STATES`. Stripe can be connected and exercised in sandbox mode without opening paid play.
 
 ## Counsel sign-off required
 
@@ -11,11 +11,40 @@ This is a launch-control memo, not legal advice. Paid pooled challenges remain d
 
 Until those items are complete, the server returns `paidPlayEnabled=false`, has no approved states, and the UI must not offer a paid checkout.
 
+## Published state availability matrix
+
+**Effective date:** 2026-09-15
+**Matrix status:** interim deny-all pending written qualified-counsel approval
+**Approval record:** none received; do not set `PAID_PLAY_COUNSEL_APPROVED=true`
+**Next review trigger:** before enabling any state, and whenever the challenge rules, fee, refund policy, payout flow, or applicable law changes
+
+The application must keep `PAID_PLAY_APPROVED_STATES` empty while this matrix is in force. Every listed jurisdiction is denied because the fixed-stake shared-pool model and no-finisher refund policy have not received written counsel approval for that jurisdiction.
+
+| Jurisdiction | Status | Effective date | Reason |
+| --- | --- | --- | --- |
+| AL, AK, AZ, AR, CA, CO, CT, DE, FL, GA, HI, ID, IL, IN, IA, KS, KY, LA, ME, MD, MA, MI, MN, MS, MO, MT, NE, NV, NH, NJ, NM, NY, NC, ND, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VT, VA, WA, WV, WI, WY, DC | DENY | 2026-09-15 | `NO_COUNSEL_APPROVAL` |
+| AS, GU, MP, PR, VI | DENY | 2026-09-15 | `NO_COUNSEL_APPROVAL` |
+
+After written approval, replace this interim matrix with one row per approved or denied jurisdiction, including the approving counsel or opinion reference, scope of the approval, effective date, and reason for every denial. A state must not be added to the environment variable based on product judgment alone.
+
+## Required participant notices to confirm with counsel
+
+Counsel must approve the final copy, placement, and acknowledgement/recording method for each notice before paid play opens:
+
+- **Age:** participant must be at least 18; explain how age is collected, verified, and rechecked.
+- **Identity and sanctions:** explain provider identity verification, beneficial-owner/sanctions screening where applicable, and what happens when verification is pending or fails.
+- **Geolocation:** explain that eligibility is jurisdiction-specific, how location is checked, and that location spoofing is prohibited.
+- **Fees and tax:** disclose the entry amount, any platform or processing fee, pool calculation, payout timing, tax forms/reporting, and participant responsibility for taxes.
+- **Settlement and no-finisher refund:** explain the fixed-stake shared pool, finisher calculation, grace/injury review rules, and that every entry is refunded when there are no finishers.
+- **Disputes and complaints:** explain provider disputes, chargebacks, support escalation, response timelines, and that disputes remain separate from settlement and refund events.
+- **Responsible play:** state that participation is voluntary, set expectations for spending limits and self-exclusion or pause options, and provide a support contact or process for concerns.
+- **Records and privacy:** state what eligibility, identity, location, payment, dispute, source, and settlement records are retained, for how long, why they are retained, and how access/deletion requests are handled where applicable.
+
 ## Provider and ledger controls
 
 - The payment provider is the source of truth for authorization, capture, payout, refund, dispute, and failure events.
 - The server records provider events in an append-only PostgreSQL ledger and stores a provider receipt in the same transaction. Provider event ids are unique, so duplicate webhook delivery is acknowledged without creating another money event.
-- Stripe is connected through Replit-managed configuration; application code does not store or expose API keys.
+- Stripe is connected through Replit-managed configuration; application code does not store or expose API keys. This connection enables hosted checkout, signed webhook reconciliation, and payout onboarding, but never overrides the counsel or reconciliation gates.
 - Checkout uses Stripe-hosted Checkout Sessions and real Stripe Price ids. Payout onboarding uses Stripe-hosted Express Account Links.
 - Webhooks are accepted only at `/api/stripe/webhook` with a valid Stripe `stripe-signature` over the unparsed request body.
 - Payment success/failure, refunds, disputes, and payout success/failure are normalized from signed Stripe events before they are recorded.
@@ -30,3 +59,11 @@ Until those items are complete, the server returns `paidPlayEnabled=false`, has 
 The Safety screen collects age, state, provider identity status, and terms consent, then sends them to the server-side eligibility decision. A successful form response is not sufficient by itself: provider onboarding, signed events, counsel approval, `PAID_PLAY_ENABLED=true`, and `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` are all required.
 
 The reconciliation flag is deliberately manual. Set it only after Stripe test-mode evidence confirms signed capture, duplicate/out-of-order recovery, and a matched persisted reconciliation run for `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`, `payout.paid`, and `payout.failed`. Connecting Stripe alone never enables paid play.
+
+The final production launch requires all of these controls together:
+
+1. Written counsel approval is recorded and `PAID_PLAY_COUNSEL_APPROVED=true`.
+2. `PAID_PLAY_APPROVED_STATES` contains only jurisdictions covered by that approval.
+3. `PAID_PLAY_ENABLED=true`.
+4. Stripe provider and managed webhook readiness are true.
+5. `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` is set after the required evidence is reviewed.
