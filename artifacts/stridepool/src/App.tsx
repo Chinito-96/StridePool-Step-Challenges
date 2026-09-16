@@ -1,11 +1,12 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminRecoveryCasesQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminRecoveryCase, type AdminRecoveryDecisionBody, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type Notification as ApiNotification, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
+import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminRecoveryCasesQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useSyncStridePoolSteps, useUpdateStridePoolProfile, useUpdateStridePoolHealthSourceConnection, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminRecoveryCase, type AdminRecoveryDecisionBody, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type Notification as ApiNotification, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert, CircleHelp, CircleUserRound, Clock3, Compass, Copy, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, UserCheck, UserPlus, Users, UsersRound, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
 import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
 import type { ProfileUpdate } from '@workspace/api-client-react';
+import { normalizeAppleHealthSamples, normalizeHealthConnectSamples, type NormalizedStepSample } from '@/step-sources';
 
 type Challenge = ApiChallenge;
 type Activity = { id: string; type: string; title: string; meta: string; timestamp: string };
@@ -24,6 +25,7 @@ type AppState = {
   compliance: ComplianceStatus;
   complianceLoading: boolean;
   healthSources: HealthSource[];
+  nativeSourceMessages: Partial<Record<'apple_health' | 'health_connect', string>>;
   recoveryCases: RecoveryCase[];
   stepReviews: StepReview[];
   freeStreak: FreeStreak;
@@ -33,6 +35,7 @@ type AppState = {
   updateEligibility: (eligibility: EligibilityProfile) => void;
   syncSteps: (source?: 'demo' | 'manual' | object, stepTotal?: number, recordDate?: string) => void;
   importCsv: (samples: Array<{ sourceSampleId: string; recordDate: string; steps: number; startTime: string; endTime: string; recordedAt: string; rawPayload: Record<string, unknown> }>) => void;
+  syncNativeSource: (source: 'apple_health' | 'health_connect') => void;
   requestRecovery: (challengeId: string, type: RecoveryRequestType, reason: string) => void;
   addFunds: () => void;
   toggleSetting: (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => void;
@@ -58,6 +61,7 @@ function AppProvider({ children }: { children: ReactNode }) {
   const leaveMutation = useLeaveStridePoolChallenge();
   const syncMutation = useSyncStridePoolSteps();
   const sourceMutation = useIngestStridePoolSourceSamples();
+  const connectionMutation = useUpdateStridePoolHealthSourceConnection();
   const recoveryMutation = useRequestStridePoolRecovery();
   const profileMutation = useUpdateStridePoolProfile();
   const pendingInvitesQuery = useGetStridePoolPendingInvites({ query: { queryKey: getGetStridePoolPendingInvitesQueryKey(), enabled: auth.isAuthenticated, staleTime: 30_000 } });
@@ -74,6 +78,7 @@ function AppProvider({ children }: { children: ReactNode }) {
   const stepReviews = bootstrap?.stepReviews ?? [];
   const freeStreak = bootstrap?.freeStreak ?? { current: 0, best: 0, lastGoalDate: null };
   const pendingInvites = pendingInvitesQuery.data?.invites ?? bootstrap?.pendingInvites ?? [];
+  const [nativeSourceMessages, setNativeSourceMessages] = useState<Partial<Record<'apple_health' | 'health_connect', string>>>({});
   const eligibility: EligibilityProfile = { age: profile.eligibilityAge, state: profile.eligibilityState, identityStatus: profile.identityStatus, acceptedTerms: profile.acceptedTerms };
   const compliance = complianceData ?? { paidPlayEnabled: false, providerConfigured: false, providerName: 'Stripe', webhookReady: false, sandboxReconciliationPassed: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
   const invalidateBootstrap = () => queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
@@ -103,6 +108,37 @@ function AppProvider({ children }: { children: ReactNode }) {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
     sourceMutation.mutate({ source: 'csv_import', data: { samples } }, { onSuccess: invalidateBootstrap });
   };
+  const syncNativeSource = async (source: 'apple_health' | 'health_connect') => {
+    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
+    const bridge = window.StridePoolHealth;
+    if (!bridge) {
+      setNativeSourceMessages((current) => ({ ...current, [source]: 'Open StridePool from the iOS or Android companion app to request health permissions.' }));
+      return;
+    }
+    try {
+      const permission = await bridge.requestPermissions(source);
+      connectionMutation.mutate({ source, data: { status: permission } }, { onSuccess: invalidateBootstrap });
+      if (permission !== 'connected') {
+        setNativeSourceMessages((current) => ({ ...current, [source]: permission === 'denied' ? 'Permission was denied. You can allow step access in your device settings.' : 'Health access was revoked. Re-enable it in your device settings.' }));
+        return;
+      }
+      const nativeSamples = await bridge.readStepSamples(source, new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
+      const samples: NormalizedStepSample[] = source === 'apple_health' ? normalizeAppleHealthSamples(nativeSamples) : normalizeHealthConnectSamples(nativeSamples);
+      if (!samples.length) {
+        setNativeSourceMessages((current) => ({ ...current, [source]: 'Permission is active, but the companion returned no step samples from the last 48 hours.' }));
+        return;
+      }
+      sourceMutation.mutate({ source, data: { samples } }, {
+        onSuccess: (result) => {
+          setNativeSourceMessages((current) => ({ ...current, [source]: `${result.acceptedCount} sample${result.acceptedCount === 1 ? '' : 's'} received${result.pendingReviewCount ? ` · ${result.pendingReviewCount} held for review` : ''}.` }));
+          invalidateBootstrap();
+        },
+        onError: () => setNativeSourceMessages((current) => ({ ...current, [source]: 'The samples could not be saved. Permission remains connected; try syncing again.' })),
+      });
+    } catch {
+      setNativeSourceMessages((current) => ({ ...current, [source]: 'The companion could not complete the permission request. Try again from the mobile app.' }));
+    }
+  };
   const requestRecovery = (challengeId: string, type: RecoveryRequestType, reason: string) => {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
     recoveryMutation.mutate({ data: { challengeId, type, reason } }, { onSuccess: invalidateBootstrap });
@@ -115,8 +151,8 @@ function AppProvider({ children }: { children: ReactNode }) {
     if (!auth.isAuthenticated) { loginIfNeeded(); return; }
     profileMutation.mutate({ data: updates }, { onSuccess: invalidateBootstrap });
   };
-  const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => { const actualKey = key === 'weekly-digest' ? 'weeklyDigest' : key; updateProfile({ [actualKey]: !profile[actualKey] }); };
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncSteps, importCsv, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, recoveryCases, stepReviews, freeStreak, pendingInvites]);
+  const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => { const actualKey = key === 'weekly-digest' ? 'weeklyDigest' : key; if (actualKey === 'healthConnected') { void syncNativeSource('apple_health'); return; } updateProfile({ [actualKey]: !profile[actualKey] }); };
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncSteps, importCsv, syncNativeSource, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -261,12 +297,51 @@ function SourceTrustPanel({ sources, recoveryCases }: { sources: HealthSource[];
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your sources, plainly</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Free community progress accepts a daily total from a source you control. Every record is stored, checked for suspicious patterns, and kept separate from wallet and paid-challenge logic.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
       <StepSyncControls />
-      <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-start gap-3"><HeartPulse size={17} className="mt-0.5 shrink-0 text-secondary-foreground" /><div><p className="text-sm font-bold text-secondary-foreground">Native health data needs a companion app</p><p className="mt-1 text-[11px] leading-5 text-secondary-foreground/75">A browser cannot request Apple HealthKit or Android Health Connect permissions. Those sources are listed below for a future mobile shell; nothing here pretends a browser connection exists.</p></div></div></div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">{sources.map((source) => <div key={source.source} className="rounded-xl border border-border/80 bg-background p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-secondary-foreground"><HeartPulse size={17} /></span><div className="min-w-0"><p className="text-sm font-bold">{source.label}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{source.status === 'connected' ? `${source.verifiedSamples} verified samples` : 'Companion app required'}</p></div><span className="ml-auto h-2 w-2 rounded-full bg-muted-foreground/35" /></div>{source.pendingReview > 0 && <p className="mt-3 rounded-lg bg-primary/10 p-2 text-[11px] leading-4 text-primary">{source.pendingReview} sample{source.pendingReview === 1 ? '' : 's'} pending support review</p>}<Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" disabled data-testid={`button-connect-${source.source}`}>Available in mobile companion</Button></div>)}</div>
+      <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-start gap-3"><HeartPulse size={17} className="mt-0.5 shrink-0 text-secondary-foreground" /><div><p className="text-sm font-bold text-secondary-foreground">Native health data stays permissioned</p><p className="mt-1 text-[11px] leading-5 text-secondary-foreground/75">StridePool never asks the browser for health data. The iOS and Android companion requests the platform permission, reads step records, and sends only normalized samples for server-side verification.</p></div></div></div>
+      <NativeSourceCards sources={sources} />
       {stepReviews.length > 0 && <div className="mt-5 rounded-xl border border-primary/25 bg-primary/10 p-4" data-testid="panel-step-reviews"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-primary">Records held for review</p><Badge tone="coral">{stepReviews.length} flagged</Badge></div><div className="mt-3 space-y-2">{stepReviews.slice(0, 5).map((review) => <div className="rounded-lg bg-background/70 p-3" key={review.id}><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold">{review.steps.toLocaleString()} steps · {review.recordDate}</p><span className="font-mono-app text-[9px] uppercase text-primary">not counted</span></div><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{review.reviewFlags.map((flag) => flag.replaceAll('_', ' ')).join(' · ')} · {review.source.replaceAll('_', ' ')}</p></div>)}</div></div>}
     </div>
     <div className="rounded-2xl border border-border bg-secondary/55 p-5 sm:p-6"><div className="flex items-center gap-2 text-secondary-foreground"><HeartPulse size={18} /><p className="font-mono-app text-[10px] uppercase tracking-[.16em]">Fair recovery</p></div><h2 className="mt-2 font-display text-xl font-bold text-secondary-foreground">Life happens. The ledger waits.</h2><p className="mt-2 text-xs leading-5 text-secondary-foreground/75">Grace days, injury pauses, and support review keep a questionable day from deciding your payout without a human look.</p>{pendingCases.length ? <div className="mt-4 space-y-2">{pendingCases.slice(0, 2).map((item) => <div className="rounded-xl bg-background/60 p-3" key={item.id}><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">{item.challengeName}</p><Badge tone="teal">{item.status.replaceAll('_', ' ')}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">{item.type.replaceAll('_', ' ')}</p></div>)}</div> : <p className="mt-4 rounded-xl bg-background/60 p-3 text-[11px] leading-5 text-secondary-foreground/75">No recovery requests are open. Open a joined challenge to request one before settlement.</p>}</div>
   </section>{recoveryChallenge && <RecoveryPanel challenge={recoveryChallenge} cases={recoveryCases.filter((item) => item.challengeId === recoveryChallenge.id)} requestRecovery={requestRecovery} />}</>;
+}
+
+function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
+  const { syncNativeSource, nativeSourceMessages } = useApp();
+  const [busySource, setBusySource] = useState<string | null>(null);
+  const statusLabels: Record<HealthSource['status'], string> = {
+    available: 'Permission not requested',
+    connected: 'Connected',
+    denied: 'Permission denied',
+    stale: 'Sync is stale',
+    revoked: 'Permission revoked',
+  };
+  const statusStyles: Record<HealthSource['status'], string> = {
+    available: 'bg-muted-foreground/35',
+    connected: 'bg-primary',
+    denied: 'bg-destructive',
+    stale: 'bg-accent-foreground',
+    revoked: 'bg-destructive',
+  };
+  const actionLabels: Record<HealthSource['status'], string> = {
+    available: 'Connect in mobile app',
+    connected: 'Sync now',
+    denied: 'Try permission again',
+    stale: 'Sync now',
+    revoked: 'Open device settings',
+  };
+  return <div className="mt-5 grid gap-3 sm:grid-cols-2">{sources.map((source) => {
+    const isBusy = busySource === source.source;
+    const message = nativeSourceMessages[source.source as 'apple_health' | 'health_connect'];
+    const canSync = source.source === 'apple_health' || source.source === 'health_connect';
+    return <div key={source.source} className="rounded-xl border border-border/80 bg-background p-4" data-testid={`card-source-${source.source}`}>
+      <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-secondary-foreground"><HeartPulse size={17} /></span><div className="min-w-0"><p className="text-sm font-bold">{source.label}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{statusLabels[source.status]}{source.lastSyncedAt ? ` · last sync ${new Date(source.lastSyncedAt).toLocaleString()}` : ''}</p></div><span className={`ml-auto h-2 w-2 rounded-full ${statusStyles[source.status]}`} aria-label={statusLabels[source.status]} /></div>
+      {source.status === 'connected' && <p className="mt-3 text-[11px] text-muted-foreground">{source.verifiedSamples} verified samples · {source.pendingReview} pending review</p>}
+      {source.status === 'stale' && <p className="mt-3 rounded-lg bg-accent/30 p-2 text-[11px] leading-4 text-accent-foreground">No successful delivery has arrived in more than 36 hours. Your existing verified totals remain unchanged.</p>}
+      {(source.status === 'denied' || source.status === 'revoked') && <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-[11px] leading-4 text-destructive">{source.status === 'denied' ? 'Permission was denied. Allow step access in device settings before trying again.' : 'Permission was revoked. Re-enable step access in device settings before syncing.'}</p>}
+      {message && <p className="mt-3 rounded-lg bg-primary/10 p-2 text-[11px] leading-4 text-primary" role="status">{message}</p>}
+      {canSync && <Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" disabled={isBusy} onClick={async () => { setBusySource(source.source); await syncNativeSource(source.source as 'apple_health' | 'health_connect'); setBusySource(null); }} data-testid={`button-connect-${source.source}`}>{isBusy ? 'Checking permission…' : actionLabels[source.status]}</Button>}
+    </div>;
+  })}</div>;
 }
 
 function StepSyncControls() {

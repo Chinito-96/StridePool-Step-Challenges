@@ -657,6 +657,41 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Login required.
+  /stridepool/sources/{source}/connection:
+    post:
+      tags: [stridepool]
+      operationId: updateStridePoolHealthSourceConnection
+      summary: Record a native health-source permission state
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [apple_health, health_connect]
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthSourceConnectionInput"
+      responses:
+        "200":
+          description: Updated permission state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthSource"
+        "400":
+          description: Invalid source or permission state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
   /stridepool/recovery:
     get:
       tags: [stridepool]
@@ -1331,7 +1366,7 @@ components:
       properties:
         source: { type: string, enum: [demo, manual, csv_import, apple_health, health_connect] }
         label: { type: string }
-        status: { type: string, enum: [available, connected] }
+        status: { type: string, enum: [available, connected, denied, stale, revoked] }
         lastSyncedAt: { type: [string, "null"], format: date-time }
         verifiedSamples: { type: integer }
         pendingReview: { type: integer }
@@ -1342,6 +1377,11 @@ components:
         sources:
           type: array
           items: { $ref: "#/components/schemas/HealthSource" }
+    HealthSourceConnectionInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [connected, denied, revoked] }
     StepSourceSample:
       type: object
       required: [sourceSampleId, recordDate, steps, startTime, endTime, rawPayload]

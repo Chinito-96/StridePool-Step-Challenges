@@ -178,6 +178,9 @@ export type HealthSourceStatus = typeof HealthSourceStatus[keyof typeof HealthSo
 export const HealthSourceStatus = {
   available: 'available',
   connected: 'connected',
+  denied: 'denied',
+  stale: 'stale',
+  revoked: 'revoked',
 } as const;
 
 export interface HealthSource {
@@ -560,6 +563,19 @@ export interface SyncStepsBody {
 
 export interface HealthSourcesResponse {
   sources: HealthSource[];
+}
+
+export type HealthSourceConnectionInputStatus = typeof HealthSourceConnectionInputStatus[keyof typeof HealthSourceConnectionInputStatus];
+
+
+export const HealthSourceConnectionInputStatus = {
+  connected: 'connected',
+  denied: 'denied',
+  revoked: 'revoked',
+} as const;
+
+export interface HealthSourceConnectionInput {
+  status: HealthSourceConnectionInputStatus;
 }
 
 export type StepSourceSampleRawPayload = { [key: string]: unknown };

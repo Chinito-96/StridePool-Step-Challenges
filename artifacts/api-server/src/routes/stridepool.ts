@@ -11,6 +11,7 @@ import {
   CreateStridePoolChallengeInviteResponse,
   GetStridePoolBootstrapResponse,
   GetStridePoolHealthSourcesResponse,
+  UpdateStridePoolHealthSourceConnectionBody,
   GetStridePoolInviteResponse,
   GetStridePoolPendingInvitesResponse,
   GetStridePoolNotificationsResponse,
@@ -272,10 +273,15 @@ async function getHealthSources(userId: string) {
     const connection = connections.find((item) => item.source === source);
     const [verified] = await db.select({ count: sql<number>`count(*)` }).from(stepSourceSamplesTable).where(and(eq(stepSourceSamplesTable.userId, userId), eq(stepSourceSamplesTable.source, source), eq(stepSourceSamplesTable.verificationStatus, "verified")));
     const [pending] = await db.select({ count: sql<number>`count(*)` }).from(stepSourceSamplesTable).where(and(eq(stepSourceSamplesTable.userId, userId), eq(stepSourceSamplesTable.source, source), eq(stepSourceSamplesTable.verificationStatus, "pending_review")));
+    const status = connection?.status === "denied" || connection?.status === "revoked"
+      ? connection.status
+      : connection?.lastSyncedAt && Date.now() - connection.lastSyncedAt.getTime() > 36 * 60 * 60 * 1000
+        ? "stale"
+        : connection ? "connected" : "available";
     return {
       source,
       label,
-      status: connection ? "connected" as const : "available" as const,
+      status,
       lastSyncedAt: connection?.lastSyncedAt?.toISOString() ?? null,
       verifiedSamples: Number(verified?.count ?? 0),
       pendingReview: Number(pending?.count ?? 0),
@@ -955,6 +961,41 @@ router.get("/stridepool/sources", async (req, res): Promise<void> => {
   const userId = requireUser(req, res);
   if (!userId) return;
   res.json(GetStridePoolHealthSourcesResponse.parse({ sources: await getHealthSources(userId) }));
+});
+
+router.post("/stridepool/sources/:source/connection", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const params = IngestStridePoolSourceSamplesParams.pick({ source: true }).safeParse(req.params);
+  const body = UpdateStridePoolHealthSourceConnectionBody.safeParse(req.body);
+  if (!params.success || !body.success || !HEALTH_SOURCES.some(({ source }) => source === params.data.source)) {
+    res.status(400).json({ error: "Send a valid native health-source permission state." });
+    return;
+  }
+  const source = params.data.source;
+  const [connection] = await db.insert(healthSourceConnectionsTable).values({
+    userId,
+    source,
+    status: body.data.status,
+    updatedAt: new Date(),
+  }).onConflictDoUpdate({
+    target: [healthSourceConnectionsTable.userId, healthSourceConnectionsTable.source],
+    set: { status: body.data.status, updatedAt: new Date() },
+  }).returning();
+  await db.update(usersTable).set({
+    healthConnected: body.data.status === "connected",
+    updatedAt: new Date(),
+  }).where(eq(usersTable.id, userId));
+  const [verified] = await db.select({ count: sql<number>`count(*)` }).from(stepSourceSamplesTable).where(and(eq(stepSourceSamplesTable.userId, userId), eq(stepSourceSamplesTable.source, source), eq(stepSourceSamplesTable.verificationStatus, "verified")));
+  const [pending] = await db.select({ count: sql<number>`count(*)` }).from(stepSourceSamplesTable).where(and(eq(stepSourceSamplesTable.userId, userId), eq(stepSourceSamplesTable.source, source), eq(stepSourceSamplesTable.verificationStatus, "pending_review")));
+  res.json({
+    source,
+    label: HEALTH_SOURCES.find((item) => item.source === source)?.label ?? source,
+    status: body.data.status,
+    lastSyncedAt: connection?.lastSyncedAt?.toISOString() ?? null,
+    verifiedSamples: Number(verified?.count ?? 0),
+    pendingReview: Number(pending?.count ?? 0),
+  });
 });
 
 router.post("/stridepool/sources/:source/samples", async (req, res): Promise<void> => {

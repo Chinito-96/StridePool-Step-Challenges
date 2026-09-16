@@ -67,6 +67,8 @@ export * from './groupChallengeInputGoalType';
 export * from './groupChallengeResponse';
 export * from './groupSummary';
 export * from './healthSource';
+export * from './healthSourceConnectionInput';
+export * from './healthSourceConnectionInputStatus';
 export * from './healthSourceSource';
 export * from './healthSourcesResponse';
 export * from './healthSourceStatus';

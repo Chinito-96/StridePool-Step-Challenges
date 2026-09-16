@@ -12,4 +12,7 @@ export type HealthSourceStatus = typeof HealthSourceStatus[keyof typeof HealthSo
 export const HealthSourceStatus = {
   available: 'available',
   connected: 'connected',
+  denied: 'denied',
+  stale: 'stale',
+  revoked: 'revoked',
 } as const;

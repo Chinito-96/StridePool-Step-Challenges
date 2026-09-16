@@ -49,6 +49,8 @@ import type {
   GetStridePoolCommunityChallengesParams,
   GroupChallengeInput,
   GroupChallengeResponse,
+  HealthSource,
+  HealthSourceConnectionInput,
   HealthSourcesResponse,
   HealthStatus,
   IngestStepSamplesBody,
@@ -2506,6 +2508,78 @@ export const useIngestStridePoolSourceSamples = <TError = ErrorType<ErrorRespons
         TContext
       > => {
       return useMutation(getIngestStridePoolSourceSamplesMutationOptions(options));
+    }
+
+export const getUpdateStridePoolHealthSourceConnectionUrl = (source: 'apple_health' | 'health_connect',) => {
+
+
+
+
+  return `/api/stridepool/sources/${source}/connection`
+}
+
+/**
+ * @summary Record a native health-source permission state
+ */
+export const updateStridePoolHealthSourceConnection = async (source: 'apple_health' | 'health_connect',
+    healthSourceConnectionInput: HealthSourceConnectionInput, options?: Parameters<typeof customFetch>[1]): Promise<HealthSource> => {
+
+  return customFetch<HealthSource>(getUpdateStridePoolHealthSourceConnectionUrl(source),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(healthSourceConnectionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateStridePoolHealthSourceConnectionMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStridePoolHealthSourceConnection>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<HealthSourceConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStridePoolHealthSourceConnection>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<HealthSourceConnectionInput>}, TContext> => {
+
+const mutationKey = ['updateStridePoolHealthSourceConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStridePoolHealthSourceConnection>>, {source: 'apple_health' | 'health_connect';data: BodyType<HealthSourceConnectionInput>}> = (props) => {
+          const {source,data} = props ?? {};
+
+          return  updateStridePoolHealthSourceConnection(source,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStridePoolHealthSourceConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof updateStridePoolHealthSourceConnection>>>
+    export type UpdateStridePoolHealthSourceConnectionMutationBody = BodyType<HealthSourceConnectionInput>
+    export type UpdateStridePoolHealthSourceConnectionMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Record a native health-source permission state
+ */
+export const useUpdateStridePoolHealthSourceConnection = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStridePoolHealthSourceConnection>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<HealthSourceConnectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStridePoolHealthSourceConnection>>,
+        TError,
+        {source: 'apple_health' | 'health_connect';data: BodyType<HealthSourceConnectionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateStridePoolHealthSourceConnectionMutationOptions(options));
     }
 
 export const getGetStridePoolRecoveryCasesUrl = () => {

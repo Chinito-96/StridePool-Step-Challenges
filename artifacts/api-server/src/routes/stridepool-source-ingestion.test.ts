@@ -330,4 +330,35 @@ describe("StridePool source sample ingestion", () => {
       { sourceSampleId: "verified-daily-sample", verificationStatus: "verified" },
     ]);
   });
+
+  it("records denied, stale, and revoked native permission states", async () => {
+    const denied = await request("/stridepool/sources/apple_health/connection", {
+      method: "POST",
+      body: JSON.stringify({ status: "denied" }),
+    });
+    assert.equal(denied.status, 200);
+    assert.equal((denied.body as { status: string }).status, "denied");
+
+    const deniedSources = await request("/stridepool/sources");
+    assert.equal((deniedSources.body as { sources: Array<{ source: string; status: string }> }).sources.find((item) => item.source === "apple_health")?.status, "denied");
+
+    const connected = await request("/stridepool/sources/apple_health/connection", {
+      method: "POST",
+      body: JSON.stringify({ status: "connected" }),
+    });
+    assert.equal(connected.status, 200);
+    await db.update(healthSourceConnectionsTable).set({
+      lastSyncedAt: new Date(Date.now() - 37 * 60 * 60 * 1000),
+    }).where(and(eq(healthSourceConnectionsTable.userId, userId), eq(healthSourceConnectionsTable.source, "apple_health")));
+    const staleSources = await request("/stridepool/sources");
+    assert.equal((staleSources.body as { sources: Array<{ source: string; status: string }> }).sources.find((item) => item.source === "apple_health")?.status, "stale");
+
+    const revoked = await request("/stridepool/sources/apple_health/connection", {
+      method: "POST",
+      body: JSON.stringify({ status: "revoked" }),
+    });
+    assert.equal(revoked.status, 200);
+    const revokedSources = await request("/stridepool/sources");
+    assert.equal((revokedSources.body as { sources: Array<{ source: string; status: string }> }).sources.find((item) => item.source === "apple_health")?.status, "revoked");
+  });
 });

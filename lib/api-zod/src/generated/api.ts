@@ -16,7 +16,6 @@ export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
 
-
 /**
  * Returns the server-side controls that must pass before a paid entry can be offered.
  * @summary Get paid-play launch controls
@@ -284,7 +283,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "healthSources": zod.array(zod.object({
   "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
   "label": zod.string(),
-  "status": zod.enum(['available', 'connected']),
+  "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),
   "verifiedSamples": zod.int(),
   "pendingReview": zod.int()
@@ -350,7 +349,6 @@ export const GetStridePoolBootstrapResponse = zod.object({
 }))
 })
 
-
 /**
  * @summary Join a challenge for the authenticated user
  */
@@ -370,8 +368,6 @@ export const JoinStridePoolChallengeResponse = zod.object({
   "totalEarned": zod.number()
 })
 })
-
-
 /**
  * @summary Leave a challenge for the authenticated user
  */
@@ -885,7 +881,7 @@ export const GetStridePoolHealthSourcesResponse = zod.object({
   "sources": zod.array(zod.object({
   "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
   "label": zod.string(),
-  "status": zod.enum(['available', 'connected']),
+  "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),
   "verifiedSamples": zod.int(),
   "pendingReview": zod.int()
@@ -935,6 +931,31 @@ export const IngestStridePoolSourceSamplesResponse = zod.object({
   "verificationStatus": zod.enum(['verified', 'pending_review']),
   "reviewFlags": zod.array(zod.string())
 }))
+})
+
+
+/**
+ * @summary Record a native health-source permission state
+ */
+export const UpdateStridePoolHealthSourceConnectionParams = zod.object({
+  "source": zod.enum(['apple_health', 'health_connect'])
+})
+
+export const UpdateStridePoolHealthSourceConnectionHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const UpdateStridePoolHealthSourceConnectionBody = zod.object({
+  "status": zod.enum(['connected', 'denied', 'revoked'])
+})
+
+export const UpdateStridePoolHealthSourceConnectionResponse = zod.object({
+  "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
+  "label": zod.string(),
+  "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
+  "lastSyncedAt": zod.coerce.date().nullable(),
+  "verifiedSamples": zod.int(),
+  "pendingReview": zod.int()
 })
 
 
@@ -1146,6 +1167,8 @@ export const DecideAdminRecoveryCaseResponse = zod.object({
   "createdAt": zod.coerce.date()
 })
 })
+
+
 /**
  * @summary List challenge status and pool totals
  */
@@ -1291,3 +1314,5 @@ export const OverrideAdminChallengeParticipantResponse = zod.object({
   "createdAt": zod.coerce.date()
 })
 })
+
+

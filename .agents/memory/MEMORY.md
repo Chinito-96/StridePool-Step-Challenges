@@ -6,3 +6,4 @@
 - [OpenAPI date normalization](openapi-date-normalization.md) — generated date-format request bodies arrive as Date values and need explicit PostgreSQL date serialization.
 - [Ranking challenge podium rules](ranking-challenge-podium.md) — total verified steps determine winners; use 50/30/20 shares with deterministic tie and short-field handling.
 - [Product reference direction](product-reference-direction.md) — match Steppa’s core experience closely, then layer StridePool-specific public creator challenges on top.
+- [Native health bridge](native-health-bridge.md) — web code must call the companion bridge for HealthKit/Health Connect; browsers cannot request those permissions directly.
