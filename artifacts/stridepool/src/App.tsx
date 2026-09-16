@@ -252,24 +252,195 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities } = useApp();
+  const { challenges, steps, activities, wallet } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
   const goal = 10_000;
   const percent = Math.min(100, Math.round((steps / goal) * 100));
   const spotlight = challenges.find((item) => item.joined) ?? challenges[0];
   const upcoming = challenges.find((item) => !item.joined) ?? spotlight;
-  if (!spotlight || !upcoming) return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary"><Footprints size={25} /></div><h1 className="mt-5 font-display text-2xl font-bold">Your challenges are loading</h1><p className="mt-2 text-sm text-muted-foreground">We’re fetching the latest pools and your saved rhythm.</p></div>;
+  if (!spotlight || !upcoming) return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-muted text-primary shadow-sm"><Footprints size={28} /></div><h1 className="mt-6 font-display text-3xl font-extrabold tracking-[-.02em]">Your rhythm is loading</h1><p className="mt-3 text-base text-muted-foreground font-medium">We’re syncing your step data and verifying live prize pools.</p></div>;
+  
   return <div className="mx-auto max-w-[1280px]">
-    <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div className="rise-in"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">{dateLabel}</p><h1 className="font-display text-[clamp(2.15rem,5vw,3.7rem)] font-bold leading-[.97] tracking-[-.06em]">Keep your <span className="text-primary">rhythm.</span></h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">A little movement today keeps tomorrow feeling lighter.</p></div></div>
-    <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-      <div className="rise-in delay-1 relative overflow-hidden rounded-[22px] bg-foreground p-6 text-background shadow-[var(--shadow-soft)] sm:p-8"><div className="absolute -right-10 -top-16 h-56 w-56 rounded-full border-[28px] border-accent/80 opacity-80" /><div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full border-[20px] border-primary/80 opacity-70" /><div className="relative flex flex-col justify-between gap-8 sm:flex-row"><div><div className="flex items-center gap-2 text-background/60"><span className="h-2 w-2 rounded-full bg-accent" /><span className="font-mono-app text-[10px] uppercase tracking-[.18em]">Today's movement</span></div><div className="mt-6 flex items-baseline gap-2"><span className="font-display text-6xl font-bold tracking-[-.08em] sm:text-7xl" data-testid="text-todays-steps">{steps.toLocaleString()}</span><span className="font-mono-app text-xs text-background/50">/ {goal.toLocaleString()}</span></div><p className="mt-2 text-sm text-background/60">{goal - steps > 0 ? `${(goal - steps).toLocaleString()} steps to your daily goal` : 'Daily goal met — beautifully done.'}</p></div><div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-[10px] border-background/15 sm:h-36 sm:w-36" style={{ background: `conic-gradient(#bdcf57 ${percent}%, rgba(255,255,255,.1) 0)` }}><div className="flex h-[78%] w-[78%] flex-col items-center justify-center rounded-full bg-foreground"><span className="font-display text-2xl font-bold">{percent}%</span><span className="font-mono-app text-[9px] uppercase text-background/45">of goal</span></div></div></div><div className="relative mt-8 flex items-center justify-between border-t border-background/10 pt-4 text-xs text-background/55"><span className="flex items-center gap-2"><Flame size={15} className="text-primary" /> 4 day rhythm</span><span className="font-mono-app">Last sync 8:42 AM</span></div></div>
-       <div className="rise-in delay-2 rounded-[22px] border border-border bg-card p-6 shadow-[var(--shadow-card)]"><div className="flex items-center justify-between"><Badge tone="coral">Live now</Badge><RadioDot /></div><h2 className="mt-5 font-display text-2xl font-bold tracking-[-.045em]">{spotlight.name}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{spotlight.theme}</p><div className="mt-6 space-y-4"><StatLine icon={<Target size={16} />} label={spotlight.goalType === 'personalized' ? 'Your daily target' : 'Daily target'} value={`${spotlight.dailyGoal.toLocaleString()} steps`} /><StatLine icon={<Users size={16} />} label="Walking together" value={`${spotlight.participantCount} people`} /><StatLine icon={<Award size={16} />} label="Pool so far" value={spotlight.community ? 'Free to join' : `$${spotlight.prizePool.toLocaleString()}`} /></div><Link href={`/challenge/${spotlight.id}`} className="mt-6 flex items-center justify-between border-t border-border pt-4 text-sm font-bold text-primary" data-testid={`link-spotlight-${spotlight.id}`}>Open challenge <ArrowUpRight size={17} /></Link></div>
+    {/* Header section with date and greeting */}
+    <div className="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+      <div className="rise-in">
+        <p className="mb-3 font-mono-app text-[11px] uppercase tracking-[.25em] text-primary/80 font-bold">{dateLabel}</p>
+        <h1 className="font-display text-[clamp(2.5rem,6vw,4rem)] font-extrabold leading-[.9] tracking-[-.05em]">
+          Keep your <span className="text-primary relative inline-block">rhythm.<span className="absolute -bottom-2 left-0 w-full h-3 bg-primary/20 -z-10 rounded-full"></span></span>
+        </h1>
+        <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground font-medium">Every step verified. Every pool secured. A little movement today keeps tomorrow feeling lighter.</p>
+      </div>
+      
+      {/* Wallet mini-summary at the top right as a trust cue */}
+      <div className="rise-in delay-1 flex flex-col sm:items-end">
+        <Link href="/wallet" className="group flex flex-col items-start sm:items-end rounded-2xl bg-card border border-border p-4 shadow-sm hover:shadow-md transition-all lift-card min-w-[200px]" data-testid="link-wallet">
+          <div className="flex items-center gap-2 mb-1.5">
+            <ShieldCheck size={16} className="text-secondary-foreground" />
+            <span className="font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Verified Wallet</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-display text-3xl font-bold text-foreground tracking-[-.02em]">${wallet.balance.toFixed(2)}</span>
+            <span className="text-xs text-muted-foreground font-medium">available</span>
+          </div>
+        </Link>
+      </div>
+    </div>
+
+    <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr] xl:grid-cols-[1.2fr_1fr]">
+      {/* Left: Huge Step Progress Card */}
+      <div className="rise-in delay-2 relative overflow-hidden rounded-[32px] bg-foreground p-8 sm:p-10 shadow-[var(--shadow-soft)] flex flex-col justify-between">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-primary/30 to-accent/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 opacity-60 pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col lg:flex-row justify-between gap-10">
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-3 text-background/80 bg-background/10 w-fit px-3.5 py-2 rounded-full mb-8 border border-background/10 backdrop-blur-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent animate-pulse" />
+              <span className="font-mono-app text-[10px] uppercase tracking-[.2em] font-bold">Live Progress</span>
+            </div>
+            
+            <div className="flex items-baseline gap-3">
+              <span className="font-display text-7xl sm:text-8xl font-black tracking-[-.06em] text-background" data-testid="text-todays-steps">
+                {steps.toLocaleString()}
+              </span>
+              <span className="font-mono-app text-sm text-background/50 font-bold tracking-wider">/ {goal.toLocaleString()}</span>
+            </div>
+            
+            <p className="mt-4 text-base font-medium text-background/70 max-w-sm leading-relaxed">
+              {goal - steps > 0 ? <><strong className="text-background">{`${(goal - steps).toLocaleString()}`}</strong> verified steps to hit your daily goal.</> : 'Daily goal met — beautifully done.'}
+            </p>
+            
+            <div className="mt-10 flex flex-wrap gap-4 text-sm text-background/70">
+              <span className="flex items-center gap-2.5 bg-background/5 px-4 py-2.5 rounded-xl border border-background/10 backdrop-blur-sm shadow-sm">
+                <Flame size={18} className="text-primary" /> 
+                <strong className="text-background">4 day</strong> streak
+              </span>
+              <span className="flex items-center gap-2.5 bg-background/5 px-4 py-2.5 rounded-xl border border-background/10 backdrop-blur-sm shadow-sm">
+                <Clock3 size={18} className="text-accent" /> 
+                Synced <strong className="text-background">Just now</strong>
+              </span>
+            </div>
+          </div>
+          
+          <div className="flex-shrink-0 flex items-center justify-center relative self-center lg:self-start mt-4 lg:mt-0">
+            <div className="relative flex h-48 w-48 sm:h-56 sm:w-56 items-center justify-center rounded-full bg-background/5 border border-background/10 backdrop-blur-sm">
+              <svg className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-[0_0_15px_rgba(115,201,94,0.3)]" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="8" className="text-background/10" />
+                <circle 
+                  cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="8" 
+                  className="text-accent transition-all duration-1000 ease-out" 
+                  strokeDasharray="276.46" 
+                  strokeDashoffset={276.46 - (276.46 * percent) / 100}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="flex flex-col items-center justify-center">
+                <span className="font-display text-5xl font-extrabold text-background tracking-[-.04em]">{percent}%</span>
+                <span className="font-mono-app text-[10px] uppercase text-background/60 font-bold mt-2 tracking-widest">Complete</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right: Active Spotlight Challenge */}
+      <div className="rise-in delay-3 flex flex-col justify-between rounded-[32px] border border-border bg-card p-8 sm:p-10 shadow-[var(--shadow-card)] relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-bl-full pointer-events-none" />
+        
+        <div>
+          <div className="flex items-center justify-between mb-8">
+            <Badge tone="coral">Active Pool</Badge>
+            <RadioDot />
+          </div>
+          
+          <h2 className="font-display text-3xl font-extrabold tracking-[-.04em] mb-3 pr-4 leading-[1.1]">{spotlight.name}</h2>
+          <p className="text-sm font-medium text-muted-foreground mb-10 line-clamp-2 leading-relaxed">{spotlight.theme}</p>
+          
+          <div className="space-y-5 bg-muted/40 p-6 rounded-[20px] border border-border/60">
+            <StatLine icon={<Target size={18} strokeWidth={2.5} />} label={spotlight.goalType === 'personalized' ? 'Your target' : 'Daily target'} value={`${spotlight.dailyGoal.toLocaleString()} steps`} />
+            <StatLine icon={<Users size={18} strokeWidth={2.5} />} label="Verified walkers" value={`${spotlight.participantCount} people`} />
+            <div className="h-px bg-border/60 my-2" />
+            <StatLine icon={<Award size={18} strokeWidth={2.5} className="text-accent-foreground" />} label="Secured pool" value={spotlight.community ? 'Free entry' : `$${spotlight.prizePool.toLocaleString()}`} />
+          </div>
+        </div>
+        
+        <Link href={`/challenge/${spotlight.id}`} className="mt-8 flex w-full items-center justify-between rounded-xl bg-foreground px-6 py-4.5 text-sm font-bold text-background transition-all hover:bg-primary hover:scale-[1.02] shadow-md hover:shadow-lg group" data-testid={`link-spotlight-${spotlight.id}`}>
+          <span className="text-[15px]">View live standings</span>
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-background/20 group-hover:bg-background/30 transition-colors">
+            <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </span>
+        </Link>
+      </div>
     </section>
-    <section className="mt-10 grid gap-8 xl:grid-cols-[1fr_340px]">
-      <div className="rise-in delay-3"><SectionHeading eyebrow="Your circle" title="Challenges in motion" action={<Link href="/challenges" className="flex items-center gap-1 text-sm font-bold text-primary" data-testid="link-see-all-challenges">See all <ChevronRight size={16} /></Link>} /><div className="grid gap-4 sm:grid-cols-2">{challenges.filter((item) => item.joined).map((challenge) => <ChallengeMiniCard challenge={challenge} key={challenge.id} />)}<div className="flex min-h-[150px] flex-col items-center justify-center rounded-2xl border border-dashed border-border p-5 text-center"><div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-accent/35 text-accent-foreground"><Plus size={17} /></div><p className="text-sm font-bold">Find your next rhythm</p><Link href="/challenges" className="mt-1 text-xs text-muted-foreground underline decoration-primary/50 underline-offset-4" data-testid="link-discover-challenges">Browse open challenges</Link></div></div></div>
-      <div className="rise-in delay-4"><SectionHeading eyebrow="On deck" title="Coming up" /><div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"><div className="flex items-start justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${upcoming.color}33`, color: upcoming.color }}><CalendarDays size={19} /></div><Badge tone="teal">Starts {upcoming.startDate}</Badge></div><h3 className="mt-4 font-display text-lg font-bold">{upcoming.name}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{upcoming.days} days · {upcoming.dailyGoal.toLocaleString()} steps/day · ${upcoming.entryFee} entry</p><Link href={`/challenge/${upcoming.id}`} className="mt-5 flex w-full items-center justify-center rounded-xl border border-border py-2.5 text-sm font-bold transition hover:bg-muted" data-testid={`link-upcoming-${upcoming.id}`}>View details <ArrowUpRight size={15} className="ml-2" /></Link></div></div>
+
+    {/* Row 2: Secondary Content */}
+    <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
+      {/* Active Challenges */}
+      <div className="rise-in delay-4 flex flex-col">
+        <SectionHeading eyebrow="Your circle" title="Challenges in motion" action={<Link href="/challenges" className="group flex items-center gap-1.5 text-sm font-bold text-primary hover:text-primary/80 transition-colors bg-primary/10 px-3 py-1.5 rounded-full" data-testid="link-see-all-challenges">See all <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" /></Link>} />
+        
+        <div className="grid gap-5 sm:grid-cols-2 h-full">
+          {challenges.filter((item) => item.joined && item.id !== spotlight.id).slice(0, 3).map((challenge) => (
+            <ChallengeMiniCard challenge={challenge} key={challenge.id} />
+          ))}
+          
+          <Link href="/challenges" className="flex flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-border/80 bg-card/50 p-8 text-center hover:bg-muted/50 transition-all hover:border-primary/40 group lift-card min-h-[240px]">
+            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent/20 text-accent-foreground transition-transform duration-300 group-hover:scale-110 group-hover:bg-accent/30 shadow-sm">
+              <Plus size={24} strokeWidth={2.5} />
+            </div>
+            <p className="text-lg font-extrabold text-foreground tracking-[-.02em]">Find your next rhythm</p>
+            <p className="mt-2 text-sm text-muted-foreground font-medium">Browse verified open pools</p>
+          </Link>
+        </div>
+      </div>
+
+      {/* Activity & Upcoming */}
+      <div className="rise-in delay-5 flex flex-col gap-8">
+        {/* Upcoming Card */}
+        <div>
+          <SectionHeading eyebrow="On deck" title="Coming up next" />
+          <div className="rounded-[24px] border border-border bg-card p-7 shadow-[var(--shadow-card)] relative lift-card group/upcoming">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[18px] shadow-sm bg-card border border-border" style={{ color: upcoming.color }}>
+                <CalendarDays size={24} strokeWidth={2} />
+              </div>
+              <Badge tone="teal">Starts {upcoming.startDate}</Badge>
+            </div>
+            
+            <h3 className="font-display text-2xl font-extrabold tracking-[-.03em]">{upcoming.name}</h3>
+            <p className="mt-3 text-[13px] font-medium leading-relaxed text-muted-foreground flex gap-2.5 flex-wrap items-center">
+              <span className="flex items-center gap-1.5"><Clock3 size={15}/> {upcoming.days}d</span>
+              <span className="w-1 h-1 rounded-full bg-border"></span>
+              <span className="flex items-center gap-1.5"><Footprints size={15}/> {upcoming.dailyGoal.toLocaleString()}</span>
+              <span className="w-1 h-1 rounded-full bg-border"></span>
+              <span className="flex items-center gap-1.5"><Award size={15}/> ${upcoming.entryFee}</span>
+            </p>
+            
+            <Link href={`/challenge/${upcoming.id}`} className="mt-6 flex w-full items-center justify-center rounded-xl border-2 border-border/80 bg-transparent py-3 text-sm font-bold text-foreground transition-all hover:border-primary hover:text-primary group-hover/upcoming:border-border" data-testid={`link-upcoming-${upcoming.id}`}>
+              View details <ArrowUpRight size={16} className="ml-2 transition-transform group-hover/upcoming:translate-x-0.5 group-hover/upcoming:-translate-y-0.5" />
+            </Link>
+          </div>
+        </div>
+        
+        {/* Activity Feed */}
+        <div className="flex flex-col flex-1">
+          <SectionHeading 
+            eyebrow="Recent movement" 
+            title="Verified Activity" 
+            action={
+              <button onClick={() => setShowAllActivity(!showAllActivity)} className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors group bg-muted/50 px-3 py-1.5 rounded-full" data-testid="button-view-activity">
+                {showAllActivity ? 'Show less' : 'View all'} 
+                <ChevronRight size={16} className={`transition-transform ${showAllActivity ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
+              </button>
+            } 
+          />
+          <div className="rounded-[24px] border border-border bg-card shadow-[var(--shadow-card)] flex-1 overflow-hidden p-2">
+            {activities.slice(0, showAllActivity ? 15 : 4).map((activity) => (
+              <ActivityRow activity={activity} key={activity.id} />
+            ))}
+          </div>
+        </div>
+      </div>
     </section>
-    <section className="mt-10 rise-in delay-4"><SectionHeading eyebrow="Recent movement" title="Your activity" action={<button onClick={() => setShowAllActivity((value) => !value)} className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground" data-testid="button-view-activity">{showAllActivity ? 'Show less' : 'View all'} <ChevronRight size={16} className={showAllActivity ? 'rotate-90' : ''} /></button>} /><div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">{activities.slice(0, showAllActivity ? 20 : 4).map((activity) => <ActivityRow activity={activity} key={activity.id} />)}</div></section>
   </div>;
 }
 
@@ -324,10 +495,10 @@ function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
   })}</div>;
 }
 
-function RadioDot() { return <span className="flex items-center gap-1.5 font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground"><span className="pulse-dot h-1.5 w-1.5 rounded-full bg-primary" /> updates live</span>; }
-function StatLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { const isPayoutProjection = label === 'Est. finisher share'; return <div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary">{icon}</span><span className="text-xs text-muted-foreground">{isPayoutProjection ? 'Payout if you finish' : label}</span><span className="ml-auto text-sm font-bold">{isPayoutProjection ? value.replace(/^~/, '') : value}</span></div>; }
-function ChallengeMiniCard({ challenge }: { challenge: Challenge }) { const progress = Math.round((challenge.finishers / challenge.participantCount) * 100); return <Link href={`/challenge/${challenge.id}`} className="lift-card block rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]" data-testid={`card-joined-challenge-${challenge.id}`}><div className="flex items-start justify-between"><span className="h-3 w-3 rounded-full" style={{ backgroundColor: challenge.color }} /><Badge tone="lime">Joined</Badge></div><h3 className="mt-5 font-display text-lg font-bold">{challenge.name}</h3><div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground"><Clock3 size={13} /> {challenge.days} day challenge <span className="text-border">/</span> ends {challenge.endDate}</div><div className="mt-5"><div className="mb-2 flex justify-between font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground"><span>Group progress</span><span>{progress}%</span></div><div className="h-1.5 rounded-full bg-muted"><div className="progress-fill h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: challenge.color }} /></div></div></Link>; }
-function ActivityRow({ activity }: { activity: Activity }) { const Icon = activity.type === 'sync' ? RefreshCw : activity.type === 'milestone' ? Trophy : Footprints; return <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0 sm:px-5"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-primary"><Icon size={16} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{activity.title}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{activity.meta}</p></div><span className="shrink-0 font-mono-app text-[10px] text-muted-foreground">{activity.timestamp}</span></div>; }
+function RadioDot() { return <span className="flex items-center gap-2 font-mono-app text-[10px] uppercase tracking-widest text-muted-foreground font-bold"><span className="pulse-dot h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" /> updates live</span>; }
+function StatLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { const isPayoutProjection = label === 'Est. finisher share'; return <div className="flex items-center gap-3.5"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-background border border-border/50 text-primary shadow-sm">{icon}</span><span className="text-[13px] font-medium text-muted-foreground">{isPayoutProjection ? 'Payout if you finish' : label}</span><span className="ml-auto text-sm font-bold text-foreground">{isPayoutProjection ? value.replace(/^~/, '') : value}</span></div>; }
+function ChallengeMiniCard({ challenge }: { challenge: Challenge }) { const progress = Math.round((challenge.finishers / challenge.participantCount) * 100); return <Link href={`/challenge/${challenge.id}`} className="lift-card group block rounded-[24px] border border-border bg-card p-6 shadow-[var(--shadow-card)] relative overflow-hidden" data-testid={`card-joined-challenge-${challenge.id}`}><div className="absolute top-0 right-0 w-16 h-16 opacity-10 rounded-bl-full pointer-events-none transition-transform group-hover:scale-110" style={{ backgroundColor: challenge.color }} /><div className="flex items-start justify-between"><span className="h-4 w-4 rounded-full shadow-sm" style={{ backgroundColor: challenge.color }} /><Badge tone="lime">Joined</Badge></div><h3 className="mt-6 font-display text-xl font-bold tracking-[-.02em]">{challenge.name}</h3><div className="mt-2 flex items-center gap-2 text-xs font-medium text-muted-foreground"><Clock3 size={14} /> {challenge.days} day challenge <span className="text-border">/</span> ends {challenge.endDate}</div><div className="mt-6"><div className="mb-2.5 flex justify-between font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground font-bold"><span>Group progress</span><span>{progress}%</span></div><div className="h-2 rounded-full bg-muted/50 overflow-hidden"><div className="progress-fill h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: challenge.color }} /></div></div></Link>; }
+function ActivityRow({ activity }: { activity: Activity }) { const Icon = activity.type === 'sync' ? RefreshCw : activity.type === 'milestone' ? Trophy : Footprints; return <div className="flex items-center gap-4 border-b border-border/60 px-5 py-4.5 last:border-0 hover:bg-muted/30 transition-colors"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-background border border-border/50 text-primary shadow-sm"><Icon size={18} strokeWidth={2} /></span><div className="min-w-0 flex-1"><p className="truncate text-[15px] font-bold tracking-[-.01em]">{activity.title}</p><p className="mt-1 truncate text-[13px] font-medium text-muted-foreground">{activity.meta}</p></div><span className="shrink-0 font-mono-app text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{activity.timestamp}</span></div>; }
 
 function RankingChallengeCreator() {
   const { auth, eligibility, compliance, membership } = useApp();
