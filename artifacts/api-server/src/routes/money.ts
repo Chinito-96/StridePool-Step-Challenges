@@ -5,6 +5,7 @@ import {
 } from "@workspace/api-zod";
 import {
   createCheckout,
+  createProSubscriptionCheckout,
   getLedger,
   isProviderConfigured,
   startPayoutOnboarding,
@@ -36,6 +37,20 @@ router.post("/money/checkout", async (req, res): Promise<void> => {
     res.status(201).json(await createCheckout(userId, parsed.data));
   } catch (error) {
     res.status(409).json({ error: error instanceof Error ? error.message : "Checkout is not available." });
+  }
+});
+
+router.post("/billing/pro-checkout", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  if (!isProviderConfigured()) {
+    res.status(409).json({ error: "Pro checkout is unavailable until Stripe and its signed webhook are configured." });
+    return;
+  }
+  try {
+    res.status(201).json(await createProSubscriptionCheckout(userId));
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error ? error.message : "Pro checkout is unavailable." });
   }
 });
 

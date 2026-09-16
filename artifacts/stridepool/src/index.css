@@ -105,9 +105,27 @@
   html { background: hsl(var(--background)); }
   body { @apply font-sans antialiased bg-background text-foreground; margin: 0; }
   button, input, select { font: inherit; }
+  button, a, [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled), a, [role='button'] {
+    transition-property: transform, color, background-color, border-color, box-shadow, opacity;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(.2,.8,.2,1);
+  }
+  button:not(:disabled):active, a:active, [role='button']:active {
+    transform: scale(.97);
+    transition-duration: 80ms;
+  }
   button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
     outline: 3px solid hsl(var(--ring) / .35);
     outline-offset: 3px;
+  }
+  input, select {
+    transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+  }
+  input:focus, select:focus {
+    box-shadow: 0 0 0 4px hsl(var(--primary) / .08);
   }
 }
 
@@ -125,6 +143,15 @@
   z-index: 50;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.4'/%3E%3C/svg%3E");
 }
+.app-noise {
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(circle at 78% 12%, hsl(var(--accent) / .09), transparent 25rem),
+    radial-gradient(circle at 28% 78%, hsl(var(--secondary) / .22), transparent 31rem),
+    radial-gradient(circle at 92% 88%, hsl(var(--primary) / .055), transparent 24rem);
+  background-size: 115% 115%, 125% 125%, 120% 120%;
+  animation: ambient-drift 24s ease-in-out infinite alternate;
+}
 .page-enter { animation: page-enter .45s ease-out both; }
 .rise-in { animation: rise-in .55s cubic-bezier(.2,.8,.2,1) both; }
 .delay-1 { animation-delay: .07s; }
@@ -135,8 +162,60 @@
 .progress-fill { transition: width .55s cubic-bezier(.2,.8,.2,1); }
 .icon-button { transition: transform .2s ease, background-color .2s ease; }
 .icon-button:hover { transform: translateY(-1px); }
+.icon-button:hover svg { animation: icon-tilt .42s cubic-bezier(.2,.8,.2,1); }
 .lift-card { transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease; }
 .lift-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
+.lift-card:active { transform: translateY(-1px) scale(.99); }
+.lift-card:hover .progress-fill {
+  filter: saturate(1.15);
+  box-shadow: 0 0 12px hsl(var(--accent) / .28);
+}
+[role='dialog'] > div,
+[data-testid='panel-notifications'] {
+  animation: pop-in .28s cubic-bezier(.2,.9,.2,1) both;
+}
+[data-testid='text-notification-count'] {
+  animation: attention-pop 2.6s ease-in-out infinite;
+}
+[data-testid^='button-'] svg,
+[data-testid^='link-'] svg {
+  transition: transform .2s cubic-bezier(.2,.8,.2,1);
+}
+[data-testid^='button-']:hover svg,
+[data-testid^='link-']:hover svg {
+  transform: translateX(2px);
+}
 @keyframes page-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-dot { 0%,100% { opacity: .45; transform: scale(.92); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes ambient-drift {
+  0% { background-position: 0% 0%, 0% 100%, 100% 100%; }
+  100% { background-position: 9% 5%, 7% 91%, 93% 94%; }
+}
+@keyframes icon-tilt {
+  0%, 100% { transform: rotate(0); }
+  38% { transform: rotate(-8deg) scale(1.06); }
+  72% { transform: rotate(5deg); }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes attention-pop {
+  0%, 86%, 100% { transform: scale(1); }
+  91% { transform: scale(1.14); }
+  96% { transform: scale(.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+  button:not(:disabled):active, a:active, [role='button']:active,
+  .lift-card:hover, .lift-card:active {
+    transform: none;
+  }
+}

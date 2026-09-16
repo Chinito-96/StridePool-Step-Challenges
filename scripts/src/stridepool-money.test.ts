@@ -5,6 +5,8 @@ import {
   db,
   dailyStepRecordsTable,
   entriesTable,
+  activateProviderChallengeEntry,
+  getMembershipSummary,
   joinChallenge,
   leaveChallenge,
   MoneyLogicError,
@@ -91,7 +93,7 @@ beforeEach(async () => {
   await db.delete(entriesTable).where(inArray(entriesTable.userId, userIds));
   await db.delete(challengesTable).where(inArray(challengesTable.id, challengeIds));
   challengeIds.splice(0);
-  await db.update(usersTable).set({ walletBalance: "100.00", walletPending: "0.00", totalEarned: "0.00" }).where(inArray(usersTable.id, userIds));
+  await db.update(usersTable).set({ walletBalance: "100.00", walletPending: "0.00", totalEarned: "0.00", membershipPlan: "free", subscriptionStatus: "inactive" }).where(inArray(usersTable.id, userIds));
 });
 
 after(async () => {
@@ -152,6 +154,40 @@ describe("wallet join and leave transactions", () => {
     ]);
     assert.equal(results.filter((result) => result.refunded).length, 1);
     assert.deepEqual(await wallet(userIds[0]), { balance: "100.00", pending: "0.00", totalEarned: "0.00" });
+  });
+});
+
+describe("membership challenge limits and fixed entry prices", () => {
+  it("limits Free accounts to one active challenge and a $2 provider entry", async () => {
+    const first = await addChallenge();
+    const second = await addChallenge();
+    await activateProviderChallengeEntry(userIds[0], first, 200, "pi_free_1", beforeStart);
+    await assert.rejects(
+      () => activateProviderChallengeEntry(userIds[0], second, 200, "pi_free_2", beforeStart),
+      (error: unknown) => error instanceof MoneyLogicError && error.code === "CHALLENGE_LIMIT",
+    );
+    const membership = await getMembershipSummary(userIds[0], beforeStart);
+    assert.equal(membership.plan, "free");
+    assert.equal(membership.challengeJoinPrice, 2);
+    assert.equal(membership.activeChallengeCount, 1);
+    assert.equal(membership.activeChallengeLimit, 1);
+  });
+
+  it("allows Pro accounts five active challenges at $1 each", async () => {
+    await db.update(usersTable).set({ membershipPlan: "pro", subscriptionStatus: "active" }).where(eq(usersTable.id, userIds[0]));
+    const challengeIds = await Promise.all(Array.from({ length: 6 }, () => addChallenge()));
+    for (const [index, challengeId] of challengeIds.slice(0, 5).entries()) {
+      await activateProviderChallengeEntry(userIds[0], challengeId, 100, `pi_pro_${index}`, beforeStart);
+    }
+    await assert.rejects(
+      () => activateProviderChallengeEntry(userIds[0], challengeIds[5], 100, "pi_pro_6", beforeStart),
+      (error: unknown) => error instanceof MoneyLogicError && error.code === "CHALLENGE_LIMIT",
+    );
+    const membership = await getMembershipSummary(userIds[0], beforeStart);
+    assert.equal(membership.plan, "pro");
+    assert.equal(membership.challengeJoinPrice, 1);
+    assert.equal(membership.activeChallengeCount, 5);
+    assert.equal(membership.activeChallengeLimit, 5);
   });
 });
 

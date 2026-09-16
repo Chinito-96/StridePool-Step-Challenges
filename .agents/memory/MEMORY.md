@@ -10,3 +10,4 @@
 - [Managed Stripe webhook rotation](stripe-managed-webhook-rotation.md) — persist and resolve signing secrets from the sync record; runtime docs may expose methods missing from the installed package.
 - [Browser persistence assertions](browser-persistence-assertions.md) — wait for persisted values, not placeholder elements, when bootstrap data loads after navigation.
 - [Nullable daily-record upserts](daily-record-null-upsert.md) — composite uniqueness does not deduplicate rows when the challenge reference is NULL.
+- [Membership pricing](membership-pricing.md) — Free and Pro use fixed per-challenge contributions; creators pay and occupy a participation slot too.

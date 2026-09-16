@@ -37,6 +37,9 @@ export const usersTable = pgTable("users", {
   // Future real-payment fields: populate only when a provider is selected.
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeConnectAccountId: varchar("stripe_connect_account_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
+  subscriptionStatus: varchar("subscription_status").notNull().default("inactive"),
+  membershipPlan: varchar("membership_plan").notNull().default("free"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

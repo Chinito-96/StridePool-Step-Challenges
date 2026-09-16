@@ -253,7 +253,8 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 })),
   "joinedIds": zod.array(zod.string()),
   "steps": zod.int(),
@@ -280,6 +281,16 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "eligibilityState": zod.string().max(getStridePoolBootstrapResponseProfileEligibilityStateMax),
   "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
   "acceptedTerms": zod.boolean()
+}),
+  "membership": zod.object({
+  "plan": zod.enum(['free', 'pro']),
+  "status": zod.enum(['inactive', 'active', 'trialing', 'past_due', 'canceled']),
+  "monthlyPrice": zod.number(),
+  "challengeJoinPrice": zod.number(),
+  "activeChallengeLimit": zod.int(),
+  "activeChallengeCount": zod.int(),
+  "challengeCreationLimit": zod.int(),
+  "activeCreatedChallengeCount": zod.int()
 }),
   "healthSources": zod.array(zod.object({
   "source": zod.enum(['apple_health', 'health_connect']),
@@ -339,7 +350,8 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 }),
   "inviter": zod.object({
   "id": zod.string(),
@@ -348,6 +360,22 @@ export const GetStridePoolBootstrapResponse = zod.object({
 }),
   "createdAt": zod.coerce.date()
 }))
+})
+
+
+/**
+ * @summary Start the hosted checkout for StridePool Pro
+ */
+export const CreateProSubscriptionCheckoutHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const CreateProSubscriptionCheckoutResponse = zod.object({
+  "checkoutId": zod.string(),
+  "checkoutUrl": zod.url(),
+  "status": zod.enum(['requires_provider', 'requires_action', 'succeeded']),
+  "provider": zod.string(),
+  "ledgerEntryId": zod.string()
 })
 
 
@@ -425,7 +453,8 @@ export const GetStridePoolCommunityChallengesResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 }))
 })
 
@@ -441,9 +470,6 @@ export const createStridePoolChallengeBodyNameMax = 120;
 
 export const createStridePoolChallengeBodyThemeMax = 240;
 
-export const createStridePoolChallengeBodyEntryFeeMin = 0;
-export const createStridePoolChallengeBodyEntryFeeMax = 1000;
-
 export const createStridePoolChallengeBodyColorMin = 4;
 export const createStridePoolChallengeBodyColorMax = 30;
 
@@ -454,7 +480,6 @@ export const CreateStridePoolChallengeBody = zod.object({
   "theme": zod.string().min(1).max(createStridePoolChallengeBodyThemeMax),
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date(),
-  "entryFee": zod.number().min(createStridePoolChallengeBodyEntryFeeMin).max(createStridePoolChallengeBodyEntryFeeMax),
   "color": zod.string().min(createStridePoolChallengeBodyColorMin).max(createStridePoolChallengeBodyColorMax)
 })
 
@@ -478,7 +503,8 @@ export const CreateStridePoolChallengeResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 })
 
 
@@ -549,7 +575,8 @@ export const CreateStridePoolGroupChallengeResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 }),
   "members": zod.array(zod.object({
   "id": zod.string(),
@@ -689,7 +716,8 @@ export const GetStridePoolPendingInvitesResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 }),
   "inviter": zod.object({
   "id": zod.string(),
@@ -785,7 +813,8 @@ export const GetStridePoolInviteResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 }),
   "inviter": zod.object({
   "id": zod.string(),
@@ -833,7 +862,8 @@ export const AcceptStridePoolInviteResponse = zod.object({
   "visibility": zod.enum(['public', 'private_group']),
   "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
-  "joined": zod.boolean()
+  "joined": zod.boolean(),
+  "createdByCurrentUser": zod.boolean()
 })
 })
 

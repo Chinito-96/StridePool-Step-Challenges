@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { db } from "./index";
 import { challengesTable, dailyStepRecordsTable, entriesTable, usersTable, walletLedgerEntriesTable } from "./schema";
+import { membershipPolicyFor } from "./stridepool-membership";
 
 export type WalletSnapshot = {
   balance: number;
@@ -54,7 +55,7 @@ export function calculatePodiumPayouts(
 }
 
 export class MoneyLogicError extends Error {
-  constructor(public readonly code: "NOT_FOUND" | "INSUFFICIENT_FUNDS" | "ALREADY_STARTED" | "ALREADY_SETTLED" | "INVALID_FREE_CHALLENGE") {
+  constructor(public readonly code: "NOT_FOUND" | "INSUFFICIENT_FUNDS" | "ALREADY_STARTED" | "ALREADY_SETTLED" | "INVALID_FREE_CHALLENGE" | "CHALLENGE_LIMIT" | "PRICE_MISMATCH") {
     super(code);
   }
 }
@@ -93,6 +94,14 @@ export async function joinChallenge(userId: string, challengeId: string, now = n
 
     const [existing] = await tx.select().from(entriesTable).where(and(eq(entriesTable.userId, userId), eq(entriesTable.challengeId, challengeId)));
     if (existing?.status === "active") return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity };
+    const today = now.toISOString().slice(0, 10);
+    const [active] = await tx.select({ count: sql<number>`count(*)` })
+      .from(entriesTable)
+      .innerJoin(challengesTable, eq(entriesTable.challengeId, challengesTable.id))
+      .where(and(eq(entriesTable.userId, userId), eq(entriesTable.status, "active"), gte(challengesTable.endDate, today), ne(challengesTable.settlementStatus, "settled")));
+    if (Number(active?.count ?? 0) >= membershipPolicyFor(user).activeChallengeLimit) {
+      throw new MoneyLogicError("CHALLENGE_LIMIT");
+    }
 
     if (freeCommunity) {
       if (existing) {
@@ -143,6 +152,62 @@ export async function joinChallenge(userId: string, challengeId: string, now = n
   });
 }
 
+export async function activateProviderChallengeEntry(
+  userId: string,
+  challengeId: string,
+  amountCents: number,
+  paymentReference: string,
+  now = new Date(),
+): Promise<{ activated: boolean }> {
+  return db.transaction(async (tx) => {
+    const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, userId)).for("update");
+    const [challenge] = await tx.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
+    if (!user || !challenge) throw new MoneyLogicError("NOT_FOUND");
+    if (challenge.settlementStatus === "settled") throw new MoneyLogicError("ALREADY_SETTLED");
+    if (now >= toDate(challenge.startDate)) throw new MoneyLogicError("ALREADY_STARTED");
+    if (amountCents !== 100 && amountCents !== 200) {
+      throw new MoneyLogicError("PRICE_MISMATCH");
+    }
+    const [existing] = await tx.select().from(entriesTable)
+      .where(and(eq(entriesTable.userId, userId), eq(entriesTable.challengeId, challengeId)));
+    if (existing?.status === "active") return { activated: false };
+    const today = now.toISOString().slice(0, 10);
+    const [active] = await tx.select({ count: sql<number>`count(*)` })
+      .from(entriesTable)
+      .innerJoin(challengesTable, eq(entriesTable.challengeId, challengesTable.id))
+      .where(and(eq(entriesTable.userId, userId), eq(entriesTable.status, "active"), gte(challengesTable.endDate, today), ne(challengesTable.settlementStatus, "settled")));
+    if (Number(active?.count ?? 0) >= membershipPolicyFor(user).activeChallengeLimit) {
+      throw new MoneyLogicError("CHALLENGE_LIMIT");
+    }
+    const amount = (amountCents / 100).toFixed(2);
+    if (existing) {
+      await tx.update(entriesTable).set({
+        status: "active",
+        entryFee: amount,
+        joinedAt: now,
+        leftAt: null,
+        paymentProvider: "Stripe",
+        paymentReference,
+      }).where(eq(entriesTable.id, existing.id));
+    } else {
+      await tx.insert(entriesTable).values({
+        userId,
+        challengeId,
+        status: "active",
+        entryFee: amount,
+        joinedAt: now,
+        paymentProvider: "Stripe",
+        paymentReference,
+      });
+    }
+    await tx.update(challengesTable).set({
+      participantCount: sql`${challengesTable.participantCount} + 1`,
+      prizePool: sql`${challengesTable.prizePool} + ${amount}`,
+    }).where(eq(challengesTable.id, challengeId));
+    return { activated: true };
+  });
+}
+
 export async function leaveChallenge(userId: string, challengeId: string, now = new Date()): Promise<EntryTransactionResult> {
   return db.transaction(async (tx) => {
     const [challenge] = await tx.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
@@ -152,10 +217,10 @@ export async function leaveChallenge(userId: string, challengeId: string, now = 
     if (now >= toDate(challenge.startDate)) throw new MoneyLogicError("ALREADY_STARTED");
 
     const [leftEntry] = await tx.update(entriesTable).set({ status: "left", leftAt: now }).where(and(eq(entriesTable.id, entry.id), eq(entriesTable.status, "active"))).returning();
-    if (!leftEntry) return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity: challenge.community || cents(entry.entryFee) === 0 };
+    if (!leftEntry) return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity: cents(entry.entryFee) === 0 };
 
     const feeCents = cents(entry.entryFee);
-    const freeCommunity = challenge.community || feeCents === 0;
+    const freeCommunity = feeCents === 0;
     if (freeCommunity) {
       await tx.update(challengesTable).set({
         participantCount: sql`greatest(${challengesTable.participantCount} - 1, 0)`,
@@ -220,7 +285,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
       }
       throw new MoneyLogicError("ALREADY_SETTLED");
     }
-    if (challenge.community || cents(challenge.entryFee) === 0) {
+    if (cents(challenge.prizePool) === 0) {
       await tx.update(entriesTable).set({ settlementStatus: "free-complete", settlementAmount: "0.00", settledAt: now }).where(and(eq(entriesTable.challengeId, challengeId), eq(entriesTable.status, "active")));
       await tx.update(challengesTable).set({ settlementStatus: "settled", settledAt: now, settledPool: "0.00", finishers: 0 }).where(eq(challengesTable.id, challengeId));
       return { challengeId, poolTotal: 0, finisherCount: 0, perFinisherBase: 0, roundingRemainder: 0, refundedTotal: 0, alreadySettled: false };

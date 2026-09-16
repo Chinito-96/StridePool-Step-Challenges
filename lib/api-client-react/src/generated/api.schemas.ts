@@ -94,6 +94,7 @@ export interface Challenge {
   graceDays: number;
   settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
+  createdByCurrentUser: boolean;
 }
 
 export interface Activity {
@@ -159,6 +160,36 @@ export interface ProfileUpdate {
   eligibilityState?: string;
   identityStatus?: ProfileUpdateIdentityStatus;
   acceptedTerms?: boolean;
+}
+
+export type MembershipSummaryPlan = typeof MembershipSummaryPlan[keyof typeof MembershipSummaryPlan];
+
+
+export const MembershipSummaryPlan = {
+  free: 'free',
+  pro: 'pro',
+} as const;
+
+export type MembershipSummaryStatus = typeof MembershipSummaryStatus[keyof typeof MembershipSummaryStatus];
+
+
+export const MembershipSummaryStatus = {
+  inactive: 'inactive',
+  active: 'active',
+  trialing: 'trialing',
+  past_due: 'past_due',
+  canceled: 'canceled',
+} as const;
+
+export interface MembershipSummary {
+  plan: MembershipSummaryPlan;
+  status: MembershipSummaryStatus;
+  monthlyPrice: number;
+  challengeJoinPrice: number;
+  activeChallengeLimit: number;
+  activeChallengeCount: number;
+  challengeCreationLimit: number;
+  activeCreatedChallengeCount: number;
 }
 
 export type HealthSourceSource = typeof HealthSourceSource[keyof typeof HealthSourceSource];
@@ -280,6 +311,7 @@ export interface StridePoolBootstrap {
   activities: Activity[];
   wallet: WalletSummary;
   profile: ProfileSettings;
+  membership: MembershipSummary;
   healthSources: HealthSource[];
   recoveryCases: RecoveryCase[];
   stepReviews: StepReview[];
@@ -309,11 +341,6 @@ export interface ChallengeInput {
   theme: string;
   startDate: string;
   endDate: string;
-  /**
-     * @minimum 0
-     * @maximum 1000
-     */
-  entryFee: number;
   /**
      * @minLength 4
      * @maxLength 30

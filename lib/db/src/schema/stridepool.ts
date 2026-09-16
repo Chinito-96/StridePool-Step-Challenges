@@ -51,6 +51,7 @@ export const challengesTable = pgTable("challenges", {
   goalType: varchar("goal_type").notNull().default("fixed"),
   community: boolean("community").notNull().default(false),
   groupId: varchar("group_id").references(() => groupsTable.id, { onDelete: "set null" }),
+  creatorUserId: varchar("creator_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   graceDays: integer("grace_days").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

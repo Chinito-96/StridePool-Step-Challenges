@@ -10,6 +10,7 @@ import type { AuthUser } from './authUser';
 import type { Challenge } from './challenge';
 import type { FreeStreak } from './freeStreak';
 import type { HealthSource } from './healthSource';
+import type { MembershipSummary } from './membershipSummary';
 import type { PendingInvite } from './pendingInvite';
 import type { ProfileSettings } from './profileSettings';
 import type { RecoveryCase } from './recoveryCase';
@@ -24,6 +25,7 @@ export interface StridePoolBootstrap {
   activities: Activity[];
   wallet: WalletSummary;
   profile: ProfileSettings;
+  membership: MembershipSummary;
   healthSources: HealthSource[];
   recoveryCases: RecoveryCase[];
   stepReviews: StepReview[];

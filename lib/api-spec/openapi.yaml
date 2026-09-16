@@ -268,6 +268,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StridePoolBootstrap"
+  /billing/pro-checkout:
+    post:
+      tags: [billing]
+      operationId: createProSubscriptionCheckout
+      summary: Start the hosted checkout for StridePool Pro
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "201":
+          description: Pro subscription checkout created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "401":
+          description: Login required.
+        "409":
+          description: Pro checkout is unavailable or the account is already Pro.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /stridepool/challenges/{id}/join:
     post:
       tags: [stridepool]
@@ -1029,7 +1052,7 @@ components:
         success: { type: boolean, const: true }
     Challenge:
       type: object
-      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, challengeType, goalType, community, visibility, graceDays, settlementStatus, joined]
+      required: [id, name, theme, level, startDate, endDate, days, dailyGoal, entryFee, prizePool, participantCount, finishers, color, challengeType, goalType, community, visibility, graceDays, settlementStatus, joined, createdByCurrentUser]
       properties:
         id: { type: string }
         name: { type: string }
@@ -1051,6 +1074,7 @@ components:
         graceDays: { type: integer }
         settlementStatus: { type: string, enum: [open, pending_review, settled] }
         joined: { type: boolean }
+        createdByCurrentUser: { type: boolean }
     Activity:
       type: object
       required: [id, type, title, meta, timestamp]
@@ -1095,7 +1119,7 @@ components:
         acceptedTerms: { type: boolean }
     StridePoolBootstrap:
       type: object
-      required: [user, challenges, joinedIds, steps, activities, wallet, profile, healthSources, recoveryCases, stepReviews, freeStreak, pendingInvites]
+      required: [user, challenges, joinedIds, steps, activities, wallet, profile, membership, healthSources, recoveryCases, stepReviews, freeStreak, pendingInvites]
       properties:
         user:
           oneOf:
@@ -1113,6 +1137,7 @@ components:
           items: { $ref: "#/components/schemas/Activity" }
         wallet: { $ref: "#/components/schemas/WalletSummary" }
         profile: { $ref: "#/components/schemas/ProfileSettings" }
+        membership: { $ref: "#/components/schemas/MembershipSummary" }
         healthSources:
           type: array
           items: { $ref: "#/components/schemas/HealthSource" }
@@ -1141,14 +1166,25 @@ components:
           items: { $ref: "#/components/schemas/Challenge" }
     ChallengeInput:
       type: object
-      required: [name, theme, startDate, endDate, entryFee, color]
+      required: [name, theme, startDate, endDate, color]
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         theme: { type: string, minLength: 1, maxLength: 240 }
         startDate: { type: string, format: date }
         endDate: { type: string, format: date }
-        entryFee: { type: number, minimum: 0, maximum: 1000 }
         color: { type: string, minLength: 4, maxLength: 30 }
+    MembershipSummary:
+      type: object
+      required: [plan, status, monthlyPrice, challengeJoinPrice, activeChallengeLimit, activeChallengeCount, challengeCreationLimit, activeCreatedChallengeCount]
+      properties:
+        plan: { type: string, enum: [free, pro] }
+        status: { type: string, enum: [inactive, active, trialing, past_due, canceled] }
+        monthlyPrice: { type: number }
+        challengeJoinPrice: { type: number }
+        activeChallengeLimit: { type: integer }
+        activeChallengeCount: { type: integer }
+        challengeCreationLimit: { type: integer }
+        activeCreatedChallengeCount: { type: integer }
     GroupChallengeInput:
       type: object
       required: [groupName, memberUserIds, name, theme, startDate, endDate, dailyGoal, challengeType, goalType, graceDays, color]

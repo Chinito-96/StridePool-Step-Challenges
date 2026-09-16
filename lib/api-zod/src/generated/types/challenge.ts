@@ -30,4 +30,5 @@ export interface Challenge {
   graceDays: number;
   settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
+  createdByCurrentUser: boolean;
 }

@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { runMigrations } from "stripe-replit-sync";
-import { db, usersTable } from "@workspace/db";
+import { activateProviderChallengeEntry, db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import {
   getStripeSync,
@@ -77,6 +77,31 @@ async function getOrCreatePrice(
   return price.id;
 }
 
+async function getOrCreateProPrice(stripe: Stripe): Promise<string> {
+  const existingPrices = await stripe.prices.search({
+    query: "active:'true' AND metadata['stridepool_plan']:'pro_monthly'",
+    limit: 1,
+  });
+  if (existingPrices.data[0]) return existingPrices.data[0].id;
+  const existingProducts = await stripe.products.search({
+    query: "active:'true' AND metadata['stridepool_plan']:'pro'",
+    limit: 1,
+  });
+  const product = existingProducts.data[0] ?? await stripe.products.create({
+    name: "StridePool Pro",
+    description: "Join up to five challenges and create one active challenge.",
+    metadata: { stridepool_plan: "pro" },
+  });
+  const price = await stripe.prices.create({
+    product: product.id,
+    currency: "usd",
+    unit_amount: 500,
+    recurring: { interval: "month" },
+    metadata: { stridepool_plan: "pro_monthly" },
+  });
+  return price.id;
+}
+
 export function getStripeProviderStatus() {
   return {
     providerName,
@@ -109,6 +134,9 @@ export async function initializeStripeProvider(): Promise<void> {
         "charge.dispute.closed",
         "payout.paid",
         "payout.failed",
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
       ],
     },
   );
@@ -144,6 +172,47 @@ export async function createStripeCheckout(
     metadata,
     payment_intent_data: { metadata },
   }, { idempotencyKey });
+}
+
+export async function createStripeProCheckout(
+  user: typeof usersTable.$inferSelect,
+  idempotencyKey: string,
+) {
+  const stripe = await getUncachableStripeClient();
+  const customerId = await getOrCreateCustomer(stripe, user);
+  const priceId = await getOrCreateProPrice(stripe);
+  const baseUrl = publicBaseUrl();
+  const metadata = {
+    stridepool_user_id: user.id,
+    stridepool_plan: "pro",
+  };
+  return stripe.checkout.sessions.create({
+    customer: customerId,
+    client_reference_id: user.id,
+    mode: "subscription",
+    payment_method_types: ["card"],
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${baseUrl}/profile?subscription=success`,
+    cancel_url: `${baseUrl}/profile?subscription=cancelled`,
+    metadata,
+    subscription_data: { metadata },
+  }, { idempotencyKey });
+}
+
+async function applySubscriptionEvent(event: Stripe.Event): Promise<boolean> {
+  if (event.type !== "customer.subscription.created"
+    && event.type !== "customer.subscription.updated"
+    && event.type !== "customer.subscription.deleted") return false;
+  const subscription = event.data.object;
+  const userId = subscription.metadata.stridepool_user_id;
+  if (!userId) return true;
+  const active = subscription.status === "active" || subscription.status === "trialing";
+  await db.update(usersTable).set({
+    stripeSubscriptionId: subscription.id,
+    subscriptionStatus: subscription.status,
+    membershipPlan: active ? "pro" : "free",
+  }).where(eq(usersTable.id, userId));
+  return true;
 }
 
 export async function createStripePayoutOnboarding(
@@ -274,7 +343,27 @@ export async function processStripeWebhook(payload: Buffer, signature: string) {
   const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
   const stripeSync = await getStripeSync();
   await stripeSync.processWebhook(payload, signature);
+  if (await applySubscriptionEvent(event)) return { accepted: true, ignored: false };
   const normalized = await normalizedStripeEvent(event);
   if (!normalized) return { accepted: true, ignored: true };
-  return { ...(await recordProviderWebhook(normalized)), ignored: false };
+  const recorded = await recordProviderWebhook(normalized);
+  if (normalized.eventType === "payment_succeeded" && normalized.challengeId) {
+    try {
+      await activateProviderChallengeEntry(
+        normalized.userId,
+        normalized.challengeId,
+        normalized.amountCents,
+        normalized.providerEventId,
+      );
+    } catch (error) {
+      const paymentIntent = event.type === "payment_intent.succeeded" ? event.data.object.id : undefined;
+      if (!paymentIntent) throw error;
+      await stripe.refunds.create(
+        { payment_intent: paymentIntent, reason: "requested_by_customer" },
+        { idempotencyKey: `stridepool-entry-refund-${event.id}` },
+      );
+      return { ...recorded, ignored: false, entryActivated: false, refunded: true };
+    }
+  }
+  return { ...recorded, ignored: false };
 }

@@ -11,6 +11,10 @@ import type {
 import {
   db,
   challengesTable,
+  entriesTable,
+  getMembershipSummary,
+  membershipPlanFor,
+  membershipPolicyFor,
   moneyReconciliationRunsTable,
   payoutStatesTable,
   providerMoneyEventsTable,
@@ -22,6 +26,7 @@ import { projectPayoutEvent, signedLedgerAmountCents } from "./ledger-policy";
 import {
   createStripeCheckout,
   createStripePayoutOnboarding,
+  createStripeProCheckout,
   getStripeProviderStatus,
 } from "./stripe-provider";
 
@@ -156,8 +161,19 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, input.challengeId));
   if (!user || !challenge) throw new Error("Challenge or account was not found.");
-  if (Math.round(Number(challenge.entryFee) * 100) !== input.amountCents || challenge.community || input.amountCents < 1) {
-    throw new Error("Checkout amount does not match this challenge.");
+  const policy = membershipPolicyFor(user);
+  if (policy.challengeJoinPriceCents !== input.amountCents) {
+    throw new Error(`This ${membershipPlanFor(user) === "pro" ? "Pro" : "Free"} account joins challenges for $${(policy.challengeJoinPriceCents / 100).toFixed(2)}.`);
+  }
+  const [existingEntry] = await db.select({ id: entriesTable.id }).from(entriesTable).where(and(
+    eq(entriesTable.userId, userId),
+    eq(entriesTable.challengeId, challenge.id),
+    eq(entriesTable.status, "active"),
+  ));
+  if (existingEntry) throw new Error("You already joined this challenge.");
+  const membership = await getMembershipSummary(userId);
+  if (membership.activeChallengeCount >= membership.activeChallengeLimit) {
+    throw new Error(`${membership.plan === "pro" ? "Pro" : "Free"} accounts can join up to ${membership.activeChallengeLimit} active challenge${membership.activeChallengeLimit === 1 ? "" : "s"} at a time.`);
   }
   const eligibility = checkEligibility({
     age: user.eligibilityAge,
@@ -211,6 +227,20 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
     status: "requires_action" as const,
     provider: providerName,
     ledgerEntryId: entry.id,
+  };
+}
+
+export async function createProSubscriptionCheckout(userId: string) {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) throw new Error("Account not found.");
+  if (membershipPlanFor(user) === "pro") throw new Error("This account already has an active Pro membership.");
+  const checkout = await createStripeProCheckout(user, `pro-subscription-${user.id}-${Date.now()}`);
+  if (!checkout.url) throw new Error("Stripe did not return a hosted checkout URL.");
+  return {
+    checkoutId: checkout.id,
+    checkoutUrl: checkout.url,
+    status: "requires_action" as const,
+    provider: providerName,
   };
 }
 

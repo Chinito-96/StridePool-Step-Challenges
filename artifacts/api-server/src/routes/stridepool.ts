@@ -40,8 +40,8 @@ import {
   db,
   entriesTable,
   healthSourceConnectionsTable,
-  joinChallenge as joinMoneyChallenge,
   leaveChallenge as leaveMoneyChallenge,
+  getMembershipSummary,
   MoneyLogicError,
   stepSourceSamplesTable,
   reviewStepSample,
@@ -66,6 +66,7 @@ const ANONYMOUS_WALKER_COOKIE = "stridepool_anon";
 const ANONYMOUS_WALKER_TTL = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_PROFILE = { displayName: "Alex Morgan", reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, eligibilityAge: 0, eligibilityState: "", identityStatus: "not_started" as const, acceptedTerms: false };
 const DEFAULT_WALLET = { balance: 0, pending: 0, totalEarned: 0 };
+const DEFAULT_MEMBERSHIP = { plan: "free" as const, status: "inactive" as const, monthlyPrice: 0, challengeJoinPrice: 2, activeChallengeLimit: 1, activeChallengeCount: 0, challengeCreationLimit: 0, activeCreatedChallengeCount: 0 };
 const HEALTH_SOURCES = [
   { source: "apple_health" as const, label: "Apple Health" },
   { source: "health_connect" as const, label: "Android Health Connect" },
@@ -122,7 +123,7 @@ function profileFor(user: typeof usersTable.$inferSelect) {
     acceptedTerms: user.eligibilityAcceptedTerms,
   };
 }
-function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
+function challengeFor(challenge: Challenge, joinedIds: Set<string>, joinPrice = 2, currentUserId: string | null = null) {
   return {
     id: challenge.id,
     name: challenge.name,
@@ -132,7 +133,7 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
     endDate: dateLabel(challenge.endDate),
     days: challenge.days,
     dailyGoal: challenge.dailyGoal,
-    entryFee: numberValue(challenge.entryFee),
+    entryFee: joinPrice,
     prizePool: numberValue(challenge.prizePool),
     participantCount: challenge.participantCount,
     finishers: challenge.finishers,
@@ -144,6 +145,7 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
     graceDays: challenge.graceDays,
     settlementStatus: challenge.settlementStatus,
     joined: joinedIds.has(challenge.id),
+    createdByCurrentUser: challenge.creatorUserId === currentUserId,
   };
 }
 async function getUser(userId: string) {
@@ -481,10 +483,10 @@ async function getBootstrap(req: Request) {
     const joinedIds = anonymousId
       ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, anonymousId), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
       : new Set<string>();
-    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)), joinedIds: [...joinedIds], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
+    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)), joinedIds: [...joinedIds], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   }
   const user = await getUser(req.user.id);
-  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
+  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   const entries = await db.select().from(entriesTable).where(and(eq(entriesTable.userId, user.id), eq(entriesTable.status, "active")));
   const joinedIds = new Set(entries.map((entry) => entry.challengeId));
   const today = new Date().toISOString().slice(0, 10);
@@ -496,6 +498,7 @@ async function getBootstrap(req: Request) {
   const stepReviews = await getStepReviews(user.id);
   const freeStreak = await getFreeStreak(user.id);
   const pendingInvites = await getPendingInvites(user.id);
+  const membership = await getMembershipSummary(user.id);
   const entryActivities = entries.slice().sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime()).map((entry) => {
     const challenge = challenges.find((item) => item.id === entry.challengeId);
     return { id: `entry-${entry.id}`, type: "challenge", title: `You joined ${challenge?.name ?? "a challenge"}`, meta: `${numberValue(entry.entryFee) ? `$${numberValue(entry.entryFee)} committed` : "Free entry"} · persisted to your account`, timestamp: entry.joinedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }) };
@@ -519,12 +522,13 @@ async function getBootstrap(req: Request) {
   ].slice(0, 20);
   return {
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, profileImageUrl: user.profileImageUrl },
-    challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)),
+    challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds, membership.challengeJoinPrice, user.id)),
     joinedIds: [...joinedIds],
     steps: Number(stepTotal?.total ?? 0),
     activities,
     wallet: walletFor(user),
     profile: profileFor(user),
+    membership,
     healthSources,
     recoveryCases,
     stepReviews,
@@ -547,7 +551,8 @@ router.get("/stridepool/community-challenges", async (req, res): Promise<void> =
   const joinedIds = req.isAuthenticated()
     ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, req.user.id), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
     : new Set<string>();
-  res.json(GetStridePoolCommunityChallengesResponse.parse({ challenges: openChallenges.map((challenge) => challengeFor(challenge, joinedIds)) }));
+  const membership = req.isAuthenticated() ? await getMembershipSummary(req.user.id) : DEFAULT_MEMBERSHIP;
+  res.json(GetStridePoolCommunityChallengesResponse.parse({ challenges: openChallenges.map((challenge) => challengeFor(challenge, joinedIds, membership.challengeJoinPrice, req.isAuthenticated() ? req.user.id : null)) }));
 });
 
 router.post("/stridepool/challenges", async (req, res): Promise<void> => {
@@ -567,20 +572,30 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Choose a challenge window between one and 90 days." });
     return;
   }
-  const entryFee = Number(body.data.entryFee.toFixed(2));
-  if (entryFee > 0) {
-    const user = await getUser(userId);
-    const compliance = getComplianceStatus();
-    const eligibility = user ? checkEligibility({
-      age: user.eligibilityAge,
-      state: user.eligibilityState,
-      identityStatus: user.eligibilityIdentityStatus === "verified" || user.eligibilityIdentityStatus === "pending" ? user.eligibilityIdentityStatus : "not_started",
-      acceptedTerms: user.eligibilityAcceptedTerms,
-    }) : null;
-    if (!compliance.paidPlayEnabled || !eligibility?.eligible) {
-      res.status(409).json({ error: "Paid challenge creation is locked until launch controls and your eligibility checks pass." });
-      return;
-    }
+  const user = await getUser(userId);
+  const membership = await getMembershipSummary(userId);
+  if (membership.plan !== "pro") {
+    res.status(409).json({ error: "Creating a challenge requires StridePool Pro." });
+    return;
+  }
+  if (membership.activeCreatedChallengeCount >= membership.challengeCreationLimit) {
+    res.status(409).json({ error: "Pro includes one active challenge you create at a time." });
+    return;
+  }
+  if (membership.activeChallengeCount >= membership.activeChallengeLimit) {
+    res.status(409).json({ error: "You already have five active challenges. Finish or leave one before creating another." });
+    return;
+  }
+  const compliance = getComplianceStatus();
+  const eligibility = user ? checkEligibility({
+    age: user.eligibilityAge,
+    state: user.eligibilityState,
+    identityStatus: user.eligibilityIdentityStatus === "verified" || user.eligibilityIdentityStatus === "pending" ? user.eligibilityIdentityStatus : "not_started",
+    acceptedTerms: user.eligibilityAcceptedTerms,
+  }) : null;
+  if (!compliance.paidPlayEnabled || !eligibility?.eligible) {
+    res.status(409).json({ error: "Challenge creation is locked until launch controls and your eligibility checks pass." });
+    return;
   }
   const challengeId = `ranking_challenge_${randomBytes(12).toString("hex")}`;
   const [challenge] = await db.transaction(async (tx) => {
@@ -593,23 +608,21 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
       endDate,
       days,
       dailyGoal: 0,
-      entryFee: entryFee.toFixed(2),
+      entryFee: "0.00",
       prizePool: "0.00",
-      participantCount: entryFee === 0 ? 1 : 0,
+      participantCount: 0,
       finishers: 0,
       settlementStatus: "open",
       color: body.data.color,
       challengeType: "ranking",
       goalType: "total_steps",
-      community: entryFee === 0,
+      community: false,
+      creatorUserId: userId,
       graceDays: 0,
     }).returning();
-    if (entryFee === 0) {
-      await tx.insert(entriesTable).values({ userId, challengeId, status: "active", entryFee: "0.00" });
-    }
     return [created] as const;
   });
-  res.status(201).json(CreateStridePoolChallengeResponse.parse(challengeFor(challenge, new Set(entryFee === 0 ? [challenge.id] : []))));
+  res.status(201).json(CreateStridePoolChallengeResponse.parse(challengeFor(challenge, new Set(), membership.challengeJoinPrice, userId)));
 });
 
 router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => {
@@ -618,6 +631,19 @@ router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => 
   const body = CreateStridePoolGroupChallengeBody.safeParse(req.body ?? {});
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const membership = await getMembershipSummary(userId);
+  if (membership.plan !== "pro") {
+    res.status(409).json({ error: "Creating a private challenge requires StridePool Pro." });
+    return;
+  }
+  if (membership.activeCreatedChallengeCount >= membership.challengeCreationLimit) {
+    res.status(409).json({ error: "Pro includes one active challenge you create at a time." });
+    return;
+  }
+  if (membership.activeChallengeCount >= membership.activeChallengeLimit) {
+    res.status(409).json({ error: "You already have five active challenges. Finish or leave one before creating another." });
     return;
   }
   const start = body.data.startDate;
@@ -655,7 +681,7 @@ router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => 
       dailyGoal: body.data.dailyGoal,
       entryFee: "0",
       prizePool: "0",
-      participantCount: 1,
+      participantCount: 0,
       finishers: 0,
       settlementStatus: "open",
       color: body.data.color,
@@ -663,20 +689,15 @@ router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => 
       goalType: body.data.goalType,
       community: true,
       groupId,
+      creatorUserId: userId,
       graceDays: body.data.graceDays,
     };
     const [createdChallenge] = await tx.insert(challengesTable).values(challengeValues).returning();
-    await tx.insert(entriesTable).values({
-      userId,
-      challengeId,
-      status: "active",
-      entryFee: "0",
-    });
     return [createdGroup, createdChallenge] as const;
   });
   res.status(201).json(CreateStridePoolGroupChallengeResponse.parse({
     group: { id: group.id, name: group.name, ownerUserId: group.ownerUserId, memberCount: memberIds.length },
-    challenge: challengeFor(challenge, new Set([challenge.id])),
+    challenge: challengeFor(challenge, new Set(), membership.challengeJoinPrice, userId),
     members: members.map(publicUser),
   }));
 });
@@ -950,19 +971,9 @@ router.post("/stridepool/invites/:token/accept", async (req, res): Promise<void>
     res.status(403).json({ error: "This invite was sent to another StridePool walker." });
     return;
   }
-  try {
-    await joinMoneyChallenge(userId, row.challenge.id);
-  } catch (error) {
-    if (error instanceof MoneyLogicError) {
-      const status = error.code === "NOT_FOUND" ? 404 : error.code === "ALREADY_STARTED" ? 409 : 400;
-      res.status(status).json({ error: error.message });
-      return;
-    }
-    throw error;
-  }
   await db.update(challengeInvitesTable).set({ status: "accepted", acceptedAt: new Date() }).where(eq(challengeInvitesTable.id, row.invite.id));
-  const joinedIds = new Set([row.challenge.id]);
-  res.json(AcceptStridePoolInviteResponse.parse({ joined: true, challenge: challengeFor(row.challenge, joinedIds) }));
+  const membership = await getMembershipSummary(userId);
+  res.json(AcceptStridePoolInviteResponse.parse({ joined: false, challenge: challengeFor(row.challenge, new Set(), membership.challengeJoinPrice, userId) }));
 });
 
 router.get("/stridepool/sources", async (req, res): Promise<void> => {
@@ -1219,27 +1230,11 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
     res.status(req.isAuthenticated() ? 403 : 401).json({ error: "This private challenge is limited to its group members." });
     return;
   }
-  const userId = req.isAuthenticated()
-    ? req.user.id
-    : challenge.community && numberValue(challenge.entryFee) === 0
-      ? await ensureAnonymousWalker(req, res)
-      : null;
-  if (!userId) {
-    res.status(401).json({ error: "Login required for paid or personalized challenges." });
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Login required to join a challenge." });
     return;
   }
-  try {
-    const result = await joinMoneyChallenge(userId, params.data.id);
-    await notifyGroupParticipants(challenge, userId);
-    res.json(JoinStridePoolChallengeResponse.parse({ joined: true, wallet: result.wallet }));
-  } catch (error) {
-    if (error instanceof MoneyLogicError) {
-      const status = error.code === "NOT_FOUND" ? 404 : error.code === "INSUFFICIENT_FUNDS" || error.code === "INVALID_FREE_CHALLENGE" ? 400 : 409;
-      res.status(status).json({ error: error.message });
-      return;
-    }
-    throw error;
-  }
+  res.status(409).json({ error: "Every challenge requires secure checkout before your place is activated." });
 });
 
 router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> => {

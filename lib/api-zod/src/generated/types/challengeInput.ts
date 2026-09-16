@@ -20,11 +20,6 @@ export interface ChallengeInput {
   startDate: Date;
   endDate: Date;
   /**
-     * @minimum 0
-     * @maximum 1000
-     */
-  entryFee: number;
-  /**
      * @minLength 4
      * @maxLength 30
      */

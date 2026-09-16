@@ -4,6 +4,7 @@ import { after, before, describe, it } from "node:test";
 import app from "../app";
 import { createSession } from "../lib/auth";
 import {
+  activateProviderChallengeEntry,
   challengesTable,
   db,
   pool,
@@ -203,16 +204,18 @@ describe("StridePool authenticated persistence across sessions", () => {
       acceptedTerms: true,
     });
 
-    const join = await request(`/stridepool/challenges/${challengeId}/join`, {
-      method: "POST",
-      session: firstSession,
-      body: JSON.stringify({}),
-    });
-    assert.equal(join.status, 200);
-    assert.deepEqual((join.body as { wallet: unknown }).wallet, {
-      balance: 45,
-      pending: 8,
-      totalEarned: 7,
+    await activateProviderChallengeEntry(userId, challengeId, 200, `${runId}-payment`, new Date());
+    await db.insert(walletLedgerEntriesTable).values({
+      id: `${runId}-payment-ledger`,
+      userId,
+      eventType: "payment_succeeded",
+      status: "recorded",
+      amountCents: 200,
+      currency: "usd",
+      providerEventId: `${runId}-provider-event`,
+      idempotencyKey: `${runId}-payment`,
+      challengeId,
+      metadata: { test: true },
     });
 
     const today = new Date().toISOString().slice(0, 10);
@@ -248,7 +251,7 @@ describe("StridePool authenticated persistence across sessions", () => {
     };
     assert.equal(first.user.id, userId);
     assert.deepEqual(first.profile, profile.body);
-    assert.deepEqual(first.wallet, { balance: 45, pending: 8, totalEarned: 7 });
+    assert.deepEqual(first.wallet, { balance: 50, pending: 3, totalEarned: 7 });
     assert.equal(first.steps, 4321);
     assert.ok(first.joinedIds.includes(challengeId));
     assert.equal(first.challenges.find((challenge) => challenge.id === challengeId)?.joined, true);
@@ -331,7 +334,7 @@ describe("StridePool authenticated persistence across sessions", () => {
     const ledger = ownLedgerWithBrowserAccountId.body as Array<{ userId: string; amountCents: number }>;
     assert.ok(ledger.length > 0);
     assert.ok(ledger.every((entry) => entry.userId === userId));
-    assert.ok(ledger.some((entry) => entry.amountCents === 500));
+    assert.ok(ledger.some((entry) => entry.amountCents === 200));
     assert.ok(!ledger.some((entry) => entry.amountCents === 999));
   });
 });
