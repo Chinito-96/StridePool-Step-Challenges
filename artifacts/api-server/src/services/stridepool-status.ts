@@ -25,6 +25,9 @@ export function getParticipantStatus(
   if (overrideStatus) return { status: overrideStatus, missedDays: 0, elapsedDays: 0 };
   const through = today < challenge.startDate ? null : today < challenge.endDate ? today : challenge.endDate;
   const elapsedDays = through ? daysThrough(challenge.startDate, through).length : 0;
+  if (challenge.challengeType === "ranking") {
+    return { status: today > challenge.endDate ? "finished" : "on_track", missedDays: 0, elapsedDays };
+  }
   const qualifyingDates = new Set(
     records
       .filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate && record.steps >= dailyGoal)

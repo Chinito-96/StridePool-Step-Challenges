@@ -29,6 +29,8 @@ import type {
   AdminUserSearchResponse,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  Challenge,
+  ChallengeInput,
   ChallengeInviteInput,
   ChallengeInvitePreview,
   ChallengeInviteResponse,
@@ -1386,6 +1388,77 @@ export function useGetStridePoolCommunityChallenges<TData = Awaited<ReturnType<t
 
 
 
+
+export const getCreateStridePoolChallengeUrl = () => {
+
+
+
+
+  return `/api/stridepool/challenges`
+}
+
+/**
+ * @summary Create a total-steps podium challenge
+ */
+export const createStridePoolChallenge = async (challengeInput: ChallengeInput, options?: Parameters<typeof customFetch>[1]): Promise<Challenge> => {
+
+  return customFetch<Challenge>(getCreateStridePoolChallengeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(challengeInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStridePoolChallengeMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolChallenge>>, TError,{data: BodyType<ChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStridePoolChallenge>>, TError,{data: BodyType<ChallengeInput>}, TContext> => {
+
+const mutationKey = ['createStridePoolChallenge'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStridePoolChallenge>>, {data: BodyType<ChallengeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStridePoolChallenge(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStridePoolChallengeMutationResult = NonNullable<Awaited<ReturnType<typeof createStridePoolChallenge>>>
+    export type CreateStridePoolChallengeMutationBody = BodyType<ChallengeInput>
+    export type CreateStridePoolChallengeMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Create a total-steps podium challenge
+ */
+export const useCreateStridePoolChallenge = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolChallenge>>, TError,{data: BodyType<ChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStridePoolChallenge>>,
+        TError,
+        {data: BodyType<ChallengeInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStridePoolChallengeMutationOptions(options));
+    }
 
 export const getCreateStridePoolGroupChallengeUrl = () => {
 

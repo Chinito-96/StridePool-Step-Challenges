@@ -31,6 +31,7 @@ export * from './authUserEnvelope';
 export * from './beginBrowserLoginParams';
 export * from './challenge';
 export * from './challengeChallengeType';
+export * from './challengeInput';
 export * from './challengeInviteInput';
 export * from './challengeInvitePreview';
 export * from './challengeInviteResponse';

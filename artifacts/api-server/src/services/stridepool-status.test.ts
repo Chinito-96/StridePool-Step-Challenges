@@ -50,6 +50,11 @@ test("manual overrides supersede computed status", () => {
   assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, "finished", "2026-09-02").status, "finished");
 });
 
+test("ranking challenges never eliminate walkers for missing a daily target", () => {
+  assert.equal(getParticipantStatus(challenge({ challengeType: "ranking", dailyGoal: 0 }), [], 0, undefined, "2026-09-03").status, "on_track");
+  assert.equal(getParticipantStatus(challenge({ challengeType: "ranking", dailyGoal: 0 }), [], 0, undefined, "2026-09-06").status, "finished");
+});
+
 test("lifetime ranking counts mirrored free rows once per user and date", () => {
   const leaderboard = buildLifetimeLeaderboard([
     { userId: "a", displayName: "Alex", recordDate: "2026-09-01", steps: 8000 },

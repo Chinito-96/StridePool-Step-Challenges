@@ -4,3 +4,4 @@
 - [Admin operations boundary](admin-operations-boundary.md) — internal support reads require a database user role of admin; public sessions receive no operational data.
 - [API preview refresh](api-preview-refresh.md) — the API dev workflow builds once at startup, so restart it after server-side changes before runtime checks.
 - [OpenAPI date normalization](openapi-date-normalization.md) — generated date-format request bodies arrive as Date values and need explicit PostgreSQL date serialization.
+- [Ranking challenge podium rules](ranking-challenge-podium.md) — total verified steps determine winners; use 50/30/20 shares with deterministic tie and short-field handling.

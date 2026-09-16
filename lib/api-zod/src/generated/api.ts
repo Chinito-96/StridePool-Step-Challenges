@@ -247,7 +247,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
@@ -331,7 +331,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
@@ -417,7 +417,7 @@ export const GetStridePoolCommunityChallengesResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
@@ -425,6 +425,58 @@ export const GetStridePoolCommunityChallengesResponse = zod.object({
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean()
 }))
+})
+
+
+/**
+ * @summary Create a total-steps podium challenge
+ */
+export const CreateStridePoolChallengeHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const createStridePoolChallengeBodyNameMax = 120;
+
+export const createStridePoolChallengeBodyThemeMax = 240;
+
+export const createStridePoolChallengeBodyEntryFeeMin = 0;
+export const createStridePoolChallengeBodyEntryFeeMax = 1000;
+
+export const createStridePoolChallengeBodyColorMin = 4;
+export const createStridePoolChallengeBodyColorMax = 30;
+
+
+
+export const CreateStridePoolChallengeBody = zod.object({
+  "name": zod.string().min(1).max(createStridePoolChallengeBodyNameMax),
+  "theme": zod.string().min(1).max(createStridePoolChallengeBodyThemeMax),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "entryFee": zod.number().min(createStridePoolChallengeBodyEntryFeeMin).max(createStridePoolChallengeBodyEntryFeeMax),
+  "color": zod.string().min(createStridePoolChallengeBodyColorMin).max(createStridePoolChallengeBodyColorMax)
+})
+
+export const CreateStridePoolChallengeResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "theme": zod.string(),
+  "level": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "days": zod.int(),
+  "dailyGoal": zod.int(),
+  "entryFee": zod.number(),
+  "prizePool": zod.number(),
+  "participantCount": zod.int(),
+  "finishers": zod.int(),
+  "color": zod.string(),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
+  "goalType": zod.string(),
+  "community": zod.boolean(),
+  "visibility": zod.enum(['public', 'private_group']),
+  "graceDays": zod.int(),
+  "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
+  "joined": zod.boolean()
 })
 
 
@@ -462,7 +514,7 @@ export const CreateStridePoolGroupChallengeBody = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date(),
   "dailyGoal": zod.int().min(1).max(createStridePoolGroupChallengeBodyDailyGoalMax),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.enum(['fixed', 'personalized']),
   "graceDays": zod.int().min(createStridePoolGroupChallengeBodyGraceDaysMin).max(createStridePoolGroupChallengeBodyGraceDaysMax),
   "color": zod.string().min(createStridePoolGroupChallengeBodyColorMin).max(createStridePoolGroupChallengeBodyColorMax)
@@ -489,7 +541,7 @@ export const CreateStridePoolGroupChallengeResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
@@ -625,7 +677,7 @@ export const GetStridePoolPendingInvitesResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
@@ -721,7 +773,7 @@ export const GetStridePoolInviteResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
@@ -769,7 +821,7 @@ export const AcceptStridePoolInviteResponse = zod.object({
   "participantCount": zod.int(),
   "finishers": zod.int(),
   "color": zod.string(),
-  "challengeType": zod.enum(['goal', 'elimination']),
+  "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),

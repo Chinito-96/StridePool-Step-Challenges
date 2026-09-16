@@ -6,6 +6,8 @@ import {
   GetStridePoolLifetimeLeaderboardResponse,
   CreateStridePoolGroupChallengeBody,
   CreateStridePoolGroupChallengeResponse,
+  CreateStridePoolChallengeBody,
+  CreateStridePoolChallengeResponse,
   CreateStridePoolChallengeInviteResponse,
   GetStridePoolBootstrapResponse,
   GetStridePoolHealthSourcesResponse,
@@ -57,6 +59,7 @@ import { randomBytes } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { buildLifetimeLeaderboard, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
 import { buildGroupMemberJoinedCandidate, buildParticipantNotificationCandidates } from "../services/stridepool-notifications";
+import { checkEligibility, getComplianceStatus } from "../services/ledger";
 
 const router: IRouter = Router();
 const ANONYMOUS_WALKER_COOKIE = "stridepool_anon";
@@ -134,7 +137,7 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>) {
     participantCount: challenge.participantCount,
     finishers: challenge.finishers,
     color: challenge.color,
-    challengeType: challenge.challengeType === "elimination" ? "elimination" as const : "goal" as const,
+    challengeType: challenge.challengeType === "ranking" ? "ranking" as const : challenge.challengeType === "elimination" ? "elimination" as const : "goal" as const,
     goalType: challenge.goalType,
     community: challenge.community,
     visibility: challenge.groupId ? "private_group" as const : "public" as const,
@@ -530,6 +533,68 @@ router.get("/stridepool/community-challenges", async (req, res): Promise<void> =
   res.json(GetStridePoolCommunityChallengesResponse.parse({ challenges: openChallenges.map((challenge) => challengeFor(challenge, joinedIds)) }));
 });
 
+router.post("/stridepool/challenges", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const body = CreateStridePoolChallengeBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const start = body.data.startDate;
+  const end = body.data.endDate;
+  const startDate = start.toISOString().slice(0, 10);
+  const endDate = end.toISOString().slice(0, 10);
+  const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || days < 1 || days > 90) {
+    res.status(400).json({ error: "Choose a challenge window between one and 90 days." });
+    return;
+  }
+  const entryFee = Number(body.data.entryFee.toFixed(2));
+  if (entryFee > 0) {
+    const user = await getUser(userId);
+    const compliance = getComplianceStatus();
+    const eligibility = user ? checkEligibility({
+      age: user.eligibilityAge,
+      state: user.eligibilityState,
+      identityStatus: user.eligibilityIdentityStatus === "verified" || user.eligibilityIdentityStatus === "pending" ? user.eligibilityIdentityStatus : "not_started",
+      acceptedTerms: user.eligibilityAcceptedTerms,
+    }) : null;
+    if (!compliance.paidPlayEnabled || !eligibility?.eligible) {
+      res.status(409).json({ error: "Paid challenge creation is locked until launch controls and your eligibility checks pass." });
+      return;
+    }
+  }
+  const challengeId = `ranking_challenge_${randomBytes(12).toString("hex")}`;
+  const [challenge] = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(challengesTable).values({
+      id: challengeId,
+      name: body.data.name,
+      theme: body.data.theme,
+      level: "Open",
+      startDate,
+      endDate,
+      days,
+      dailyGoal: 0,
+      entryFee: entryFee.toFixed(2),
+      prizePool: "0.00",
+      participantCount: entryFee === 0 ? 1 : 0,
+      finishers: 0,
+      settlementStatus: "open",
+      color: body.data.color,
+      challengeType: "ranking",
+      goalType: "total_steps",
+      community: entryFee === 0,
+      graceDays: 0,
+    }).returning();
+    if (entryFee === 0) {
+      await tx.insert(entriesTable).values({ userId, challengeId, status: "active", entryFee: "0.00" });
+    }
+    return [created] as const;
+  });
+  res.status(201).json(CreateStridePoolChallengeResponse.parse(challengeFor(challenge, new Set(entryFee === 0 ? [challenge.id] : []))));
+});
+
 router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => {
   const userId = requireUser(req, res);
   if (!userId) return;
@@ -677,8 +742,8 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
     return;
   }
   const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, params.data.id));
-  if (!challenge || !challenge.community || numberValue(challenge.entryFee) !== 0) {
-    res.status(404).json({ error: "Free community challenge not found." });
+  if (!challenge) {
+    res.status(404).json({ error: "Challenge not found." });
     return;
   }
   if (challenge.groupId && (!req.isAuthenticated() || !(await isGroupMember(challenge.groupId, req.user.id)))) {
@@ -707,7 +772,7 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
     const userRecords = records.filter((record) => record.userId === entry.userId);
     const dailyGoal = challenge.goalType === "personalized" ? numberValue(user.goalBaseline) || challenge.dailyGoal : challenge.dailyGoal;
     const steps = userRecords.filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate).reduce((total, record) => total + record.steps, 0);
-    const completedDays = userRecords.filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate && record.steps >= dailyGoal).length;
+    const completedDays = userRecords.filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate && (challenge.challengeType === "ranking" ? record.steps > 0 : record.steps >= dailyGoal)).length;
     const participant = getParticipantStatus(challenge, userRecords, dailyGoal, latestOverrides.get(entry.userId));
     return { userId: user.id, displayName: publicUser(user).displayName, steps, completedDays, completionPercent: Math.min(100, Math.round((completedDays / challenge.days) * 100)), status: participant.status, isCurrentUser: user.id === currentUserId };
   }));

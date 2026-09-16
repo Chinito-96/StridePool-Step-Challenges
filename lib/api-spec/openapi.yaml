@@ -321,6 +321,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CommunityChallengesResponse"
+  /stridepool/challenges:
+    post:
+      tags: [stridepool]
+      operationId: createStridePoolChallenge
+      summary: Create a total-steps podium challenge
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeInput"
+      responses:
+        "201":
+          description: Ranking challenge created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Challenge"
+        "400":
+          description: Invalid challenge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
+        "409":
+          description: Paid challenge creation is not available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /stridepool/groups/challenges:
     post:
       tags: [stridepool]
@@ -939,7 +974,7 @@ components:
         participantCount: { type: integer }
         finishers: { type: integer }
         color: { type: string }
-        challengeType: { type: string, enum: [goal, elimination] }
+        challengeType: { type: string, enum: [goal, elimination, ranking] }
         goalType: { type: string }
         community: { type: boolean }
         visibility: { type: string, enum: [public, private_group] }
@@ -1034,6 +1069,16 @@ components:
         challenges:
           type: array
           items: { $ref: "#/components/schemas/Challenge" }
+    ChallengeInput:
+      type: object
+      required: [name, theme, startDate, endDate, entryFee, color]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        theme: { type: string, minLength: 1, maxLength: 240 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        entryFee: { type: number, minimum: 0, maximum: 1000 }
+        color: { type: string, minLength: 4, maxLength: 30 }
     GroupChallengeInput:
       type: object
       required: [groupName, memberUserIds, name, theme, startDate, endDate, dailyGoal, challengeType, goalType, graceDays, color]
@@ -1049,7 +1094,7 @@ components:
         startDate: { type: string, format: date }
         endDate: { type: string, format: date }
         dailyGoal: { type: integer, minimum: 1, maximum: 100000 }
-        challengeType: { type: string, enum: [goal, elimination] }
+        challengeType: { type: string, enum: [goal, elimination, ranking] }
         goalType: { type: string, enum: [fixed, personalized] }
         graceDays: { type: integer, minimum: 0, maximum: 30 }
         color: { type: string, minLength: 4, maxLength: 30 }

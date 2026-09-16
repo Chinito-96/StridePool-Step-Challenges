@@ -12,4 +12,5 @@ export type GroupChallengeInputChallengeType = typeof GroupChallengeInputChallen
 export const GroupChallengeInputChallengeType = {
   goal: 'goal',
   elimination: 'elimination',
+  ranking: 'ranking',
 } as const;

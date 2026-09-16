@@ -53,6 +53,7 @@ export type ChallengeChallengeType = typeof ChallengeChallengeType[keyof typeof 
 export const ChallengeChallengeType = {
   goal: 'goal',
   elimination: 'elimination',
+  ranking: 'ranking',
 } as const;
 
 export type ChallengeVisibility = typeof ChallengeVisibility[keyof typeof ChallengeVisibility];
@@ -293,12 +294,38 @@ export interface CommunityChallengesResponse {
   challenges: Challenge[];
 }
 
+export interface ChallengeInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 240
+     */
+  theme: string;
+  startDate: string;
+  endDate: string;
+  /**
+     * @minimum 0
+     * @maximum 1000
+     */
+  entryFee: number;
+  /**
+     * @minLength 4
+     * @maxLength 30
+     */
+  color: string;
+}
+
 export type GroupChallengeInputChallengeType = typeof GroupChallengeInputChallengeType[keyof typeof GroupChallengeInputChallengeType];
 
 
 export const GroupChallengeInputChallengeType = {
   goal: 'goal',
   elimination: 'elimination',
+  ranking: 'ranking',
 } as const;
 
 export type GroupChallengeInputGoalType = typeof GroupChallengeInputGoalType[keyof typeof GroupChallengeInputGoalType];

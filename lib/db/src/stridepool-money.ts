@@ -26,6 +26,33 @@ export type SettlementResult = {
   alreadySettled: boolean;
 };
 
+export type PodiumPayout = { entryId: number; rank: number; payoutCents: number };
+
+export function calculatePodiumPayouts(
+  ranked: Array<{ entryId: number; steps: number }>,
+  poolTotalCents: number,
+): PodiumPayout[] {
+  const shares = [50, 30, 20];
+  const groups: Array<{ rank: number; entries: Array<{ entryId: number; steps: number }> }> = [];
+  for (const entry of ranked.slice().sort((a, b) => b.steps - a.steps || a.entryId - b.entryId)) {
+    const previous = groups.at(-1);
+    if (previous?.entries[0]?.steps === entry.steps) previous.entries.push(entry);
+    else groups.push({ rank: previous ? previous.rank + previous.entries.length : 1, entries: [entry] });
+  }
+  const payouts: PodiumPayout[] = [];
+  for (const group of groups) {
+    if (group.rank > 3) break;
+    const combinedPercent = shares.slice(group.rank - 1, Math.min(3, group.rank - 1 + group.entries.length)).reduce((sum, value) => sum + value, 0);
+    const groupCents = Math.floor(poolTotalCents * combinedPercent / 100);
+    const base = Math.floor(groupCents / group.entries.length);
+    const remainder = groupCents % group.entries.length;
+    group.entries.forEach((entry, index) => payouts.push({ entryId: entry.entryId, rank: group.rank, payoutCents: base + (index < remainder ? 1 : 0) }));
+  }
+  const assigned = payouts.reduce((sum, payout) => sum + payout.payoutCents, 0);
+  if (payouts.length && assigned < poolTotalCents) payouts[0].payoutCents += poolTotalCents - assigned;
+  return payouts;
+}
+
 export class MoneyLogicError extends Error {
   constructor(public readonly code: "NOT_FOUND" | "INSUFFICIENT_FUNDS" | "ALREADY_STARTED" | "ALREADY_SETTLED" | "INVALID_FREE_CHALLENGE") {
     super(code);
@@ -206,7 +233,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
       ? await tx.select().from(usersTable).where(inArray(usersTable.id, entries.map((entry) => entry.userId)))
       : [];
     const userMap = new Map(users.map((user) => [user.id, user]));
-    const finisherEntries = entries.filter((entry) => {
+    const finisherEntries = challenge.challengeType === "ranking" ? entries : entries.filter((entry) => {
       const user = userMap.get(entry.userId);
       const goal = challenge.goalType === "personalized" ? Number(user?.goalBaseline ?? challenge.dailyGoal) : challenge.dailyGoal;
       const missedDays = dates.filter((date) => {
@@ -218,8 +245,13 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
 
     const poolTotalCents = cents(challenge.prizePool);
     const finisherCount = finisherEntries.length;
-    const baseCents = finisherCount ? Math.floor(poolTotalCents / finisherCount) : 0;
-    const remainder = finisherCount ? poolTotalCents % finisherCount : 0;
+    const podiumPayouts = challenge.challengeType === "ranking" ? calculatePodiumPayouts(entries.map((entry) => ({
+      entryId: entry.id,
+      steps: records.filter((record) => record.userId === entry.userId && record.verified && record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate).reduce((sum, record) => sum + record.steps, 0),
+    })), poolTotalCents) : [];
+    const podiumMap = new Map(podiumPayouts.map((payout) => [payout.entryId, payout]));
+    const baseCents = challenge.challengeType === "ranking" ? 0 : finisherCount ? Math.floor(poolTotalCents / finisherCount) : 0;
+    const remainder = challenge.challengeType === "ranking" ? 0 : finisherCount ? poolTotalCents % finisherCount : 0;
     const finisherIds = new Set(finisherEntries.map((entry) => entry.id));
     let refundedTotalCents = 0;
 
@@ -250,8 +282,9 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
         continue;
       }
 
-      const isFinisher = finisherIds.has(entry.id);
-      const payoutCents = isFinisher
+      const podiumPayout = podiumMap.get(entry.id);
+      const isFinisher = challenge.challengeType === "ranking" ? Boolean(podiumPayout) : finisherIds.has(entry.id);
+      const payoutCents = challenge.challengeType === "ranking" ? podiumPayout?.payoutCents ?? 0 : isFinisher
         ? baseCents + (finisherEntries.findIndex((candidate) => candidate.id === entry.id) < remainder ? 1 : 0)
         : 0;
       await tx.update(usersTable).set({
@@ -273,7 +306,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
         currency: "usd",
          idempotencyKey: `challenge_settlement:${challengeId}:${entry.id}`,
         challengeId,
-        metadata: { source: "challenge_settlement", entryId: entry.id, committedCents: feeCents },
+         metadata: { source: "challenge_settlement", entryId: entry.id, committedCents: feeCents, ...(podiumPayout ? { podiumRank: podiumPayout.rank } : {}) },
         createdAt: now,
       });
     }

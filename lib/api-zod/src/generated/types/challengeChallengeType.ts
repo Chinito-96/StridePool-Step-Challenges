@@ -12,4 +12,5 @@ export type ChallengeChallengeType = typeof ChallengeChallengeType[keyof typeof 
 export const ChallengeChallengeType = {
   goal: 'goal',
   elimination: 'elimination',
+  ranking: 'ranking',
 } as const;
