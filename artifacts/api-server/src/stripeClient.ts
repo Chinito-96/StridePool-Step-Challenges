@@ -65,11 +65,34 @@ export async function getUncachableStripeClient(): Promise<Stripe> {
 }
 
 export async function getStripeWebhookSecret(): Promise<string> {
-  const { webhookSecret } = await getStripeCredentials();
-  if (!webhookSecret) {
-    throw new Error("The managed Stripe webhook signing secret is unavailable.");
+  const credentials = await getStripeCredentials();
+  if (credentials.webhookSecret) return credentials.webhookSecret;
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    const stripeSync = new StripeSync({
+      poolConfig: { connectionString: databaseUrl },
+      stripeSecretKey: credentials.secretKey,
+      stripeWebhookSecret: "",
+    });
+    const managedWebhooks = await stripeSync.listManagedWebhooks();
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
+    const expectedUrl = domain
+      ? `https://${domain}/api/stripe/webhook`
+      : undefined;
+    const webhook = expectedUrl
+      ? managedWebhooks.find((candidate) =>
+        candidate.url === expectedUrl
+        && typeof (candidate as Stripe.WebhookEndpoint & { secret?: unknown }).secret === "string",
+      )
+      : undefined;
+    const persistedSecret = (webhook as (Stripe.WebhookEndpoint & { secret?: unknown }) | undefined)?.secret;
+    if (typeof persistedSecret === "string" && persistedSecret.length > 0) {
+      return persistedSecret;
+    }
   }
-  return webhookSecret;
+
+  throw new Error("The managed Stripe webhook signing secret is unavailable.");
 }
 
 export function setRuntimeStripeWebhookSecret(secret: string): void {
@@ -77,8 +100,12 @@ export function setRuntimeStripeWebhookSecret(secret: string): void {
 }
 
 export async function hasStripeWebhookSecret(): Promise<boolean> {
-  const { webhookSecret } = await getStripeCredentials();
-  return Boolean(webhookSecret);
+  try {
+    await getStripeWebhookSecret();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getStripeSync(): Promise<StripeSync> {
