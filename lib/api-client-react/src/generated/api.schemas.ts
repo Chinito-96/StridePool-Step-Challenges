@@ -221,38 +221,6 @@ export interface HealthSource {
   pendingReview: number;
 }
 
-export type RecoveryCaseType = typeof RecoveryCaseType[keyof typeof RecoveryCaseType];
-
-
-export const RecoveryCaseType = {
-  grace_day: 'grace_day',
-  injury_pause: 'injury_pause',
-  support_review: 'support_review',
-} as const;
-
-export type RecoveryCaseStatus = typeof RecoveryCaseStatus[keyof typeof RecoveryCaseStatus];
-
-
-export const RecoveryCaseStatus = {
-  requested: 'requested',
-  approved: 'approved',
-  denied: 'denied',
-  resolved: 'resolved',
-} as const;
-
-export interface RecoveryCase {
-  id: string;
-  challengeId: string;
-  challengeName: string;
-  type: RecoveryCaseType;
-  status: RecoveryCaseStatus;
-  reason: string;
-  sourceFlags: string[];
-  reviewMessage: string;
-  requestedAt: string;
-  updatedAt: string;
-}
-
 export type StepReviewSource = typeof StepReviewSource[keyof typeof StepReviewSource];
 
 
@@ -313,7 +281,6 @@ export interface StridePoolBootstrap {
   profile: ProfileSettings;
   membership: MembershipSummary;
   healthSources: HealthSource[];
-  recoveryCases: RecoveryCase[];
   stepReviews: StepReview[];
   freeStreak: FreeStreak;
   pendingInvites: PendingInvite[];
@@ -614,29 +581,6 @@ export interface IngestStepSamplesResponse {
   samples: SourceSampleResult[];
 }
 
-export type RecoveryRequestBodyType = typeof RecoveryRequestBodyType[keyof typeof RecoveryRequestBodyType];
-
-
-export const RecoveryRequestBodyType = {
-  grace_day: 'grace_day',
-  injury_pause: 'injury_pause',
-  support_review: 'support_review',
-} as const;
-
-export interface RecoveryRequestBody {
-  challengeId: string;
-  type: RecoveryRequestBodyType;
-  /**
-     * @minLength 8
-     * @maxLength 1000
-     */
-  reason: string;
-}
-
-export interface RecoveryCasesResponse {
-  cases: RecoveryCase[];
-}
-
 export interface ErrorResponse {
   error: string;
 }
@@ -877,82 +821,6 @@ export interface AdminStepSampleDecisionResponse {
   explanation: string;
   decidedBy: string;
   dailyTotal: number;
-}
-
-export type AdminRecoveryCaseType = typeof AdminRecoveryCaseType[keyof typeof AdminRecoveryCaseType];
-
-
-export const AdminRecoveryCaseType = {
-  grace_day: 'grace_day',
-  injury_pause: 'injury_pause',
-  support_review: 'support_review',
-} as const;
-
-export type AdminRecoveryCaseStatus = typeof AdminRecoveryCaseStatus[keyof typeof AdminRecoveryCaseStatus];
-
-
-export const AdminRecoveryCaseStatus = {
-  requested: 'requested',
-  approved: 'approved',
-  denied: 'denied',
-  resolved: 'resolved',
-} as const;
-
-export interface AdminRecoveryCase {
-  id: string;
-  challengeId: string;
-  challengeName: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  type: AdminRecoveryCaseType;
-  status: AdminRecoveryCaseStatus;
-  reason: string;
-  sourceFlags: string[];
-  requestedAt: string;
-  updatedAt: string;
-}
-
-export interface AdminRecoveryCasesResponse {
-  cases: AdminRecoveryCase[];
-}
-
-export type AdminRecoveryDecisionBodyDecision = typeof AdminRecoveryDecisionBodyDecision[keyof typeof AdminRecoveryDecisionBodyDecision];
-
-
-export const AdminRecoveryDecisionBodyDecision = {
-  approved: 'approved',
-  denied: 'denied',
-  resolved: 'resolved',
-} as const;
-
-export interface AdminRecoveryDecisionBody {
-  decision: AdminRecoveryDecisionBodyDecision;
-  /** @pattern ^[\s\S]{8,1000}$ */
-  explanation: string;
-}
-
-export type AdminRecoveryDecisionDecision = typeof AdminRecoveryDecisionDecision[keyof typeof AdminRecoveryDecisionDecision];
-
-
-export const AdminRecoveryDecisionDecision = {
-  approved: 'approved',
-  denied: 'denied',
-  resolved: 'resolved',
-} as const;
-
-export interface AdminRecoveryDecision {
-  id: string;
-  recoveryCaseId: string;
-  adminUserId: string;
-  decision: AdminRecoveryDecisionDecision;
-  explanation: string;
-  createdAt: string;
-}
-
-export interface AdminRecoveryDecisionResponse {
-  recoveryCase: AdminRecoveryCase;
-  decision: AdminRecoveryDecision;
 }
 
 export type AdminChallengeStatus = typeof AdminChallengeStatus[keyof typeof AdminChallengeStatus];

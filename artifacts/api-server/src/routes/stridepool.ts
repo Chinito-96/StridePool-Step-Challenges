@@ -17,7 +17,6 @@ import {
   GetStridePoolNotificationsResponse,
   MarkStridePoolNotificationReadResponse,
   MarkAllStridePoolNotificationsReadResponse,
-  GetStridePoolRecoveryCasesResponse,
   IngestStridePoolSourceSamplesBody,
   IngestStridePoolSourceSamplesParams,
   IngestStridePoolSourceSamplesResponse,
@@ -25,14 +24,11 @@ import {
   JoinStridePoolChallengeResponse,
   LeaveStridePoolChallengeParams,
   LeaveStridePoolChallengeResponse,
-  RequestStridePoolRecoveryBody,
-  RequestStridePoolRecoveryResponse,
   SearchStridePoolUsersResponse,
   UpdateStridePoolProfileBody,
   UpdateStridePoolProfileResponse,
 } from "@workspace/api-zod";
 import {
-  challengeRecoveryCasesTable,
   challengeInvitesTable,
   challengesTable,
   calculatePodiumPayouts,
@@ -288,25 +284,6 @@ async function getHealthSources(userId: string) {
     };
   }));
 }
-async function getRecoveryCases(userId: string) {
-  const rows = await db.select({
-    recovery: challengeRecoveryCasesTable,
-    challengeName: challengesTable.name,
-  }).from(challengeRecoveryCasesTable).innerJoin(challengesTable, eq(challengeRecoveryCasesTable.challengeId, challengesTable.id)).where(eq(challengeRecoveryCasesTable.userId, userId)).orderBy(desc(challengeRecoveryCasesTable.updatedAt));
-  return rows.map(({ recovery, challengeName }) => ({
-    id: String(recovery.id),
-    challengeId: recovery.challengeId,
-    challengeName,
-    type: recovery.type,
-    status: recovery.status,
-    reason: recovery.reason,
-    sourceFlags: recovery.sourceFlags,
-    reviewMessage: recovery.reviewMessage,
-    requestedAt: recovery.requestedAt.toISOString(),
-    updatedAt: recovery.updatedAt.toISOString(),
-  }));
-}
-
 async function getStepReviews(userId: string) {
   const rows = await db.select({
     id: stepSourceSamplesTable.id,
@@ -498,10 +475,10 @@ async function getBootstrap(req: Request) {
     const joinedIds = anonymousId
       ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, anonymousId), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
       : new Set<string>();
-    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)), joinedIds: [...joinedIds], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
+    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)), joinedIds: [...joinedIds], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   }
   const user = await getUser(req.user.id);
-  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
+  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   const entries = await db.select().from(entriesTable).where(and(eq(entriesTable.userId, user.id), eq(entriesTable.status, "active")));
   const joinedIds = new Set(entries.map((entry) => entry.challengeId));
   const today = new Date().toISOString().slice(0, 10);
@@ -509,7 +486,6 @@ async function getBootstrap(req: Request) {
   const [todaySteps] = await db.select().from(dailyStepRecordsTable).where(and(eq(dailyStepRecordsTable.userId, user.id), isNull(dailyStepRecordsTable.challengeId), eq(dailyStepRecordsTable.recordDate, today)));
   const ledgerEntries = await db.select().from(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.userId, user.id)).orderBy(desc(walletLedgerEntriesTable.createdAt)).limit(20);
   const healthSources = await getHealthSources(user.id);
-  const recoveryCases = await getRecoveryCases(user.id);
   const stepReviews = await getStepReviews(user.id);
   const freeStreak = await getFreeStreak(user.id);
   const pendingInvites = await getPendingInvites(user.id);
@@ -531,7 +507,6 @@ async function getBootstrap(req: Request) {
   });
   const activities = [
     ...(todaySteps ? [{ id: `sync-${todaySteps.id}`, type: "sync", title: "Verified steps synced", meta: `${todaySteps.steps.toLocaleString()} steps today · persisted to your account`, timestamp: todaySteps.recordDate }] : []),
-    ...recoveryCases.map((recovery) => ({ id: `recovery-${recovery.id}`, type: "recovery", title: `${recovery.type.replaceAll("_", " ")} requested`, meta: `${recovery.challengeName} · ${recovery.status.replaceAll("_", " ")}`, timestamp: recovery.requestedAt })),
     ...entryActivities,
     ...ledgerActivities,
   ].slice(0, 20);
@@ -545,7 +520,6 @@ async function getBootstrap(req: Request) {
     profile: profileFor(user),
     membership,
     healthSources,
-    recoveryCases,
     stepReviews,
     freeStreak,
     pendingInvites,
@@ -1129,94 +1103,6 @@ router.post("/stridepool/sources/:source/samples", async (req, res): Promise<voi
       reviewFlags: flags,
     })),
   }));
-});
-
-router.get("/stridepool/recovery", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  res.json(GetStridePoolRecoveryCasesResponse.parse({ cases: await getRecoveryCases(userId) }));
-});
-
-router.post("/stridepool/recovery", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const parsed = RequestStridePoolRecoveryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Choose a recovery type and explain what happened." });
-    return;
-  }
-  const challenge = (await db.select().from(challengesTable).where(eq(challengesTable.id, parsed.data.challengeId)))[0];
-  if (!challenge) {
-    res.status(404).json({ error: "Challenge not found." });
-    return;
-  }
-  if (challenge.settlementStatus === "settling" || challenge.settlementStatus === "settled") {
-    res.status(400).json({ error: "Recovery requests close when challenge settlement has started." });
-    return;
-  }
-  if (challenge.groupId && (!req.isAuthenticated() || !(await isGroupMember(challenge.groupId, req.user.id)))) {
-    res.status(req.isAuthenticated() ? 403 : 401).json({ error: "This private challenge is limited to its group members." });
-    return;
-  }
-  const [entry] = await db.select().from(entriesTable).where(and(
-    eq(entriesTable.userId, userId),
-    eq(entriesTable.challengeId, challenge.id),
-    eq(entriesTable.status, "active"),
-  ));
-  if (!entry) {
-    res.status(404).json({ error: "Join the challenge before requesting recovery." });
-    return;
-  }
-  if (parsed.data.type === "grace_day") {
-    const priorGraceDays = await db.select({ count: sql<number>`count(*)` }).from(challengeRecoveryCasesTable).where(and(
-      eq(challengeRecoveryCasesTable.userId, userId),
-      eq(challengeRecoveryCasesTable.challengeId, challenge.id),
-      eq(challengeRecoveryCasesTable.type, "grace_day"),
-      inArray(challengeRecoveryCasesTable.status, ["requested", "approved"]),
-    ));
-    if (Number(priorGraceDays[0]?.count ?? 0) >= challenge.graceDays) {
-      res.status(400).json({ error: "This challenge has no grace days left." });
-      return;
-    }
-  }
-  const pendingSamples = await db.select({ reviewFlags: stepSourceSamplesTable.reviewFlags })
-    .from(stepSourceSamplesTable)
-    .where(and(
-      eq(stepSourceSamplesTable.userId, userId),
-      eq(stepSourceSamplesTable.verificationStatus, "pending_review"),
-    ));
-  const sourceFlags = [...new Set(pendingSamples.flatMap((sample) => sample.reviewFlags))];
-  const reviewMessage = parsed.data.type === "grace_day"
-    ? "Your grace-day request is recorded and will be applied before settlement."
-    : parsed.data.type === "injury_pause"
-      ? "Your injury pause is pending. Support will protect the affected days while reviewing your source history."
-      : "Support review is open. We will compare source samples, timestamps, and challenge rules before settlement.";
-  const recovery = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(challengeRecoveryCasesTable).values({
-      userId,
-      challengeId: challenge.id,
-      type: parsed.data.type,
-      status: "requested",
-      reason: parsed.data.reason,
-      sourceFlags,
-      reviewMessage,
-    }).returning();
-    await tx.update(challengesTable).set({ settlementStatus: "pending_review" }).where(eq(challengesTable.id, challenge.id));
-    return created;
-  });
-  const result = {
-    id: String(recovery.id),
-    challengeId: challenge.id,
-    challengeName: challenge.name,
-    type: recovery.type,
-    status: recovery.status,
-    reason: recovery.reason,
-    sourceFlags: recovery.sourceFlags,
-    reviewMessage: recovery.reviewMessage,
-    requestedAt: recovery.requestedAt.toISOString(),
-    updatedAt: recovery.updatedAt.toISOString(),
-  };
-  res.status(201).json(RequestStridePoolRecoveryResponse.parse(result));
 });
 
 router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> => {

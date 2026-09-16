@@ -1,4 +1,4 @@
-# StridePool step verification and recovery
+# StridePool step verification
 
 StridePool accepts normalized step samples from two supported ecosystems:
 
@@ -32,18 +32,3 @@ challenge records whose date contains the sample. A rejection changes the status
 and rebuilds the same date without counting the sample. In both cases the raw
 payload and original review flags remain intact, and repeating a decision is
 rejected rather than counting the sample again.
-
-## Recovery and settlement
-
-Participants can request one of three visible recovery states:
-
-- **Grace day** — consumes one of the challenge's published grace days.
-- **Injury pause** — asks support to protect affected days while reviewing the
-  source history.
-- **Support review** — asks for a manual comparison of timestamps, raw source
-  samples, and the challenge rules.
-
-Any open recovery request moves the challenge to `pending_review`. Support
-resolves the request as approved, denied, or resolved before settlement. This
-keeps a source dispute separate from money events; paid settlement remains
-provider- and counsel-gated.

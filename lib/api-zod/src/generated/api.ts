@@ -300,18 +300,6 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "verifiedSamples": zod.int(),
   "pendingReview": zod.int()
 })),
-  "recoveryCases": zod.array(zod.object({
-  "id": zod.string(),
-  "challengeId": zod.string(),
-  "challengeName": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
-  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
-  "reason": zod.string(),
-  "sourceFlags": zod.array(zod.string()),
-  "reviewMessage": zod.string(),
-  "requestedAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})),
   "stepReviews": zod.array(zod.object({
   "id": zod.string(),
   "source": zod.enum(['demo', 'manual', 'csv_import', 'apple_health', 'health_connect']),
@@ -958,61 +946,6 @@ export const UpdateStridePoolHealthSourceConnectionResponse = zod.object({
 
 
 /**
- * @summary List recovery and settlement states
- */
-export const GetStridePoolRecoveryCasesHeader = zod.object({
-  "Authorization": zod.string().optional()
-})
-
-export const GetStridePoolRecoveryCasesResponse = zod.object({
-  "cases": zod.array(zod.object({
-  "id": zod.string(),
-  "challengeId": zod.string(),
-  "challengeName": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
-  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
-  "reason": zod.string(),
-  "sourceFlags": zod.array(zod.string()),
-  "reviewMessage": zod.string(),
-  "requestedAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-}))
-})
-
-
-/**
- * @summary Request a grace day or support review
- */
-export const RequestStridePoolRecoveryHeader = zod.object({
-  "Authorization": zod.string().optional()
-})
-
-export const requestStridePoolRecoveryBodyReasonMin = 8;
-export const requestStridePoolRecoveryBodyReasonMax = 1000;
-
-
-
-export const RequestStridePoolRecoveryBody = zod.object({
-  "challengeId": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
-  "reason": zod.string().min(requestStridePoolRecoveryBodyReasonMin).max(requestStridePoolRecoveryBodyReasonMax)
-})
-
-export const RequestStridePoolRecoveryResponse = zod.object({
-  "id": zod.string(),
-  "challengeId": zod.string(),
-  "challengeName": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
-  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
-  "reason": zod.string(),
-  "sourceFlags": zod.array(zod.string()),
-  "reviewMessage": zod.string(),
-  "requestedAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
-
-/**
  * @summary Add demo wallet funds for an authenticated user
  */
 export const AddStridePoolDemoFundsHeader = zod.object({
@@ -1162,76 +1095,6 @@ export const DecideAdminStepSampleResponse = zod.object({
   "explanation": zod.string(),
   "decidedBy": zod.string(),
   "dailyTotal": zod.int()
-})
-
-
-/**
- * @summary List pending recovery cases
- */
-export const GetAdminRecoveryCasesHeader = zod.object({
-  "Authorization": zod.string().optional()
-})
-
-export const GetAdminRecoveryCasesResponse = zod.object({
-  "cases": zod.array(zod.object({
-  "id": zod.string(),
-  "challengeId": zod.string(),
-  "challengeName": zod.string(),
-  "userId": zod.string(),
-  "userName": zod.string(),
-  "userEmail": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
-  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
-  "reason": zod.string(),
-  "sourceFlags": zod.array(zod.string()),
-  "requestedAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-}))
-})
-
-
-/**
- * @summary Record an auditable recovery decision
- */
-export const DecideAdminRecoveryCaseParams = zod.object({
-  "recoveryCaseId": zod.coerce.number().int()
-})
-
-export const DecideAdminRecoveryCaseHeader = zod.object({
-  "Authorization": zod.string().optional()
-})
-
-export const decideAdminRecoveryCaseBodyExplanationRegExp = new RegExp('^[\\s\\S]{8,1000}$');
-
-
-export const DecideAdminRecoveryCaseBody = zod.object({
-  "decision": zod.enum(['approved', 'denied', 'resolved']),
-  "explanation": zod.string().regex(decideAdminRecoveryCaseBodyExplanationRegExp)
-})
-
-export const DecideAdminRecoveryCaseResponse = zod.object({
-  "recoveryCase": zod.object({
-  "id": zod.string(),
-  "challengeId": zod.string(),
-  "challengeName": zod.string(),
-  "userId": zod.string(),
-  "userName": zod.string(),
-  "userEmail": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
-  "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
-  "reason": zod.string(),
-  "sourceFlags": zod.array(zod.string()),
-  "requestedAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-}),
-  "decision": zod.object({
-  "id": zod.string(),
-  "recoveryCaseId": zod.string(),
-  "adminUserId": zod.string(),
-  "decision": zod.enum(['approved', 'denied', 'resolved']),
-  "explanation": zod.string(),
-  "createdAt": zod.coerce.date()
-})
 })
 
 

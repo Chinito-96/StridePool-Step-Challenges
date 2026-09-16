@@ -692,53 +692,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Login required.
-  /stridepool/recovery:
-    get:
-      tags: [stridepool]
-      operationId: getStridePoolRecoveryCases
-      summary: List recovery and settlement states
-      parameters:
-        - $ref: "#/components/parameters/AuthorizationSessionHeader"
-        - $ref: "#/components/parameters/SessionCookie"
-      responses:
-        "200":
-          description: Recovery cases.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RecoveryCasesResponse"
-        "401":
-          description: Login required.
-    post:
-      tags: [stridepool]
-      operationId: requestStridePoolRecovery
-      summary: Request a grace day or support review
-      parameters:
-        - $ref: "#/components/parameters/AuthorizationSessionHeader"
-        - $ref: "#/components/parameters/SessionCookie"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RecoveryRequestBody"
-      responses:
-        "201":
-          description: Recovery request created.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RecoveryCase"
-        "400":
-          description: Invalid recovery request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Login required.
-        "404":
-          description: Challenge not found or not joined.
   /stridepool/wallet/demo-funds:
     post:
       tags: [stridepool]
@@ -856,64 +809,6 @@ paths:
           description: Source sample not found.
         "409":
           description: Source sample was already decided.
-  /admin/recovery-cases:
-    get:
-      tags: [admin]
-      operationId: getAdminRecoveryCases
-      summary: List pending recovery cases
-      parameters:
-        - $ref: "#/components/parameters/AuthorizationSessionHeader"
-        - $ref: "#/components/parameters/SessionCookie"
-      responses:
-        "200":
-          description: Recovery cases waiting for support.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminRecoveryCasesResponse"
-        "401":
-          description: Login required.
-        "403":
-          description: Admin access required.
-  /admin/recovery-cases/{recoveryCaseId}/decision:
-    post:
-      tags: [admin]
-      operationId: decideAdminRecoveryCase
-      summary: Record an auditable recovery decision
-      parameters:
-        - name: recoveryCaseId
-          in: path
-          required: true
-          schema: { type: integer }
-        - $ref: "#/components/parameters/AuthorizationSessionHeader"
-        - $ref: "#/components/parameters/SessionCookie"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AdminRecoveryDecisionBody"
-      responses:
-        "200":
-          description: Recovery decision recorded.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminRecoveryDecisionResponse"
-        "400":
-          description: Invalid decision.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Login required.
-        "403":
-          description: Admin access required.
-        "404":
-          description: Recovery case not found.
-        "409":
-          description: Recovery case was already decided.
   /admin/challenges:
     get:
       tags: [admin]
@@ -1177,7 +1072,7 @@ components:
         acceptedTerms: { type: boolean }
     StridePoolBootstrap:
       type: object
-      required: [user, challenges, joinedIds, steps, activities, wallet, profile, membership, healthSources, recoveryCases, stepReviews, freeStreak, pendingInvites]
+      required: [user, challenges, joinedIds, steps, activities, wallet, profile, membership, healthSources, stepReviews, freeStreak, pendingInvites]
       properties:
         user:
           oneOf:
@@ -1199,9 +1094,6 @@ components:
         healthSources:
           type: array
           items: { $ref: "#/components/schemas/HealthSource" }
-        recoveryCases:
-          type: array
-          items: { $ref: "#/components/schemas/RecoveryCase" }
         stepReviews:
           type: array
           items: { $ref: "#/components/schemas/StepReview" }
@@ -1489,36 +1381,6 @@ components:
           type: array
           items: { type: string }
         createdAt: { type: string, format: date-time }
-    RecoveryRequestBody:
-      type: object
-      required: [challengeId, type, reason]
-      properties:
-        challengeId: { type: string }
-        type: { type: string, enum: [grace_day, injury_pause, support_review] }
-        reason: { type: string, minLength: 8, maxLength: 1000 }
-    RecoveryCase:
-      type: object
-      required: [id, challengeId, challengeName, type, status, reason, sourceFlags, reviewMessage, requestedAt, updatedAt]
-      properties:
-        id: { type: string }
-        challengeId: { type: string }
-        challengeName: { type: string }
-        type: { type: string, enum: [grace_day, injury_pause, support_review] }
-        status: { type: string, enum: [requested, approved, denied, resolved] }
-        reason: { type: string }
-        sourceFlags:
-          type: array
-          items: { type: string }
-        reviewMessage: { type: string }
-        requestedAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-    RecoveryCasesResponse:
-      type: object
-      required: [cases]
-      properties:
-        cases:
-          type: array
-          items: { $ref: "#/components/schemas/RecoveryCase" }
     ErrorResponse:
       type: object
       required: [error]
@@ -1696,56 +1558,6 @@ components:
         decidedBy: { type: string }
         dailyTotal: { type: integer }
       required: [sample, decision, explanation, decidedBy, dailyTotal]
-    AdminRecoveryCase:
-      type: object
-      properties:
-        id: { type: string }
-        challengeId: { type: string }
-        challengeName: { type: string }
-        userId: { type: string }
-        userName: { type: string }
-        userEmail: { type: string }
-        type: { type: string, enum: [grace_day, injury_pause, support_review] }
-        status: { type: string, enum: [requested, approved, denied, resolved] }
-        reason: { type: string }
-        sourceFlags:
-          type: array
-          items: { type: string }
-        requestedAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-      required: [id, challengeId, challengeName, userId, userName, userEmail, type, status, reason, sourceFlags, requestedAt, updatedAt]
-    AdminRecoveryCasesResponse:
-      type: object
-      properties:
-        cases:
-          type: array
-          items:
-            $ref: "#/components/schemas/AdminRecoveryCase"
-      required: [cases]
-    AdminRecoveryDecisionBody:
-      type: object
-      required: [decision, explanation]
-      properties:
-        decision: { type: string, enum: [approved, denied, resolved] }
-        explanation: { type: string, pattern: "^[\\s\\S]{8,1000}$" }
-    AdminRecoveryDecision:
-      type: object
-      properties:
-        id: { type: string }
-        recoveryCaseId: { type: string }
-        adminUserId: { type: string }
-        decision: { type: string, enum: [approved, denied, resolved] }
-        explanation: { type: string }
-        createdAt: { type: string, format: date-time }
-      required: [id, recoveryCaseId, adminUserId, decision, explanation, createdAt]
-    AdminRecoveryDecisionResponse:
-      type: object
-      properties:
-        recoveryCase:
-          $ref: "#/components/schemas/AdminRecoveryCase"
-        decision:
-          $ref: "#/components/schemas/AdminRecoveryDecision"
-      required: [recoveryCase, decision]
     AdminChallenge:
       type: object
       properties:

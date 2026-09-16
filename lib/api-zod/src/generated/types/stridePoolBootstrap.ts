@@ -13,7 +13,6 @@ import type { HealthSource } from './healthSource';
 import type { MembershipSummary } from './membershipSummary';
 import type { PendingInvite } from './pendingInvite';
 import type { ProfileSettings } from './profileSettings';
-import type { RecoveryCase } from './recoveryCase';
 import type { StepReview } from './stepReview';
 import type { WalletSummary } from './walletSummary';
 
@@ -27,7 +26,6 @@ export interface StridePoolBootstrap {
   profile: ProfileSettings;
   membership: MembershipSummary;
   healthSources: HealthSource[];
-  recoveryCases: RecoveryCase[];
   stepReviews: StepReview[];
   freeStreak: FreeStreak;
   pendingInvites: PendingInvite[];

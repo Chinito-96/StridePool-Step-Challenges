@@ -1,6 +1,6 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminRecoveryCasesQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateProSubscriptionCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useRequestStridePoolRecovery, useSearchStridePoolUsers, useStartPayoutOnboarding, useUpdateStridePoolProfile, useUpdateStridePoolHealthSourceConnection, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminRecoveryCase, type AdminRecoveryDecisionBody, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type MembershipSummary, type Notification as ApiNotification, type PendingInvite, type RecoveryCase, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
+import { getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateProSubscriptionCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useGetComplianceStatus, useGetLedger, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useSearchStridePoolUsers, useStartPayoutOnboarding, useUpdateStridePoolProfile, useUpdateStridePoolHealthSourceConnection, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type MembershipSummary, type Notification as ApiNotification, type PendingInvite, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert, CircleHelp, CircleUserRound, Clock3, Compass, Copy, CreditCard, ExternalLink, Flame, Footprints, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, UserCheck, UserPlus, Users, UsersRound, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
@@ -13,7 +13,6 @@ type Activity = { id: string; type: string; title: string; meta: string; timesta
 type WalletSummary = { balance: number; pending: number; totalEarned: number };
 type ProfileSettings = ApiProfileSettings;
 type EligibilityProfile = EligibilityInput;
-type RecoveryRequestType = Exclude<RecoveryCase['type'], 'injury_pause'>;
 type AppState = {
   challenges: Challenge[];
   joinedIds: string[];
@@ -27,7 +26,6 @@ type AppState = {
   complianceLoading: boolean;
   healthSources: HealthSource[];
   nativeSourceMessages: Partial<Record<'apple_health' | 'health_connect', string>>;
-  recoveryCases: RecoveryCase[];
   stepReviews: StepReview[];
   freeStreak: FreeStreak;
   pendingInvites: PendingInvite[];
@@ -35,7 +33,6 @@ type AppState = {
   leaveChallenge: (id: string) => boolean;
   updateEligibility: (eligibility: EligibilityProfile) => void;
   syncNativeSource: (source: 'apple_health' | 'health_connect') => void;
-  requestRecovery: (challengeId: string, type: RecoveryRequestType, reason: string) => void;
   addFunds: () => void;
   toggleSetting: (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => void;
   updateProfile: (updates: ProfileUpdate) => void;
@@ -60,7 +57,6 @@ function AppProvider({ children }: { children: ReactNode }) {
   const leaveMutation = useLeaveStridePoolChallenge();
   const sourceMutation = useIngestStridePoolSourceSamples();
   const connectionMutation = useUpdateStridePoolHealthSourceConnection();
-  const recoveryMutation = useRequestStridePoolRecovery();
   const profileMutation = useUpdateStridePoolProfile();
   const pendingInvitesQuery = useGetStridePoolPendingInvites({ query: { queryKey: getGetStridePoolPendingInvitesQueryKey(), enabled: auth.isAuthenticated, staleTime: 30_000 } });
   const bootstrap = bootstrapQuery.data;
@@ -73,7 +69,6 @@ function AppProvider({ children }: { children: ReactNode }) {
   const profile = bootstrap?.profile ?? defaultProfile;
   const membership = bootstrap?.membership ?? { plan: 'free', status: 'inactive', monthlyPrice: 0, challengeJoinPrice: 2, activeChallengeLimit: 1, activeChallengeCount: 0, challengeCreationLimit: 0, activeCreatedChallengeCount: 0 };
   const healthSources = bootstrap?.healthSources ?? [];
-  const recoveryCases = bootstrap?.recoveryCases ?? [];
   const stepReviews = bootstrap?.stepReviews ?? [];
   const freeStreak = bootstrap?.freeStreak ?? { current: 0, best: 0, lastGoalDate: null };
   const pendingInvites = pendingInvitesQuery.data?.invites ?? bootstrap?.pendingInvites ?? [];
@@ -133,10 +128,6 @@ function AppProvider({ children }: { children: ReactNode }) {
       setNativeSourceMessages((current) => ({ ...current, [source]: 'The companion could not complete the permission request. Try again from the mobile app.' }));
     }
   };
-  const requestRecovery = (challengeId: string, type: RecoveryRequestType, reason: string) => {
-    if (!auth.isAuthenticated) { loginIfNeeded(); return; }
-    recoveryMutation.mutate({ data: { challengeId, type, reason } }, { onSuccess: invalidateBootstrap });
-  };
   const updateEligibility = (next: EligibilityProfile) => updateProfile({ eligibilityAge: next.age, eligibilityState: next.state, identityStatus: next.identityStatus, acceptedTerms: next.acceptedTerms });
   const addFunds = () => {
     if (!auth.isAuthenticated) loginIfNeeded();
@@ -146,7 +137,7 @@ function AppProvider({ children }: { children: ReactNode }) {
     profileMutation.mutate({ data: updates }, { onSuccess: invalidateBootstrap });
   };
   const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => { const actualKey = key === 'weekly-digest' ? 'weeklyDigest' : key; if (actualKey === 'healthConnected') { void syncNativeSource('apple_health'); return; } updateProfile({ [actualKey]: !profile[actualKey] }); };
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncNativeSource, requestRecovery, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, recoveryCases, stepReviews, freeStreak, pendingInvites]);
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncNativeSource, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, stepReviews, freeStreak, pendingInvites]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -261,7 +252,7 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities, healthSources, recoveryCases } = useApp();
+  const { challenges, steps, activities } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
   const goal = 10_000;
   const percent = Math.min(100, Math.round((steps / goal) * 100));
@@ -274,7 +265,6 @@ function Dashboard() {
       <div className="rise-in delay-1 relative overflow-hidden rounded-[22px] bg-foreground p-6 text-background shadow-[var(--shadow-soft)] sm:p-8"><div className="absolute -right-10 -top-16 h-56 w-56 rounded-full border-[28px] border-accent/80 opacity-80" /><div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full border-[20px] border-primary/80 opacity-70" /><div className="relative flex flex-col justify-between gap-8 sm:flex-row"><div><div className="flex items-center gap-2 text-background/60"><span className="h-2 w-2 rounded-full bg-accent" /><span className="font-mono-app text-[10px] uppercase tracking-[.18em]">Today's movement</span></div><div className="mt-6 flex items-baseline gap-2"><span className="font-display text-6xl font-bold tracking-[-.08em] sm:text-7xl" data-testid="text-todays-steps">{steps.toLocaleString()}</span><span className="font-mono-app text-xs text-background/50">/ {goal.toLocaleString()}</span></div><p className="mt-2 text-sm text-background/60">{goal - steps > 0 ? `${(goal - steps).toLocaleString()} steps to your daily goal` : 'Daily goal met — beautifully done.'}</p></div><div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-[10px] border-background/15 sm:h-36 sm:w-36" style={{ background: `conic-gradient(#bdcf57 ${percent}%, rgba(255,255,255,.1) 0)` }}><div className="flex h-[78%] w-[78%] flex-col items-center justify-center rounded-full bg-foreground"><span className="font-display text-2xl font-bold">{percent}%</span><span className="font-mono-app text-[9px] uppercase text-background/45">of goal</span></div></div></div><div className="relative mt-8 flex items-center justify-between border-t border-background/10 pt-4 text-xs text-background/55"><span className="flex items-center gap-2"><Flame size={15} className="text-primary" /> 4 day rhythm</span><span className="font-mono-app">Last sync 8:42 AM</span></div></div>
        <div className="rise-in delay-2 rounded-[22px] border border-border bg-card p-6 shadow-[var(--shadow-card)]"><div className="flex items-center justify-between"><Badge tone="coral">Live now</Badge><RadioDot /></div><h2 className="mt-5 font-display text-2xl font-bold tracking-[-.045em]">{spotlight.name}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{spotlight.theme}</p><div className="mt-6 space-y-4"><StatLine icon={<Target size={16} />} label={spotlight.goalType === 'personalized' ? 'Your daily target' : 'Daily target'} value={`${spotlight.dailyGoal.toLocaleString()} steps`} /><StatLine icon={<Users size={16} />} label="Walking together" value={`${spotlight.participantCount} people`} /><StatLine icon={<Award size={16} />} label="Pool so far" value={spotlight.community ? 'Free to join' : `$${spotlight.prizePool.toLocaleString()}`} /></div><Link href={`/challenge/${spotlight.id}`} className="mt-6 flex items-center justify-between border-t border-border pt-4 text-sm font-bold text-primary" data-testid={`link-spotlight-${spotlight.id}`}>Open challenge <ArrowUpRight size={17} /></Link></div>
     </section>
-     <SourceTrustPanel sources={healthSources} recoveryCases={recoveryCases} />
     <section className="mt-10 grid gap-8 xl:grid-cols-[1fr_340px]">
       <div className="rise-in delay-3"><SectionHeading eyebrow="Your circle" title="Challenges in motion" action={<Link href="/challenges" className="flex items-center gap-1 text-sm font-bold text-primary" data-testid="link-see-all-challenges">See all <ChevronRight size={16} /></Link>} /><div className="grid gap-4 sm:grid-cols-2">{challenges.filter((item) => item.joined).map((challenge) => <ChallengeMiniCard challenge={challenge} key={challenge.id} />)}<div className="flex min-h-[150px] flex-col items-center justify-center rounded-2xl border border-dashed border-border p-5 text-center"><div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-accent/35 text-accent-foreground"><Plus size={17} /></div><p className="text-sm font-bold">Find your next rhythm</p><Link href="/challenges" className="mt-1 text-xs text-muted-foreground underline decoration-primary/50 underline-offset-4" data-testid="link-discover-challenges">Browse open challenges</Link></div></div></div>
       <div className="rise-in delay-4"><SectionHeading eyebrow="On deck" title="Coming up" /><div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"><div className="flex items-start justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${upcoming.color}33`, color: upcoming.color }}><CalendarDays size={19} /></div><Badge tone="teal">Starts {upcoming.startDate}</Badge></div><h3 className="mt-4 font-display text-lg font-bold">{upcoming.name}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{upcoming.days} days · {upcoming.dailyGoal.toLocaleString()} steps/day · ${upcoming.entryFee} entry</p><Link href={`/challenge/${upcoming.id}`} className="mt-5 flex w-full items-center justify-center rounded-xl border border-border py-2.5 text-sm font-bold transition hover:bg-muted" data-testid={`link-upcoming-${upcoming.id}`}>View details <ArrowUpRight size={15} className="ml-2" /></Link></div></div>
@@ -283,19 +273,16 @@ function Dashboard() {
   </div>;
 }
 
-function SourceTrustPanel({ sources, recoveryCases }: { sources: HealthSource[]; recoveryCases: RecoveryCase[] }) {
-  const { challenges, requestRecovery, stepReviews } = useApp();
-  const pendingCases = recoveryCases.filter((item) => item.status === 'requested' || item.status === 'approved');
-  const recoveryChallenge = challenges.find((item) => item.joined);
-  return <><section className="mt-8 grid gap-5 lg:grid-cols-[1.25fr_.75fr]" data-testid="panel-source-trust">
+function HealthSourcesPanel({ sources }: { sources: HealthSource[] }) {
+  const { stepReviews } = useApp();
+  return <section className="grid gap-5" data-testid="panel-source-trust">
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your health sources</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">All challenge steps must come from Apple Health on iPhone or Health Connect on Android. StridePool checks every uploaded sample before it can affect progress or payouts.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
       <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-start gap-3"><HeartPulse size={17} className="mt-0.5 shrink-0 text-secondary-foreground" /><div><p className="text-sm font-bold text-secondary-foreground">Native health data stays permissioned</p><p className="mt-1 text-[11px] leading-5 text-secondary-foreground/75">StridePool never asks the browser for health data. The iOS and Android companion requests the platform permission, reads step records, and sends only normalized samples for server-side verification.</p></div></div></div>
       <NativeSourceCards sources={sources} />
       {stepReviews.length > 0 && <div className="mt-5 rounded-xl border border-primary/25 bg-primary/10 p-4" data-testid="panel-step-reviews"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-primary">Records held for review</p><Badge tone="coral">{stepReviews.length} flagged</Badge></div><div className="mt-3 space-y-2">{stepReviews.slice(0, 5).map((review) => <div className="rounded-lg bg-background/70 p-3" key={review.id}><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold">{review.steps.toLocaleString()} steps · {review.recordDate}</p><span className="font-mono-app text-[9px] uppercase text-primary">not counted</span></div><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{review.reviewFlags.map((flag) => flag.replaceAll('_', ' ')).join(' · ')} · {review.source.replaceAll('_', ' ')}</p></div>)}</div></div>}
-    </div>
-    <div className="rounded-2xl border border-border bg-secondary/55 p-5 sm:p-6"><div className="flex items-center gap-2 text-secondary-foreground"><HeartPulse size={18} /><p className="font-mono-app text-[10px] uppercase tracking-[.16em]">Fair recovery</p></div><h2 className="mt-2 font-display text-xl font-bold text-secondary-foreground">Life happens. The ledger waits.</h2><p className="mt-2 text-xs leading-5 text-secondary-foreground/75">Grace days and support review keep a questionable day from deciding your payout without a human look.</p>{pendingCases.length ? <div className="mt-4 space-y-2">{pendingCases.slice(0, 2).map((item) => <div className="rounded-xl bg-background/60 p-3" key={item.id}><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">{item.challengeName}</p><Badge tone="teal">{item.status.replaceAll('_', ' ')}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">{item.type.replaceAll('_', ' ')}</p></div>)}</div> : <p className="mt-4 rounded-xl bg-background/60 p-3 text-[11px] leading-5 text-secondary-foreground/75">No recovery requests are open. Open a joined challenge to request one before settlement.</p>}</div>
-  </section>{recoveryChallenge && <RecoveryPanel challenge={recoveryChallenge} cases={recoveryCases.filter((item) => item.challengeId === recoveryChallenge.id)} requestRecovery={requestRecovery} />}</>;
+     </div>
+   </section>;
 }
 
 function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
@@ -335,18 +322,6 @@ function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
       {canSync && <Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" disabled={isBusy} onClick={async () => { setBusySource(source.source); await syncNativeSource(source.source as 'apple_health' | 'health_connect'); setBusySource(null); }} data-testid={`button-connect-${source.source}`}>{isBusy ? 'Checking permission…' : actionLabels[source.status]}</Button>}
     </div>;
   })}</div>;
-}
-
-function RecoveryPanel({ challenge, cases, requestRecovery }: { challenge: Challenge; cases: RecoveryCase[]; requestRecovery: (challengeId: string, type: RecoveryRequestType, reason: string) => void }) {
-  const [type, setType] = useState<RecoveryRequestType>('grace_day');
-  const [reason, setReason] = useState('');
-  const existing = cases[0];
-  const labels = { grace_day: 'Use a grace day', injury_pause: 'Request an injury pause', support_review: 'Ask support to review' };
-  const requestOptions = ['grace_day', 'support_review'] as const;
-  return <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8" data-testid="panel-recovery">
-    <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><HeartPulse size={18} /></span><div><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Settlement care</p><h2 className="mt-1 font-display text-xl font-bold">Need a fair recovery path?</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Requests are attached to this challenge and reviewed against your source history before settlement.</p></div></div>
-    {existing ? <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">{labels[existing.type]}</p><Badge tone="teal">{existing.status.replaceAll('_', ' ')}</Badge></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{existing.reviewMessage}</p></div> : <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); if (reason.trim().length >= 8) { requestRecovery(challenge.id, type, reason.trim()); setReason(''); } }}><label className="block text-xs font-bold">What do you need?<select value={type} onChange={(event) => setType(event.target.value as RecoveryRequestType)} className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" data-testid="select-recovery-type">{requestOptions.map((value) => <option value={value} key={value}>{labels[value]}</option>)}</select></label><label className="block text-xs font-bold">A little context<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={8} maxLength={1000} rows={3} placeholder="For example: my watch was off for an afternoon..." className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-sm outline-none focus:border-primary" data-testid="textarea-recovery-reason" /></label><Button type="submit" variant="secondary" disabled={reason.trim().length < 8} data-testid="button-request-recovery">Send recovery request</Button></form>}
-  </section>;
 }
 
 function RadioDot() { return <span className="flex items-center gap-1.5 font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground"><span className="pulse-dot h-1.5 w-1.5 rounded-full bg-primary" /> updates live</span>; }
@@ -491,7 +466,7 @@ function PrivateGroupChallengeCreator() {
         <label className="block text-xs font-bold">Format<select value={challengeType} onChange={(event) => setChallengeType(event.target.value as 'goal' | 'elimination')} className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="select-group-challenge-type"><option value="goal">Keep the goal</option><option value="elimination">Step or step out</option></select></label>
         <div className="relative"><label className="block text-xs font-bold">Invite members<input value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search by name or email" className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-group-member-search" /></label>{userSearch.data?.users?.length ? <div className="absolute left-0 right-0 top-[4.25rem] z-10 overflow-hidden rounded-xl border border-border bg-card shadow-xl">{userSearch.data.users.filter((member) => !selectedMembers.some((selected) => selected.id === member.id)).map((member) => <button type="button" onClick={() => addMember(member)} className="flex w-full items-center gap-3 border-b border-border/70 px-3 py-2.5 text-left last:border-0 hover:bg-muted" key={member.id}><span className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">{member.displayName.slice(0, 2).toUpperCase()}</span><span className="min-w-0"><span className="block truncate text-xs font-bold">{member.displayName}</span><span className="block truncate text-[10px] text-muted-foreground">{member.email ?? 'StridePool walker'}</span></span><UserPlus className="ml-auto text-primary" size={14} /></button>)}</div> : null}</div>
         <div className="flex flex-wrap gap-2 lg:col-span-2">{selectedMembers.length ? selectedMembers.map((member) => <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-[11px] font-bold text-secondary-foreground" key={member.id}>{member.displayName}<button type="button" onClick={() => setSelectedMembers((items) => items.filter((item) => item.id !== member.id))} aria-label={`Remove ${member.displayName}`} className="rounded-full hover:bg-secondary-foreground/10"><X size={13} /></button></span>) : <p className="text-[11px] text-muted-foreground">Add at least one member. You will be included automatically.</p>}</div>
-        <div className="flex flex-col justify-between gap-3 border-t border-border/70 pt-4 lg:col-span-2 sm:flex-row sm:items-center"><p className="max-w-xl text-[11px] leading-5 text-muted-foreground">Private challenges never appear in public discovery. Only members of this group can open the challenge, leaderboard, or recovery flow.</p><Button type="submit" disabled={createGroupChallenge.isPending} className="shrink-0" data-testid="button-create-group-challenge"><UsersRound size={16} /> {createGroupChallenge.isPending ? 'Creating…' : 'Create private circle'}</Button></div>
+        <div className="flex flex-col justify-between gap-3 border-t border-border/70 pt-4 lg:col-span-2 sm:flex-row sm:items-center"><p className="max-w-xl text-[11px] leading-5 text-muted-foreground">Private challenges never appear in public discovery. Only members of this group can open the challenge or leaderboard.</p><Button type="submit" disabled={createGroupChallenge.isPending} className="shrink-0" data-testid="button-create-group-challenge"><UsersRound size={16} /> {createGroupChallenge.isPending ? 'Creating…' : 'Create private circle'}</Button></div>
         {message && <p className="text-[11px] font-semibold text-primary lg:col-span-2" role="status" data-testid="status-create-group-challenge">{message}</p>}
       </form>}
   </section>;
@@ -648,11 +623,11 @@ function WalletStat({ label, value, detail, icon }: { label: string; value: stri
 function WalletRow({ activity }: { activity: Activity }) { const positive = activity.type === 'milestone'; return <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${positive ? 'bg-accent/35 text-accent-foreground' : 'bg-muted text-primary'}`}>{positive ? <Award size={16} /> : <ArrowUpRight size={16} />}</span><div className="flex-1"><p className="text-sm font-bold">{positive ? 'Earnings credited' : activity.title.replace('You ', '')}</p><p className="mt-0.5 text-xs text-muted-foreground">{activity.timestamp}</p></div><span className={`font-mono-app text-sm font-bold ${positive ? 'text-primary' : 'text-foreground'}`}>{positive ? '+$12.50' : `-$${activity.title.includes('Sunrise') ? '8.00' : '0.00'}`}</span></div>; }
 
 function ProfilePage() {
-  const { profile, toggleSetting, updateProfile, freeStreak, pendingInvites, membership, auth } = useApp();
+  const { profile, toggleSetting, updateProfile, freeStreak, pendingInvites, membership, auth, healthSources } = useApp();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(profile.displayName);
   useEffect(() => { if (!editing && name.trim() && name.trim() !== profile.displayName) updateProfile({ displayName: name.trim() }); }, [editing]);
-  return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => setEditing(false)} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{name}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Active challenges</span><span className="font-bold">{membership.activeChallengeCount}/{membership.activeChallengeLimit}</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Entry price</span><span className="font-bold">${membership.challengeJoinPrice.toFixed(2)}</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Membership</span><span className="font-bold capitalize">{membership.plan}</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}</section><section className="space-y-5">{auth.isAuthenticated && <MembershipCard membership={membership} />}{auth.isAuthenticated && pendingInvites.length > 0 && <PendingInvitesPanel invites={pendingInvites} />}<SettingsGroup eyebrow="Connected source" title="Where your steps come from"><div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background"><HeartPulse size={19} /></span><div><p className="text-sm font-bold">Apple Health</p><p className="mt-0.5 text-xs text-muted-foreground">{profile.healthConnected ? 'Connected · syncing automatically' : 'Not connected'}</p></div><span className={`ml-auto flex items-center gap-1.5 text-xs font-bold ${profile.healthConnected ? 'text-primary' : 'text-muted-foreground'}`}><span className={`h-2 w-2 rounded-full ${profile.healthConnected ? 'bg-primary' : 'bg-muted-foreground'}`} /> {profile.healthConnected ? 'Active' : 'Paused'}</span></div><Button variant="secondary" className="mt-3 w-full" onClick={() => toggleSetting('healthConnected')} data-testid="button-toggle-health">{profile.healthConnected ? 'Pause connection' : 'Reconnect Apple Health'}</Button></SettingsGroup><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weekly-digest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
+  return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => setEditing(false)} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{name}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Active challenges</span><span className="font-bold">{membership.activeChallengeCount}/{membership.activeChallengeLimit}</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Entry price</span><span className="font-bold">${membership.challengeJoinPrice.toFixed(2)}</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Membership</span><span className="font-bold capitalize">{membership.plan}</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}</section><section className="space-y-5">{auth.isAuthenticated && <MembershipCard membership={membership} />}{auth.isAuthenticated && pendingInvites.length > 0 && <PendingInvitesPanel invites={pendingInvites} />}<HealthSourcesPanel sources={healthSources} /><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weekly-digest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
 }
 
 function MembershipCard({ membership }: { membership: MembershipSummary }) {
@@ -747,12 +722,11 @@ function AdminPage() {
   const [userQuery, setUserQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const flagged = useGetAdminFlaggedStepRecords({ query: { queryKey: getGetAdminFlaggedStepRecordsQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
-  const recovery = useGetAdminRecoveryCases({ query: { queryKey: getGetAdminRecoveryCasesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const challenges = useGetAdminChallenges({ query: { queryKey: getGetAdminChallengesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const settlements = useGetAdminSettlementHistory({ query: { queryKey: getGetAdminSettlementHistoryQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const users = useSearchAdminUsers(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined, { query: { queryKey: getSearchAdminUsersQueryKey(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined), enabled: auth.isAuthenticated && userQuery.trim().length >= 2, staleTime: 10_000 } });
   const user = useGetAdminUser(selectedUserId, { query: { queryKey: getGetAdminUserQueryKey(selectedUserId), enabled: auth.isAuthenticated && Boolean(selectedUserId), staleTime: 15_000 } });
-  const requests = [flagged, recovery, challenges, settlements];
+  const requests = [flagged, challenges, settlements];
   const forbidden = requests.find((request) => adminErrorStatus(request.error) === 403) || (users.error && adminErrorStatus(users.error) === 403 ? users : null) || (user.error && adminErrorStatus(user.error) === 403 ? user : null);
   const unauthenticated = !auth.isLoading && !auth.isAuthenticated;
 
@@ -764,7 +738,6 @@ function AdminPage() {
   }
 
   const flaggedRecords = flagged.data?.records ?? [];
-  const recoveryRows = recovery.data?.cases ?? [];
   const challengeRows = challenges.data?.challenges ?? [];
   const settlementRows = settlements.data?.settlements ?? [];
   const searchUsers = users.data?.users ?? [];
@@ -778,13 +751,11 @@ function AdminPage() {
 
      <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <AdminMetric label="Flagged records" value={flagged.isLoading ? '…' : String(flaggedRecords.length)} detail="Unverified daily totals" />
-       <AdminMetric label="Recovery queue" value={recovery.isLoading ? '…' : String(recoveryRows.length)} detail="Cases awaiting a decision" />
       <AdminMetric label="Challenges" value={challenges.isLoading ? '…' : String(challengeRows.length)} detail="Current status overview" />
       <AdminMetric label="Settlements" value={settlements.isLoading ? '…' : String(settlementRows.length)} detail="Recorded settlement runs" />
     </section>
 
     <div className="grid gap-8">
-       <AdminRecoveryQueue cases={recoveryRows} />
       <AdminPanel eyebrow="Anti-cheat queue" title="Flagged step records" count={flaggedRecords.length}>
         {flagged.isLoading ? <AdminLoading /> : flaggedRecords.length === 0 ? <AdminEmpty text="No suspicious daily records are waiting for review." /> : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="border-b border-border bg-muted/45 font-mono-app text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Walker</th><th className="px-4 py-3">Challenge</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Steps</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Flag reason</th></tr></thead><tbody>{flaggedRecords.map((record: AdminFlaggedStepRecord) => <tr className="border-b border-border/70 last:border-0" key={record.id}><td className="px-4 py-3"><button className="text-left font-bold hover:text-primary" onClick={() => { setSelectedUserId(record.userId); setUserQuery(record.userEmail || record.userName); }} data-testid={`button-admin-record-user-${record.id}`}>{record.userName}<span className="mt-0.5 block font-normal text-muted-foreground">{record.userEmail || record.userId}</span></button></td><td className="px-4 py-3 font-semibold">{record.challengeName}</td><td className="px-4 py-3 whitespace-nowrap">{record.recordDate}</td><td className="px-4 py-3 font-mono-app font-bold">{record.steps.toLocaleString()}</td><td className="px-4 py-3 text-muted-foreground">{record.source.replaceAll('_', ' ')}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{record.flagReasons.map((reason) => <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary" key={reason}>{reason.replaceAll('_', ' ')}</span>)}</div></td></tr>)}</tbody></table></div>}
       </AdminPanel>
@@ -808,68 +779,6 @@ function AdminPage() {
   </div>;
 }
 
-function AdminRecoveryQueue({ cases }: { cases: AdminRecoveryCase[] }) {
-  const mutation = useDecideAdminRecoveryCase();
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [decision, setDecision] = useState<AdminRecoveryDecisionBody['decision']>('approved');
-  const [explanation, setExplanation] = useState('');
-  const [message, setMessage] = useState('');
-
-  const chooseDecision = (id: string, nextDecision: AdminRecoveryDecisionBody['decision']) => {
-    setActiveId(id);
-    setDecision(nextDecision);
-    setExplanation('');
-    setMessage('');
-  };
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!activeId || explanation.trim().length < 8) return;
-    mutation.mutate({ recoveryCaseId: Number(activeId), data: { decision, explanation: explanation.trim() } }, {
-      onSuccess: (result) => {
-        setActiveId(null);
-        setExplanation('');
-        setMessage(`Case ${result.decision.decision} and logged to the recovery audit.`);
-        queryClient.invalidateQueries({ queryKey: getGetAdminRecoveryCasesQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetAdminChallengesQueryKey() });
-        queryClient.invalidateQueries({ predicate: (query) => typeof query.queryKey[0] === 'string' && query.queryKey[0].includes('/bootstrap') });
-      },
-      onError: () => setMessage('That decision could not be saved. No recovery or settlement status changed.'),
-    });
-  };
-
-  return <AdminPanel eyebrow="Recovery queue" title="Pending recovery cases" count={cases.length}>
-    {cases.length === 0 ? <AdminEmpty text="No recovery cases are waiting for support." /> : <div className="divide-y divide-border/70">
-      {cases.map((item) => <article className="p-5 sm:p-6" key={item.id} data-testid={`admin-recovery-case-${item.id}`}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-bold">{item.challengeName}</p>
-              <Badge tone="coral">{item.type.replaceAll('_', ' ')}</Badge>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{item.userName} · {item.userEmail || item.userId}</p>
-            <p className="mt-4 max-w-3xl text-sm leading-6">{item.reason}</p>
-            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-muted-foreground">
-              <span>Requested {adminDate(item.requestedAt)}</span>
-              <span>Updated {adminDate(item.updatedAt)}</span>
-            </div>
-            <div className="mt-4">
-              <p className="font-mono-app text-[10px] uppercase tracking-[.14em] text-muted-foreground">Source flags</p>
-              {item.sourceFlags.length ? <div className="mt-2 flex flex-wrap gap-1.5">{item.sourceFlags.map((flag) => <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary" key={flag}>{flag.replaceAll('_', ' ')}</span>)}</div> : <p className="mt-1 text-xs text-muted-foreground">No flagged source samples were attached.</p>}
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2 lg:max-w-[310px] lg:justify-end">
-            {(['approved', 'denied', 'resolved'] as const).map((nextDecision) => <Button key={nextDecision} variant={nextDecision === 'denied' ? 'danger' : nextDecision === 'approved' ? 'primary' : 'secondary'} onClick={() => chooseDecision(item.id, nextDecision)} data-testid={`button-admin-recovery-${nextDecision}-${item.id}`}>{nextDecision === 'approved' ? 'Approve' : nextDecision === 'denied' ? 'Deny' : 'Resolve'}</Button>)}
-          </div>
-        </div>
-        {activeId === item.id && <form className="mt-5 rounded-xl border border-border bg-muted/45 p-4" onSubmit={submit}>
-          <label className="block text-xs font-bold">Explanation for {decision} decision<textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} minLength={8} maxLength={1000} rows={3} placeholder="Record what was reviewed and why this decision is appropriate…" className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-sm font-normal outline-none focus:border-primary" data-testid={`textarea-admin-recovery-explanation-${item.id}`} /></label>
-          <div className="mt-3 flex flex-wrap items-center gap-3"><Button type="submit" disabled={mutation.isPending || explanation.trim().length < 8} data-testid={`button-submit-admin-recovery-${item.id}`}>{mutation.isPending ? 'Saving…' : `Record ${decision} decision`}</Button><Button type="button" variant="quiet" onClick={() => setActiveId(null)}>Cancel</Button></div>
-        </form>}
-      </article>)}
-    </div>}
-    {message && <p className="border-t border-border/70 px-5 py-4 text-xs font-semibold text-primary" role="status" data-testid="status-admin-recovery">{message}</p>}
-  </AdminPanel>;
-}
 function AdminGate({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
   return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={26} /></div><h1 className="mt-5 font-display text-2xl font-bold">{title}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>{action && <div className="mt-5">{action}</div>}</div>;
 }
