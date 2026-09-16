@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "seed:stridepool": "tsx ./src/seed-stridepool.ts",
     "test:stridepool": "tsx --test ./src/stridepool-money.test.ts ./src/stridepool-step-sources.test.ts ../artifacts/api-server/src/routes/stridepool-persistence.test.ts ../artifacts/api-server/src/routes/stridepool-source-ingestion.test.ts",
+    "test:stridepool:browser": "tsx --test ./src/stridepool-browser.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "playwright": "^1.63.0",
     "tsx": "catalog:"
   }
 }
