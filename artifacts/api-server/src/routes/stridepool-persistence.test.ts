@@ -248,6 +248,64 @@ describe("StridePool authenticated persistence across sessions", () => {
     assert.ok(first.activities.some((activity) => activity.type === "sync" && activity.meta.includes("persisted to your account")));
     assert.ok(first.activities.some((activity) => activity.type === "challenge"));
 
+    await db.delete(sessionsTable).where(eq(sessionsTable.sid, firstSession));
+
+    const revokedBootstrap = await request("/stridepool/bootstrap", { session: firstSession });
+    assert.equal(revokedBootstrap.status, 200);
+    const revoked = revokedBootstrap.body as {
+      user: null;
+      wallet: { balance: number; pending: number; totalEarned: number };
+      profile: Record<string, unknown>;
+      joinedIds: string[];
+      steps: number;
+      activities: unknown[];
+    };
+    assert.equal(revoked.user, null);
+    assert.deepEqual(revoked.wallet, { balance: 0, pending: 0, totalEarned: 0 });
+    assert.deepEqual(revoked.profile, {
+      displayName: "Alex Morgan",
+      reminders: true,
+      weeklyDigest: true,
+      publicProgress: false,
+      healthConnected: true,
+      goalBaseline: 7500,
+      eligibilityAge: 0,
+      eligibilityState: "",
+      identityStatus: "not_started",
+      acceptedTerms: false,
+    });
+    assert.deepEqual(revoked.joinedIds, []);
+    assert.notEqual(revoked.steps, first.steps);
+    assert.equal(revoked.activities.length, 0);
+
+    const revokedLedger = await request(`/money/ledger?userId=${userId}`, {
+      session: firstSession,
+    });
+    assert.equal(revokedLedger.status, 401);
+
+    const revokedCheckout = await request("/money/checkout", {
+      method: "POST",
+      session: firstSession,
+      body: JSON.stringify({
+        challengeId,
+        amountCents: 500,
+        currency: "usd",
+        idempotencyKey: `${runId}-revoked-checkout`,
+        userId,
+      }),
+    });
+    assert.equal(revokedCheckout.status, 401);
+
+    const revokedPayout = await request("/money/payout-onboarding", {
+      method: "POST",
+      session: firstSession,
+      body: JSON.stringify({
+        idempotencyKey: `${runId}-revoked-payout`,
+        userId,
+      }),
+    });
+    assert.equal(revokedPayout.status, 401);
+
     const secondBootstrap = await request("/stridepool/bootstrap", { session: secondSession });
     assert.equal(secondBootstrap.status, 200);
     const second = secondBootstrap.body as typeof first;
