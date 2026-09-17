@@ -252,78 +252,84 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities, wallet } = useApp();
+  const { challenges, steps, activities, wallet, freeStreak } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
   const goal = 10_000;
   const percent = Math.min(100, Math.round((steps / goal) * 100));
   const spotlight = challenges.find((item) => item.joined) ?? challenges[0];
-  const upcoming = challenges.find((item) => !item.joined) ?? spotlight;
-  if (!spotlight || !upcoming) return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-muted text-primary shadow-sm"><Footprints size={28} /></div><h1 className="mt-6 font-display text-3xl font-extrabold tracking-[-.02em]">Your rhythm is loading</h1><p className="mt-3 text-base text-muted-foreground font-medium">We’re syncing your step data and verifying live prize pools.</p></div>;
+  const upcoming = challenges.find((item) => !item.joined);
+  if (!spotlight) return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-muted text-primary shadow-sm"><Footprints size={28} /></div><h1 className="mt-6 font-display text-3xl font-extrabold tracking-[-.02em]">Your rhythm is loading</h1><p className="mt-3 text-base text-muted-foreground font-medium">We’re syncing your step data and verifying live prize pools.</p></div>;
   
   return <div className="mx-auto max-w-[1280px]">
     {/* Header section with date and greeting */}
-    <div className="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+    <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end lg:mb-9">
       <div className="rise-in">
-        <p className="mb-3 font-mono-app text-[11px] uppercase tracking-[.25em] text-primary/80 font-bold">{dateLabel}</p>
-        <h1 className="font-display text-[clamp(2.5rem,6vw,4rem)] font-extrabold leading-[.9] tracking-[-.05em]">
-          Keep your <span className="text-primary relative inline-block">rhythm.<span className="absolute -bottom-2 left-0 w-full h-3 bg-primary/20 -z-10 rounded-full"></span></span>
+        <p className="mb-3 font-mono-app text-[10px] font-bold uppercase tracking-[.22em] text-primary/80">{dateLabel}</p>
+        <h1 className="font-display text-[clamp(2.35rem,6vw,4rem)] font-extrabold leading-[.94] tracking-[-.05em]">
+          Keep your <span className="relative inline-block text-primary">rhythm.<span className="absolute -bottom-2 left-0 -z-10 h-3 w-full rounded-full bg-primary/20" /></span>
         </h1>
-        <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground font-medium">Every step verified. Every pool secured. A little movement today keeps tomorrow feeling lighter.</p>
+        <p className="mt-4 max-w-md text-sm font-medium leading-6 text-muted-foreground sm:text-base">Every step verified. Every pool secured. A little movement today keeps tomorrow feeling lighter.</p>
       </div>
       
       {/* Wallet mini-summary at the top right as a trust cue */}
       <div className="rise-in delay-1 flex flex-col sm:items-end">
-        <Link href="/wallet" className="group flex flex-col items-start sm:items-end rounded-2xl bg-card border border-border p-4 shadow-sm hover:shadow-md transition-all lift-card min-w-[200px]" data-testid="link-wallet">
-          <div className="flex items-center gap-2 mb-1.5">
-            <ShieldCheck size={16} className="text-secondary-foreground" />
-            <span className="font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Verified Wallet</span>
+        <Link href="/wallet" className="lift-card group flex min-w-[220px] items-center justify-between gap-5 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)]" data-testid="link-wallet">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+            <ShieldCheck size={18} />
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-display text-3xl font-bold text-foreground tracking-[-.02em]">${wallet.balance.toFixed(2)}</span>
-            <span className="text-xs text-muted-foreground font-medium">available</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono-app text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground">Verified wallet</span>
+              <ArrowUpRight size={13} className="text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="font-display text-2xl font-bold tracking-[-.02em] text-foreground">${wallet.balance.toFixed(2)}</span>
+              <span className="text-[11px] font-medium text-muted-foreground">available</span>
+            </div>
+            <p className="mt-1 text-[11px] font-medium text-muted-foreground">{wallet.pending > 0 ? `$${wallet.pending.toFixed(2)} pending` : 'No pending funds'}</p>
           </div>
         </Link>
       </div>
     </div>
 
-    <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr] xl:grid-cols-[1.2fr_1fr]">
+    <section className="grid gap-5 lg:grid-cols-[1.45fr_1fr] xl:grid-cols-[1.18fr_1fr]">
       {/* Left: Huge Step Progress Card */}
-      <div className="rise-in delay-2 relative overflow-hidden rounded-[32px] bg-foreground p-8 sm:p-10 shadow-[var(--shadow-soft)] flex flex-col justify-between">
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-primary/30 to-accent/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 opacity-60 pointer-events-none" />
+      <div className="rise-in delay-2 relative flex flex-col justify-between overflow-hidden rounded-[28px] bg-foreground p-6 shadow-[var(--shadow-soft)] sm:p-8 lg:min-h-[390px]">
+        <div className="pointer-events-none absolute -right-20 -top-28 h-[360px] w-[360px] rounded-full bg-gradient-to-br from-primary/30 to-accent/30 opacity-60 blur-[75px]" />
         
-        <div className="relative z-10 flex flex-col lg:flex-row justify-between gap-10">
+        <div className="relative z-10 flex flex-col justify-between gap-8 lg:flex-row lg:gap-6">
           <div className="flex flex-col justify-center">
-            <div className="flex items-center gap-3 text-background/80 bg-background/10 w-fit px-3.5 py-2 rounded-full mb-8 border border-background/10 backdrop-blur-sm">
-              <span className="h-2.5 w-2.5 rounded-full bg-accent animate-pulse" />
-              <span className="font-mono-app text-[10px] uppercase tracking-[.2em] font-bold">Live Progress</span>
+            <div className="mb-6 flex w-fit items-center gap-2.5 rounded-full border border-background/10 bg-background/10 px-3 py-2 text-background/80 backdrop-blur-sm">
+              <span className="pulse-dot h-2 w-2 rounded-full bg-accent" />
+              <span className="font-mono-app text-[10px] font-bold uppercase tracking-[.18em]">Live progress</span>
             </div>
             
             <div className="flex items-baseline gap-3">
-              <span className="font-display text-7xl sm:text-8xl font-black tracking-[-.06em] text-background" data-testid="text-todays-steps">
+              <span className="font-display text-[clamp(4.25rem,8vw,6.7rem)] font-black leading-none tracking-[-.08em] text-background" data-testid="text-todays-steps">
                 {steps.toLocaleString()}
               </span>
-              <span className="font-mono-app text-sm text-background/50 font-bold tracking-wider">/ {goal.toLocaleString()}</span>
+              <span className="font-mono-app text-xs font-bold tracking-wider text-background/50 sm:text-sm">/ {goal.toLocaleString()}</span>
             </div>
             
-            <p className="mt-4 text-base font-medium text-background/70 max-w-sm leading-relaxed">
+            <p className="mt-4 max-w-sm text-sm font-medium leading-6 text-background/70 sm:text-base">
               {goal - steps > 0 ? <><strong className="text-background">{`${(goal - steps).toLocaleString()}`}</strong> verified steps to hit your daily goal.</> : 'Daily goal met — beautifully done.'}
             </p>
             
-            <div className="mt-10 flex flex-wrap gap-4 text-sm text-background/70">
-              <span className="flex items-center gap-2.5 bg-background/5 px-4 py-2.5 rounded-xl border border-background/10 backdrop-blur-sm shadow-sm">
-                <Flame size={18} className="text-primary" /> 
-                <strong className="text-background">4 day</strong> streak
+            <div className="mt-8 flex flex-wrap gap-2.5 text-xs text-background/70 sm:text-sm">
+              <span className="flex items-center gap-2 rounded-xl border border-background/10 bg-background/5 px-3.5 py-2.5 backdrop-blur-sm">
+                <Flame size={17} className="text-primary" />
+                <strong className="text-background">{freeStreak.current} day{freeStreak.current === 1 ? '' : 's'}</strong> streak
               </span>
-              <span className="flex items-center gap-2.5 bg-background/5 px-4 py-2.5 rounded-xl border border-background/10 backdrop-blur-sm shadow-sm">
-                <Clock3 size={18} className="text-accent" /> 
-                Synced <strong className="text-background">Just now</strong>
+              <span className="flex items-center gap-2 rounded-xl border border-background/10 bg-background/5 px-3.5 py-2.5 backdrop-blur-sm">
+                <ShieldCheck size={17} className="text-accent" />
+                <strong className="text-background">Verified</strong> before scoring
               </span>
             </div>
           </div>
           
-          <div className="flex-shrink-0 flex items-center justify-center relative self-center lg:self-start mt-4 lg:mt-0">
-            <div className="relative flex h-48 w-48 sm:h-56 sm:w-56 items-center justify-center rounded-full bg-background/5 border border-background/10 backdrop-blur-sm">
-              <svg className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-[0_0_15px_rgba(115,201,94,0.3)]" viewBox="0 0 100 100">
+          <div className="relative flex shrink-0 items-center justify-center self-center">
+            <div className="relative flex h-44 w-44 items-center justify-center rounded-full border border-background/10 bg-background/5 backdrop-blur-sm sm:h-52 sm:w-52">
+              <svg className="absolute inset-0 h-full w-full -rotate-90 drop-shadow-[0_0_15px_rgba(115,201,94,0.3)]" viewBox="0 0 100 100" aria-label={`${percent}% of daily goal complete`}>
                 <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="8" className="text-background/10" />
                 <circle 
                   cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="8" 
@@ -334,8 +340,8 @@ function Dashboard() {
                 />
               </svg>
               <div className="flex flex-col items-center justify-center">
-                <span className="font-display text-5xl font-extrabold text-background tracking-[-.04em]">{percent}%</span>
-                <span className="font-mono-app text-[10px] uppercase text-background/60 font-bold mt-2 tracking-widest">Complete</span>
+                <span className="font-display text-5xl font-extrabold tracking-[-.04em] text-background">{percent}%</span>
+                <span className="mt-2 font-mono-app text-[10px] font-bold uppercase tracking-widest text-background/60">Complete</span>
               </div>
             </div>
           </div>
@@ -343,29 +349,29 @@ function Dashboard() {
       </div>
 
       {/* Right: Active Spotlight Challenge */}
-      <div className="rise-in delay-3 flex flex-col justify-between rounded-[32px] border border-border bg-card p-8 sm:p-10 shadow-[var(--shadow-card)] relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-bl-full pointer-events-none" />
+      <div className="rise-in delay-3 relative flex flex-col justify-between overflow-hidden rounded-[28px] border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
+        <div className="pointer-events-none absolute right-0 top-0 h-36 w-36 rounded-bl-full bg-primary/5" />
         
         <div>
-          <div className="flex items-center justify-between mb-8">
+          <div className="mb-7 flex items-center justify-between">
             <Badge tone="coral">Active Pool</Badge>
             <RadioDot />
           </div>
           
-          <h2 className="font-display text-3xl font-extrabold tracking-[-.04em] mb-3 pr-4 leading-[1.1]">{spotlight.name}</h2>
-          <p className="text-sm font-medium text-muted-foreground mb-10 line-clamp-2 leading-relaxed">{spotlight.theme}</p>
+          <h2 className="mb-3 pr-4 font-display text-2xl font-extrabold leading-[1.1] tracking-[-.04em] sm:text-3xl">{spotlight.name}</h2>
+          <p className="mb-8 line-clamp-2 text-sm font-medium leading-relaxed text-muted-foreground">{spotlight.theme}</p>
           
-          <div className="space-y-5 bg-muted/40 p-6 rounded-[20px] border border-border/60">
+          <div className="space-y-4 rounded-[20px] border border-border/60 bg-muted/40 p-4 sm:p-5">
             <StatLine icon={<Target size={18} strokeWidth={2.5} />} label={spotlight.goalType === 'personalized' ? 'Your target' : 'Daily target'} value={`${spotlight.dailyGoal.toLocaleString()} steps`} />
             <StatLine icon={<Users size={18} strokeWidth={2.5} />} label="Verified walkers" value={`${spotlight.participantCount} people`} />
-            <div className="h-px bg-border/60 my-2" />
+            <div className="my-2 h-px bg-border/60" />
             <StatLine icon={<Award size={18} strokeWidth={2.5} className="text-accent-foreground" />} label="Secured pool" value={spotlight.community ? 'Free entry' : `$${spotlight.prizePool.toLocaleString()}`} />
           </div>
         </div>
         
-        <Link href={`/challenge/${spotlight.id}`} className="mt-8 flex w-full items-center justify-between rounded-xl bg-foreground px-6 py-4.5 text-sm font-bold text-background transition-all hover:bg-primary hover:scale-[1.02] shadow-md hover:shadow-lg group" data-testid={`link-spotlight-${spotlight.id}`}>
-          <span className="text-[15px]">View live standings</span>
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-background/20 group-hover:bg-background/30 transition-colors">
+        <Link href={`/challenge/${spotlight.id}`} className="group mt-7 flex w-full items-center justify-between rounded-xl bg-foreground px-5 py-3.5 text-sm font-bold text-background shadow-md transition-all hover:scale-[1.01] hover:bg-primary hover:shadow-lg" data-testid={`link-spotlight-${spotlight.id}`}>
+          <span>View live standings</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-background/20 transition-colors group-hover:bg-background/30">
             <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </span>
         </Link>
@@ -373,22 +379,22 @@ function Dashboard() {
     </section>
 
     {/* Row 2: Secondary Content */}
-    <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
+    <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
       {/* Active Challenges */}
       <div className="rise-in delay-4 flex flex-col">
         <SectionHeading eyebrow="Your circle" title="Challenges in motion" action={<Link href="/challenges" className="group flex items-center gap-1.5 text-sm font-bold text-primary hover:text-primary/80 transition-colors bg-primary/10 px-3 py-1.5 rounded-full" data-testid="link-see-all-challenges">See all <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" /></Link>} />
         
-        <div className="grid gap-5 sm:grid-cols-2 h-full">
+        <div className="grid gap-4 sm:grid-cols-2">
           {challenges.filter((item) => item.joined && item.id !== spotlight.id).slice(0, 3).map((challenge) => (
             <ChallengeMiniCard challenge={challenge} key={challenge.id} />
           ))}
           
-          <Link href="/challenges" className="flex flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-border/80 bg-card/50 p-8 text-center hover:bg-muted/50 transition-all hover:border-primary/40 group lift-card min-h-[240px]">
-            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent/20 text-accent-foreground transition-transform duration-300 group-hover:scale-110 group-hover:bg-accent/30 shadow-sm">
+          <Link href="/challenges" className="lift-card group flex min-h-[210px] flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-border/80 bg-card/50 p-6 text-center transition-all hover:border-primary/40 hover:bg-muted/50 sm:p-8">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/20 text-accent-foreground shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:bg-accent/30">
               <Plus size={24} strokeWidth={2.5} />
             </div>
-            <p className="text-lg font-extrabold text-foreground tracking-[-.02em]">Find your next rhythm</p>
-            <p className="mt-2 text-sm text-muted-foreground font-medium">Browse verified open pools</p>
+            <p className="font-extrabold tracking-[-.02em] text-foreground">Find your next rhythm</p>
+            <p className="mt-2 text-xs font-medium text-muted-foreground">Browse verified open pools</p>
           </Link>
         </div>
       </div>
@@ -398,27 +404,34 @@ function Dashboard() {
         {/* Upcoming Card */}
         <div>
           <SectionHeading eyebrow="On deck" title="Coming up next" />
-          <div className="rounded-[24px] border border-border bg-card p-7 shadow-[var(--shadow-card)] relative lift-card group/upcoming">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex h-14 w-14 items-center justify-center rounded-[18px] shadow-sm bg-card border border-border" style={{ color: upcoming.color }}>
-                <CalendarDays size={24} strokeWidth={2} />
+          {upcoming ? <div className="lift-card group/upcoming relative rounded-[24px] border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-7">
+              <div className="mb-6 flex items-start justify-between gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-[16px] border border-border bg-card shadow-sm" style={{ color: upcoming.color }}>
+                  <CalendarDays size={24} strokeWidth={2} />
+                </div>
+                <Badge tone="teal">Starts {upcoming.startDate}</Badge>
               </div>
-              <Badge tone="teal">Starts {upcoming.startDate}</Badge>
-            </div>
-            
-            <h3 className="font-display text-2xl font-extrabold tracking-[-.03em]">{upcoming.name}</h3>
-            <p className="mt-3 text-[13px] font-medium leading-relaxed text-muted-foreground flex gap-2.5 flex-wrap items-center">
-              <span className="flex items-center gap-1.5"><Clock3 size={15}/> {upcoming.days}d</span>
-              <span className="w-1 h-1 rounded-full bg-border"></span>
-              <span className="flex items-center gap-1.5"><Footprints size={15}/> {upcoming.dailyGoal.toLocaleString()}</span>
-              <span className="w-1 h-1 rounded-full bg-border"></span>
-              <span className="flex items-center gap-1.5"><Award size={15}/> ${upcoming.entryFee}</span>
-            </p>
-            
-            <Link href={`/challenge/${upcoming.id}`} className="mt-6 flex w-full items-center justify-center rounded-xl border-2 border-border/80 bg-transparent py-3 text-sm font-bold text-foreground transition-all hover:border-primary hover:text-primary group-hover/upcoming:border-border" data-testid={`link-upcoming-${upcoming.id}`}>
-              View details <ArrowUpRight size={16} className="ml-2 transition-transform group-hover/upcoming:translate-x-0.5 group-hover/upcoming:-translate-y-0.5" />
-            </Link>
-          </div>
+              <h3 className="font-display text-xl font-extrabold tracking-[-.03em] sm:text-2xl">{upcoming.name}</h3>
+              <p className="mt-3 flex flex-wrap items-center gap-2.5 text-[13px] font-medium leading-relaxed text-muted-foreground">
+                <span className="flex items-center gap-1.5"><Clock3 size={15} /> {upcoming.days}d</span>
+                <span className="h-1 w-1 rounded-full bg-border" />
+                <span className="flex items-center gap-1.5"><Footprints size={15} /> {upcoming.dailyGoal.toLocaleString()}</span>
+                <span className="h-1 w-1 rounded-full bg-border" />
+                <span className="flex items-center gap-1.5"><Award size={15} /> ${upcoming.entryFee}</span>
+              </p>
+              <Link href={`/challenge/${upcoming.id}`} className="mt-6 flex w-full items-center justify-center rounded-xl border-2 border-border/80 bg-transparent py-3 text-sm font-bold text-foreground transition-all hover:border-primary hover:text-primary group-hover/upcoming:border-border" data-testid={`link-upcoming-${upcoming.id}`}>
+                View details <ArrowUpRight size={16} className="ml-2 transition-transform group-hover/upcoming:translate-x-0.5 group-hover/upcoming:-translate-y-0.5" />
+              </Link>
+            </div> : <div className="flex min-h-[214px] flex-col justify-between rounded-[24px] border border-dashed border-border bg-card/60 p-6 shadow-[var(--shadow-card)] sm:p-7">
+              <div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-accent/25 text-accent-foreground"><Compass size={23} /></div>
+                <h3 className="mt-6 font-display text-xl font-extrabold tracking-[-.03em]">Make room for the next one</h3>
+                <p className="mt-2 text-sm font-medium leading-5 text-muted-foreground">Browse verified pools and choose a challenge that fits your week.</p>
+              </div>
+              <Link href="/challenges" className="mt-6 flex w-full items-center justify-center rounded-xl bg-foreground py-3 text-sm font-bold text-background transition hover:bg-primary hover:text-primary-foreground" data-testid="link-upcoming-browse">
+                Browse challenges <ArrowUpRight size={16} className="ml-2" />
+              </Link>
+            </div>}
         </div>
         
         {/* Activity Feed */}
