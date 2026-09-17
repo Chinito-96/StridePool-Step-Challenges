@@ -158,6 +158,17 @@ describe("wallet join and leave transactions", () => {
 });
 
 describe("membership challenge limits and platform fees", () => {
+  it("keeps a creator-set $150 entry separate from the Free platform fee", async () => {
+    const challengeId = await addChallenge({ entryFee: "150.00" });
+    const result = await activateProviderChallengeEntry(userIds[0], challengeId, 15_000, 200, 15_200, "pi_free_150", beforeStart);
+    assert.deepEqual(result, { activated: true });
+    const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
+    const [entry] = await entriesFor(challengeId);
+    assert.equal(entry.entryFee, "150.00");
+    assert.equal(challenge.prizePool, "150.00");
+    assert.equal(challenge.participantCount, 1);
+  });
+
   it("limits Free accounts to one active challenge and validates its $2 platform fee", async () => {
     const first = await addChallenge();
     const second = await addChallenge();

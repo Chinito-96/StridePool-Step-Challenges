@@ -36,6 +36,7 @@ import {
   db,
   entriesTable,
   healthSourceConnectionsTable,
+  joinChallenge as joinMoneyChallenge,
   leaveChallenge as leaveMoneyChallenge,
   getMembershipSummary,
   MoneyLogicError,
@@ -1120,11 +1121,30 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
     res.status(req.isAuthenticated() ? 403 : 401).json({ error: "This private challenge is limited to its group members." });
     return;
   }
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Login required to join a challenge." });
+  const userId = req.isAuthenticated()
+    ? req.user.id
+    : challenge.community && numberValue(challenge.entryFee) === 0
+      ? anonymousWalkerId(req)
+      : null;
+  if (!userId) {
+    res.status(401).json({ error: "Login required to join a paid challenge." });
     return;
   }
-  res.status(409).json({ error: "Every challenge requires secure checkout before your place is activated." });
+  if (!challenge.community || numberValue(challenge.entryFee) !== 0) {
+    res.status(409).json({ error: "Paid challenges require secure checkout before your place is activated." });
+    return;
+  }
+  try {
+    const result = await joinMoneyChallenge(userId, params.data.id);
+    res.json(JoinStridePoolChallengeResponse.parse({ joined: true, wallet: result.wallet }));
+  } catch (error) {
+    if (error instanceof MoneyLogicError) {
+      const status = error.code === "NOT_FOUND" ? 404 : 409;
+      res.status(status).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: error instanceof Error ? error.message : "Could not join this challenge." });
+  }
 });
 
 router.post("/stridepool/challenges/:id/leave", async (req, res): Promise<void> => {
