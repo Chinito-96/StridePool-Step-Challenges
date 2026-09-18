@@ -19,3 +19,15 @@ body { margin: 0; background: var(--mascot-cream); color: var(--mascot-charcoal)
 .mascot-mono { font-family: 'DM Mono', monospace; }
 .mascot-mark { display: block; width: 100%; height: auto; }
 .mascot-small { display: block; width: 100%; height: auto; }
+@keyframes mascot-motion-pulse {
+  0%, 100% { opacity: .38; }
+  50% { opacity: 1; }
+}
+.mascot-motion path:nth-of-type(2) { animation: mascot-motion-pulse 1.8s ease-in-out infinite; }
+.mascot-motion path:nth-of-type(3) { animation: mascot-motion-pulse 1.8s .2s ease-in-out infinite; }
+.mascot-motion path:nth-of-type(4) { animation: mascot-motion-pulse 1.8s .4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .mascot-motion path:nth-of-type(2),
+  .mascot-motion path:nth-of-type(3),
+  .mascot-motion path:nth-of-type(4) { animation: none; }
+}

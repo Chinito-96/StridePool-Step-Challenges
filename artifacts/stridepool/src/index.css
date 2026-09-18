@@ -191,6 +191,25 @@
 .shell-main section > div[style*='background-color'] .relative > p {
   color: hsl(var(--primary-foreground) / .75) !important;
 }
+.bg-sidebar [data-testid='link-logo'] > span:first-child {
+  background-color: hsl(var(--sidebar-foreground) / .1);
+  color: hsl(var(--sidebar-foreground));
+}
+.bg-sidebar [data-testid='link-logo'] > span:last-child .text-primary {
+  color: hsl(var(--sidebar-foreground));
+}
+@keyframes shoelace-motion-pulse {
+  0%, 100% { opacity: .38; }
+  50% { opacity: 1; }
+}
+.shoelace-motion path:nth-of-type(2) { animation: shoelace-motion-pulse 1.8s ease-in-out infinite; }
+.shoelace-motion path:nth-of-type(3) { animation: shoelace-motion-pulse 1.8s .2s ease-in-out infinite; }
+.shoelace-motion path:nth-of-type(4) { animation: shoelace-motion-pulse 1.8s .4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .shoelace-motion path:nth-of-type(2),
+  .shoelace-motion path:nth-of-type(3),
+  .shoelace-motion path:nth-of-type(4) { animation: none; }
+}
 .mobile-nav {
   box-shadow: 0 -12px 32px rgba(43, 47, 65, .08);
 }

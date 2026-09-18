@@ -23,7 +23,7 @@ export function ShoelaceMascot({ mood = 'happy', size = 48, label, className = '
       focusable="false"
     >
       <ellipse cx="65" cy="111" rx="42" ry="4" fill="currentColor" opacity=".12" />
-      <g className="shoelace-step-mark" transform="rotate(-13 64 64)" stroke="hsl(var(--primary))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
+      <g className="shoelace-step-mark" transform="rotate(-13 64 64)" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M58 61c-7-8-20-10-29-4-10 7-7 17 5 21l13 4c12 4 13 14 2 20-15 8-32 1-37-10" />
         <path d="M77 83V25h21c14 0 23 8 23 19s-9 19-23 19H77" />
       </g>
