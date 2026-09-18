@@ -23,6 +23,7 @@
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-text: hsl(var(--accent-text));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-sidebar: hsl(var(--sidebar));
@@ -40,30 +41,31 @@
 
 :root {
   --background: 42 42% 96%;
-  --foreground: 213 48% 16%;
+  --foreground: 42 11% 19%;
   --border: 39 24% 84%;
   --input: 39 24% 84%;
-  --ring: 174 82% 38%;
+  --ring: 160 69% 25%;
   --card: 42 50% 99%;
-  --card-foreground: 213 48% 16%;
+  --card-foreground: 42 11% 19%;
   --card-border: 39 24% 84%;
   --popover: 42 50% 99%;
-  --popover-foreground: 213 48% 16%;
-  --primary: 174 82% 38%;
+  --popover-foreground: 42 11% 19%;
+  --primary: 160 69% 14%;
   --primary-foreground: 42 50% 99%;
-  --secondary: 174 36% 84%;
-  --secondary-foreground: 184 46% 18%;
+  --secondary: 145 25% 86%;
+  --secondary-foreground: 160 45% 18%;
   --muted: 40 30% 90%;
-  --muted-foreground: 214 17% 42%;
-  --accent: 20 93% 61%;
-  --accent-foreground: 17 56% 18%;
+  --muted-foreground: 42 10% 35%;
+  --accent: 43 67% 52%;
+  --accent-foreground: 42 22% 13%;
+  --accent-text: 42 68% 31%;
   --destructive: 2 65% 47%;
   --destructive-foreground: 42 50% 99%;
-  --sidebar: 213 48% 16%;
+  --sidebar: 160 69% 14%;
   --sidebar-foreground: 42 42% 96%;
-  --sidebar-border: 213 29% 27%;
-  --sidebar-primary: 174 82% 45%;
-  --sidebar-primary-foreground: 42 50% 99%;
+  --sidebar-border: 160 45% 23%;
+  --sidebar-primary: 145 25% 86%;
+  --sidebar-primary-foreground: 160 45% 18%;
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
   --app-font-display: 'Space Grotesk', sans-serif;
   --app-font-mono: 'DM Mono', monospace;
@@ -73,31 +75,32 @@
 }
 
 .dark {
-  --background: 213 48% 16%;
+  --background: 160 69% 14%;
   --foreground: 42 42% 96%;
-  --border: 213 29% 27%;
-  --input: 213 29% 27%;
-  --ring: 174 82% 45%;
-  --card: 213 39% 21%;
+  --border: 160 45% 23%;
+  --input: 160 45% 23%;
+  --ring: 43 67% 52%;
+  --card: 160 50% 18%;
   --card-foreground: 42 42% 96%;
-  --card-border: 213 29% 31%;
-  --popover: 213 39% 21%;
+  --card-border: 160 45% 26%;
+  --popover: 160 50% 18%;
   --popover-foreground: 42 42% 96%;
-  --primary: 174 82% 45%;
-  --primary-foreground: 213 48% 16%;
-  --secondary: 174 29% 29%;
+  --primary: 43 67% 52%;
+  --primary-foreground: 42 22% 13%;
+  --secondary: 160 35% 27%;
   --secondary-foreground: 42 42% 96%;
-  --muted: 213 29% 25%;
-  --muted-foreground: 215 15% 72%;
-  --accent: 20 93% 61%;
-  --accent-foreground: 17 56% 12%;
+  --muted: 160 35% 22%;
+  --muted-foreground: 42 20% 78%;
+  --accent: 43 67% 52%;
+  --accent-foreground: 42 22% 12%;
+  --accent-text: 43 67% 70%;
   --destructive: 2 64% 54%;
   --destructive-foreground: 39 50% 98%;
-  --sidebar: 213 55% 11%;
+  --sidebar: 160 75% 9%;
   --sidebar-foreground: 42 42% 96%;
-  --sidebar-border: 213 29% 22%;
-  --sidebar-primary: 174 82% 45%;
-  --sidebar-primary-foreground: 213 48% 16%;
+  --sidebar-border: 160 45% 18%;
+  --sidebar-primary: 43 67% 52%;
+  --sidebar-primary-foreground: 42 22% 12%;
 }
 
 @layer base {
@@ -106,7 +109,7 @@
   body { @apply font-sans antialiased bg-background text-foreground; margin: 0; }
   button, input, select { font: inherit; }
   body { min-width: 320px; }
-  ::selection { background: hsl(var(--accent) / .6); color: hsl(var(--accent-foreground)); }
+  ::selection { background: hsl(var(--primary) / .3); color: hsl(var(--foreground)); }
   button, a, [role='button'] {
     -webkit-tap-highlight-color: transparent;
   }
@@ -148,7 +151,7 @@
 .app-noise {
   background-color: hsl(var(--background));
   background-image:
-    radial-gradient(circle at 78% 12%, hsl(var(--accent) / .13), transparent 25rem),
+     radial-gradient(circle at 78% 12%, hsl(var(--primary) / .1), transparent 25rem),
     radial-gradient(circle at 28% 78%, hsl(var(--secondary) / .25), transparent 31rem),
     radial-gradient(circle at 92% 88%, hsl(var(--primary) / .07), transparent 24rem);
   background-size: 115% 115%, 125% 125%, 120% 120%;
@@ -162,6 +165,31 @@
 }
 .shell-main {
   isolation: isolate;
+}
+.shell-main section:has([data-testid='text-wallet-balance']) > div:first-child {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground));
+}
+.shell-main section:has([data-testid='text-wallet-balance']) > div:first-child > div {
+  color: hsl(var(--primary-foreground) / .7);
+}
+.shell-main [data-testid='text-wallet-balance'] {
+  color: hsl(var(--accent));
+}
+.shell-main section:has([data-testid='text-wallet-balance']) > div:not(:first-child) p.font-display {
+  color: hsl(var(--accent-text));
+}
+.shell-main [data-testid^='ledger-entry-'] > span:last-child {
+  color: hsl(var(--accent-text));
+}
+.shell-main section > div[style*='background-color'] {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground));
+}
+.shell-main section > div[style*='background-color'] .relative > .flex > span:last-child,
+.shell-main section > div[style*='background-color'] .relative > h1,
+.shell-main section > div[style*='background-color'] .relative > p {
+  color: hsl(var(--primary-foreground) / .75) !important;
 }
 .mobile-nav {
   box-shadow: 0 -12px 32px rgba(43, 47, 65, .08);
@@ -192,7 +220,7 @@
 .lift-card { border-color: hsl(var(--border) / .9); }
 .lift-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-soft); border-color: hsl(var(--primary) / .28); }
 .lift-card:active { transform: translateY(-1px) scale(.99); }
-.lift-card:hover .progress-fill {
+  .lift-card:hover .progress-fill {
   filter: saturate(1.15);
   box-shadow: 0 0 12px hsl(var(--accent) / .32);
 }
@@ -307,7 +335,7 @@ input[type='checkbox'] {
 @media (max-width: 767px) {
   .app-noise {
     background-image:
-      radial-gradient(circle at 90% 5%, hsl(var(--accent) / .11), transparent 18rem),
+     radial-gradient(circle at 90% 5%, hsl(var(--primary) / .1), transparent 18rem),
       radial-gradient(circle at 5% 68%, hsl(var(--secondary) / .18), transparent 22rem);
     animation: none;
   }

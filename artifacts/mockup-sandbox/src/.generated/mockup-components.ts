@@ -5,5 +5,8 @@ export const modules: ModuleMap = {
   "./components/mockups/challenge-comparison/CurrentList.tsx": () => import("../components/mockups/challenge-comparison/CurrentList.tsx"),
   "./components/mockups/challenge-comparison/ProposedDetail.tsx": () => import("../components/mockups/challenge-comparison/ProposedDetail.tsx"),
   "./components/mockups/challenge-comparison/ProposedList.tsx": () => import("../components/mockups/challenge-comparison/ProposedList.tsx"),
-  "./components/mockups/challenge-comparison/shared.tsx": () => import("../components/mockups/challenge-comparison/shared.tsx")
+  "./components/mockups/challenge-comparison/shared.tsx": () => import("../components/mockups/challenge-comparison/shared.tsx"),
+  "./components/mockups/emerald-gold-comparison/ProposedList.tsx": () => import("../components/mockups/emerald-gold-comparison/ProposedList.tsx"),
+  "./components/mockups/emerald-gold-comparison/WalletCurrent.tsx": () => import("../components/mockups/emerald-gold-comparison/WalletCurrent.tsx"),
+  "./components/mockups/emerald-gold-comparison/WalletProposed.tsx": () => import("../components/mockups/emerald-gold-comparison/WalletProposed.tsx")
 };

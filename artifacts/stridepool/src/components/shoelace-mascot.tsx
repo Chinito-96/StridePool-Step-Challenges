@@ -23,9 +23,9 @@ export function ShoelaceMascot({ mood = 'happy', size = 48, label, className = '
       focusable="false"
     >
       <ellipse cx="48" cy="70" rx="25" ry="3.5" fill="currentColor" opacity=".12" />
-      <g className="shoelace-bow" stroke="hsl(var(--accent))" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M48 52c-8-12-20-12-23-4 8 8 15 8 23 4Z" fill="hsl(var(--accent) / .32)" />
-        <path d="M48 52c8-12 20-12 23-4-8 8-15 8-23 4Z" fill="hsl(var(--accent) / .32)" />
+      <g className="shoelace-bow" stroke="hsl(var(--primary))" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M48 52c-8-12-20-12-23-4 8 8 15 8 23 4Z" fill="hsl(var(--primary) / .22)" />
+        <path d="M48 52c8-12 20-12 23-4-8 8-15 8-23 4Z" fill="hsl(var(--primary) / .22)" />
         <path d="M48 49v9" />
       </g>
       <g className="shoelace-lace" stroke="hsl(var(--primary))" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round">

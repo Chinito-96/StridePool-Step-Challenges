@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --eg-cream: #f7f3e8;
+  --eg-card: #fffdf8;
+  --eg-emerald: #0b3d2e;
+  --eg-emerald-2: #145742;
+  --eg-gold: #d4a537;
+  --eg-brass-text: #765813;
+  --eg-charcoal: #30332d;
+  --eg-border: #ddd8ca;
+  --eg-muted: #e9e4d7;
+  --eg-muted-text: #686c62;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--eg-cream); color: var(--eg-charcoal); font-family: 'Plus Jakarta Sans', sans-serif; }
+.eg-shell { min-height: 100vh; background: radial-gradient(circle at 100% 0%, rgba(212,165,55,.13), transparent 24rem), var(--eg-cream); }
+.eg-display { font-family: 'Space Grotesk', sans-serif; }
+.eg-mono { font-family: 'DM Mono', monospace; }
+.eg-card { border: 1px solid var(--eg-border); background: var(--eg-card); }
+.eg-shadow { box-shadow: 0 8px 24px rgba(11,61,46,.09); }
+.eg-gold-text { color: var(--eg-brass-text); }
+.eg-gold-on-green { color: var(--eg-gold); }
+.eg-gold-fill { background: var(--eg-gold); }
+.eg-progress { background: linear-gradient(90deg, var(--eg-gold), #edd27a); }
+.eg-rise { animation: eg-rise .45s ease-out both; }
+@keyframes eg-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .eg-rise { animation: none; } }
