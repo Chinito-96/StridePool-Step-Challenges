@@ -201,6 +201,10 @@
 .bg-sidebar [data-testid='link-logo'] > span:last-child {
   color: hsl(var(--sidebar-foreground));
 }
+[data-testid='link-logo'] > span:first-child {
+  background-color: transparent !important;
+  border-radius: 9999px;
+}
 .stridepool-mark {
   display: block;
   object-fit: cover;
