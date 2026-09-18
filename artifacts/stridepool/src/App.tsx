@@ -889,6 +889,23 @@ function ReferralCard() {
   </section>;
 }
 
+function ReferralsPage() {
+  const { auth } = useApp();
+  return <div className="mx-auto max-w-[840px]">
+    <div className="mb-8">
+      <p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Bring your people</p>
+      <h1 className="font-display text-[clamp(2.2rem,5vw,4rem)] font-extrabold leading-[.95] tracking-[-.07em]">Referrals</h1>
+      <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">Share a little momentum. When a new walker signs up through your link and joins a challenge, you both get Pro free for 30 days.</p>
+    </div>
+    {auth.isAuthenticated ? <ReferralCard /> : <section className="rounded-[28px] border border-primary/25 bg-primary/10 p-7 shadow-[var(--shadow-card)] sm:p-10" data-testid="panel-referrals-login">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[3px_3px_0_hsl(var(--foreground))]"><Gift size={25} /></div>
+      <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">Your referral link is waiting</h2>
+      <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">Log in to create your personal link and start giving friends a free month of StridePool Pro.</p>
+      <Button className="mt-6" onClick={auth.login} data-testid="button-referrals-login">Log in to get your link <ArrowUpRight size={16} /></Button>
+    </section>}
+  </div>;
+}
+
 function MembershipCard({ membership }: { membership: MembershipSummary }) {
   const checkout = useCreateProSubscriptionCheckout();
   const [message, setMessage] = useState('');
@@ -1121,6 +1138,6 @@ function AdminOverridePanel({ userId, challenges, overrides, availableChallenges
 
 function NotFound() { return <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-primary"><Footprints size={25} /></div><h1 className="mt-5 font-display text-3xl font-bold">This path wandered off.</h1><p className="mt-2 text-sm text-muted-foreground">That page is not part of today's route.</p><Link href="/" className="mt-6 rounded-xl bg-foreground px-5 py-3 text-sm font-bold text-background" data-testid="link-back-home">Back to today</Link></div>; }
 
-function Router() { const [location] = useLocation(); return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Dashboard} /><Route path="/challenges" component={ChallengesPage} /><Route path="/community" component={CommunityPage} /><Route path="/challenge/:id" component={ChallengeDetail} /><Route path="/invite/:token" component={InvitePage} /><Route path="/referral/:code" component={ReferralPage} /><Route path="/wallet" component={WalletPage} /><Route path="/safety" component={SafetyPage} /><Route path="/profile" component={ProfilePage} /><Route path="/admin" component={AdminPage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>; }
+function Router() { const [location] = useLocation(); return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Dashboard} /><Route path="/challenges" component={ChallengesPage} /><Route path="/community" component={CommunityPage} /><Route path="/challenge/:id" component={ChallengeDetail} /><Route path="/invite/:token" component={InvitePage} /><Route path="/referrals" component={ReferralsPage} /><Route path="/referral/:code" component={ReferralPage} /><Route path="/wallet" component={WalletPage} /><Route path="/safety" component={SafetyPage} /><Route path="/profile" component={ProfilePage} /><Route path="/admin" component={AdminPage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>; }
 function App() { return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><AppProvider><Router /></AppProvider></WouterRouter></QueryClientProvider>; }
 export default App;
