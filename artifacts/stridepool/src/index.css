@@ -243,6 +243,8 @@
 .icon-button { transition: transform .2s ease, background-color .2s ease; }
 .icon-button:hover { transform: translateY(-1px); }
 .icon-button:hover svg { animation: icon-tilt .42s cubic-bezier(.2,.8,.2,1); }
+[data-testid='button-referrals'] { color: hsl(var(--accent)) !important; }
+[data-testid='button-referrals']:hover { background-color: hsl(var(--accent) / .1); }
 .lift-card { transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease; }
 .lift-card { border-color: hsl(var(--border) / .9); }
 .lift-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-soft); border-color: hsl(var(--primary) / .28); }
