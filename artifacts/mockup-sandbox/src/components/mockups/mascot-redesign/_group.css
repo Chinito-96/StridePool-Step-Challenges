@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --mascot-cream: #f7f3e8;
+  --mascot-card: #fffdf8;
+  --mascot-emerald: #0b3d2e;
+  --mascot-gold: #d4a537;
+  --mascot-brass: #765813;
+  --mascot-charcoal: #30332d;
+  --mascot-border: #ddd8ca;
+  --mascot-muted: #686c62;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--mascot-cream); color: var(--mascot-charcoal); font-family: 'Plus Jakarta Sans', sans-serif; }
+.mascot-shell { min-height: 100vh; padding: 28px; background: radial-gradient(circle at 100% 0%, rgba(212,165,55,.15), transparent 22rem), var(--mascot-cream); }
+.mascot-card { border: 1px solid var(--mascot-border); background: rgba(255,253,248,.86); box-shadow: 0 14px 36px rgba(11,61,46,.1); }
+.mascot-display { font-family: 'Space Grotesk', sans-serif; }
+.mascot-mono { font-family: 'DM Mono', monospace; }
+.mascot-mark { display: block; width: 100%; height: auto; }
+.mascot-small { display: block; width: 100%; height: auto; }

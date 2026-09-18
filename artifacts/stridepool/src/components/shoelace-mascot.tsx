@@ -7,7 +7,7 @@ type ShoelaceMascotProps = SVGProps<SVGSVGElement> & {
 };
 
 export function ShoelaceMascot({ mood = 'happy', size = 48, label, className = '', ...props }: ShoelaceMascotProps) {
-  const mouth = mood === 'calm' ? 'M43 48c3 1.5 6 1.5 9 0' : mood === 'ready' ? 'M42 47c3 2.5 7 2.5 10 0' : 'M41 47c4 4 8 4 12 0';
+  const trailOpacity = mood === 'calm' ? 0.42 : mood === 'ready' ? 0.9 : 0.68;
 
   return (
     <svg
@@ -15,28 +15,25 @@ export function ShoelaceMascot({ mood = 'happy', size = 48, label, className = '
       className={`shoelace-mascot shoelace-whip ${className}`}
       width={size}
       height={size}
-      viewBox="0 0 96 80"
+      viewBox="0 0 128 128"
       fill="none"
       role={label ? 'img' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
       focusable="false"
     >
-      <ellipse cx="48" cy="70" rx="25" ry="3.5" fill="currentColor" opacity=".12" />
-      <g className="shoelace-bow" stroke="hsl(var(--primary))" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M48 52c-8-12-20-12-23-4 8 8 15 8 23 4Z" fill="hsl(var(--primary) / .22)" />
-        <path d="M48 52c8-12 20-12 23-4-8 8-15 8-23 4Z" fill="hsl(var(--primary) / .22)" />
-        <path d="M48 49v9" />
+      <ellipse cx="65" cy="111" rx="42" ry="4" fill="currentColor" opacity=".12" />
+      <g className="shoelace-step-mark" transform="rotate(-13 64 64)" stroke="hsl(var(--primary))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M58 61c-7-8-20-10-29-4-10 7-7 17 5 21l13 4c12 4 13 14 2 20-15 8-32 1-37-10" />
+        <path d="M77 83V25h21c14 0 23 8 23 19s-9 19-23 19H77" />
       </g>
-      <g className="shoelace-lace" stroke="hsl(var(--primary))" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 23C9 37 18 59 38 63c19 4 39-8 40-27 1-9-4-15-10-14-7 1-7 9 0 12 9 4 17-2 19-11" />
-        <path d="M22 23c8 7 15 9 23 8 8-1 13-6 18-13" />
+      <g className="shoelace-motion" stroke="hsl(var(--accent))" strokeWidth="5" strokeLinecap="round">
+        <path d="M58 72 78 52" />
+        <path d="M7 76 22 71" opacity={trailOpacity} />
+        <path d="M4 89 20 85" opacity={trailOpacity * .76} />
+        <path d="M7 102 21 99" opacity={trailOpacity * .52} />
+        <circle cx="78" cy="52" r="3.5" fill="hsl(var(--accent))" stroke="none" />
       </g>
-      <g className="shoelace-aglets" fill="hsl(var(--accent))" stroke="hsl(var(--foreground))" strokeWidth="2">
-        <rect x="15" y="17" width="14" height="9" rx="4.5" transform="rotate(-30 15 17)" />
-        <rect x="67" y="13" width="14" height="9" rx="4.5" transform="rotate(26 67 13)" />
-      </g>
-      <path d={mouth} stroke="hsl(var(--foreground))" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   );
 }
