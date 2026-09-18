@@ -176,6 +176,38 @@ export const challengeInvitesTable = pgTable(
   ],
 );
 
+export const referralCodesTable = pgTable(
+  "stridepool_referral_codes",
+  {
+    code: varchar("code").primaryKey(),
+    ownerUserId: varchar("owner_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("stridepool_referral_codes_owner_unique").on(table.ownerUserId),
+  ],
+);
+
+export const referralsTable = pgTable(
+  "stridepool_referrals",
+  {
+    id: serial("id").primaryKey(),
+    code: varchar("code").notNull().references(() => referralCodesTable.code, { onDelete: "cascade" }),
+    referrerUserId: varchar("referrer_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    referredUserId: varchar("referred_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    status: varchar("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
+    referrerTrialEndsAt: timestamp("referrer_trial_ends_at", { withTimezone: true }),
+    referredTrialEndsAt: timestamp("referred_trial_ends_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("stridepool_referrals_referred_unique").on(table.referredUserId),
+    index("stridepool_referrals_referrer_idx").on(table.referrerUserId, table.createdAt),
+    index("stridepool_referrals_status_idx").on(table.status, table.createdAt),
+  ],
+);
+
 export const notificationsTable = pgTable(
   "stridepool_notifications",
   {
@@ -308,6 +340,8 @@ export type HealthSourceConnection = typeof healthSourceConnectionsTable.$inferS
 export type StepSourceSample = typeof stepSourceSamplesTable.$inferSelect;
 export type ChallengeParticipantOverride = typeof challengeParticipantOverridesTable.$inferSelect;
 export type ChallengeInvite = typeof challengeInvitesTable.$inferSelect;
+export type ReferralCode = typeof referralCodesTable.$inferSelect;
+export type Referral = typeof referralsTable.$inferSelect;
 export type Notification = typeof notificationsTable.$inferSelect;
 export type WalletLedgerEntry = typeof walletLedgerEntriesTable.$inferSelect;
 export type ProviderMoneyEvent = typeof providerMoneyEventsTable.$inferSelect;

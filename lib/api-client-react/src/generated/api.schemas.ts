@@ -320,6 +320,40 @@ export interface ChallengeInput {
   color: string;
 }
 
+export interface ReferralSummary {
+  code: string;
+  pendingCount: number;
+  qualifiedCount: number;
+  /** @nullable */
+  proTrialEndsAt: string | null;
+}
+
+export interface ReferralPreview {
+  code: string;
+  referrerDisplayName: string;
+}
+
+export interface ReferralClaimInput {
+  /**
+     * @minLength 6
+     * @maxLength 40
+     */
+  code: string;
+}
+
+export type ReferralClaimResponseStatus = typeof ReferralClaimResponseStatus[keyof typeof ReferralClaimResponseStatus];
+
+
+export const ReferralClaimResponseStatus = {
+  pending: 'pending',
+  qualified: 'qualified',
+} as const;
+
+export interface ReferralClaimResponse {
+  claimed: boolean;
+  status: ReferralClaimResponseStatus;
+}
+
 export type GroupChallengeInputChallengeType = typeof GroupChallengeInputChallengeType[keyof typeof GroupChallengeInputChallengeType];
 
 

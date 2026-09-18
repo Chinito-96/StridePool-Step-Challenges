@@ -641,6 +641,71 @@ paths:
           description: Login required.
         "404":
           description: Invite not found or no longer available.
+  /stridepool/referrals/me:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolReferralSummary
+      summary: Get the current user's referral code and reward status
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Referral code and reward status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralSummary"
+        "401":
+          description: Login required.
+  /stridepool/referrals/{code}:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolReferralPreview
+      summary: Preview a referral link
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string, minLength: 6, maxLength: 40 }
+      responses:
+        "200":
+          description: Referral preview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralPreview"
+        "404":
+          description: Referral code not found.
+  /stridepool/referrals/claim:
+    post:
+      tags: [stridepool]
+      operationId: claimStridePoolReferral
+      summary: Attach a referral code to the current account
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferralClaimInput"
+      responses:
+        "200":
+          description: Referral attached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralClaimResponse"
+        "400":
+          description: Referral code cannot be claimed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Login required.
   /stridepool/sources:
     get:
       tags: [stridepool]
@@ -1172,6 +1237,31 @@ components:
         activeChallengeCount: { type: integer }
         challengeCreationLimit: { type: integer }
         activeCreatedChallengeCount: { type: integer }
+    ReferralSummary:
+      type: object
+      required: [code, pendingCount, qualifiedCount, proTrialEndsAt]
+      properties:
+        code: { type: string }
+        pendingCount: { type: integer }
+        qualifiedCount: { type: integer }
+        proTrialEndsAt: { type: ["string", "null"], format: date-time }
+    ReferralPreview:
+      type: object
+      required: [code, referrerDisplayName]
+      properties:
+        code: { type: string }
+        referrerDisplayName: { type: string }
+    ReferralClaimInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 6, maxLength: 40 }
+    ReferralClaimResponse:
+      type: object
+      required: [claimed, status]
+      properties:
+        claimed: { type: boolean }
+        status: { type: string, enum: [pending, qualified] }
     GroupChallengeInput:
       type: object
       required: [groupName, memberUserIds, name, theme, startDate, endDate, dailyGoal, challengeType, goalType, graceDays, color]

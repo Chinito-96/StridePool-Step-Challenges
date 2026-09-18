@@ -890,6 +890,61 @@ export const AcceptStridePoolInviteResponse = zod.object({
 
 
 /**
+ * @summary Get the current user's referral code and reward status
+ */
+export const GetStridePoolReferralSummaryHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetStridePoolReferralSummaryResponse = zod.object({
+  "code": zod.string(),
+  "pendingCount": zod.int(),
+  "qualifiedCount": zod.int(),
+  "proTrialEndsAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Preview a referral link
+ */
+export const getStridePoolReferralPreviewPathCodeMin = 6;
+export const getStridePoolReferralPreviewPathCodeMax = 40;
+
+
+
+export const GetStridePoolReferralPreviewParams = zod.object({
+  "code": zod.coerce.string().min(getStridePoolReferralPreviewPathCodeMin).max(getStridePoolReferralPreviewPathCodeMax)
+})
+
+export const GetStridePoolReferralPreviewResponse = zod.object({
+  "code": zod.string(),
+  "referrerDisplayName": zod.string()
+})
+
+
+/**
+ * @summary Attach a referral code to the current account
+ */
+export const ClaimStridePoolReferralHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const claimStridePoolReferralBodyCodeMin = 6;
+export const claimStridePoolReferralBodyCodeMax = 40;
+
+
+
+export const ClaimStridePoolReferralBody = zod.object({
+  "code": zod.string().min(claimStridePoolReferralBodyCodeMin).max(claimStridePoolReferralBodyCodeMax)
+})
+
+export const ClaimStridePoolReferralResponse = zod.object({
+  "claimed": zod.boolean(),
+  "status": zod.enum(['pending', 'qualified'])
+})
+
+
+/**
  * @summary List supported health sources and verification status
  */
 export const GetStridePoolHealthSourcesHeader = zod.object({

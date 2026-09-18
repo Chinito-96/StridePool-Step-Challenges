@@ -12,3 +12,4 @@
 - [Nullable daily-record upserts](daily-record-null-upsert.md) — composite uniqueness does not deduplicate rows when the challenge reference is NULL.
 - [Membership pricing](membership-pricing.md) — creator-set entry fees fund pools; Free/Pro add separate $2/$1 platform fees.
 - [Wallet withdrawal policy](wallet-withdrawal-policy.md) — require $20 available and a payout-enabled Stripe bank account; pending funds do not count.
+- [Referral entitlement behavior](referral-entitlements.md) — qualify after a successful join and preserve earned trial time even for current paid Pro members.

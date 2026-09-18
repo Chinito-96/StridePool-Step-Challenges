@@ -19,11 +19,12 @@ export const MEMBERSHIP_POLICY = {
   },
 } as const;
 
-export function membershipPlanFor(user: typeof usersTable.$inferSelect): MembershipPlan {
-  return user.membershipPlan === "pro"
-    && (user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing")
-    ? "pro"
-    : "free";
+export function membershipPlanFor(user: typeof usersTable.$inferSelect, now = new Date()): MembershipPlan {
+  if (user.proTrialEndsAt && user.proTrialEndsAt > now) return "pro";
+  if (user.membershipPlan !== "pro") return "free";
+  if (user.subscriptionStatus === "active") return "pro";
+  if (user.subscriptionStatus === "trialing" && (!user.proTrialEndsAt || user.proTrialEndsAt > now)) return "pro";
+  return "free";
 }
 
 export function membershipPolicyFor(user: typeof usersTable.$inferSelect) {
@@ -52,7 +53,7 @@ export async function getMembershipSummary(userId: string, now = new Date()) {
         ne(challengesTable.settlementStatus, "settled"),
       )),
   ]);
-  const plan = membershipPlanFor(user);
+  const plan = membershipPlanFor(user, now);
   const policy = MEMBERSHIP_POLICY[plan];
   return {
     plan,

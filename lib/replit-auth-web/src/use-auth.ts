@@ -11,8 +11,8 @@ type AuthState = {
   logout: () => void;
 };
 
-function getBasePath() {
-  return "/";
+function getReturnTo() {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
 export function useAuth(): AuthState {
@@ -45,11 +45,11 @@ export function useAuth(): AuthState {
   }, []);
 
   const login = useCallback(() => {
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(getBasePath())}`;
+    window.location.href = `/api/login?returnTo=${encodeURIComponent(getReturnTo())}`;
   }, []);
 
   const logout = useCallback(() => {
-    window.location.href = `/api/logout?returnTo=${encodeURIComponent(getBasePath())}`;
+    window.location.href = `/api/logout?returnTo=${encodeURIComponent(getReturnTo())}`;
   }, []);
 
   return { user, isLoading, isAuthenticated: Boolean(user), login, logout };

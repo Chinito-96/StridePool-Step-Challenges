@@ -71,6 +71,10 @@ import type {
   ProfileSettings,
   ProfileUpdate,
   ReceiveStripeWebhook200,
+  ReferralClaimInput,
+  ReferralClaimResponse,
+  ReferralPreview,
+  ReferralSummary,
   SearchAdminUsersParams,
   SearchStridePoolUsersParams,
   StridePoolBootstrap,
@@ -2505,6 +2509,231 @@ export const useAcceptStridePoolInvite = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAcceptStridePoolInviteMutationOptions(options));
+    }
+
+export const getGetStridePoolReferralSummaryUrl = () => {
+
+
+
+
+  return `/api/stridepool/referrals/me`
+}
+
+/**
+ * @summary Get the current user's referral code and reward status
+ */
+export const getStridePoolReferralSummary = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReferralSummary> => {
+
+  return customFetch<ReferralSummary>(getGetStridePoolReferralSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolReferralSummaryQueryKey = () => {
+    return [
+    `/api/stridepool/referrals/me`
+    ] as const;
+    }
+
+
+export const getGetStridePoolReferralSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolReferralSummary>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolReferralSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolReferralSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolReferralSummary>>> = ({ signal }) => getStridePoolReferralSummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolReferralSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolReferralSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolReferralSummary>>>
+export type GetStridePoolReferralSummaryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the current user's referral code and reward status
+ */
+
+export function useGetStridePoolReferralSummary<TData = Awaited<ReturnType<typeof getStridePoolReferralSummary>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolReferralSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolReferralSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStridePoolReferralPreviewUrl = (code: string,) => {
+
+
+
+
+  return `/api/stridepool/referrals/${code}`
+}
+
+/**
+ * @summary Preview a referral link
+ */
+export const getStridePoolReferralPreview = async (code: string, options?: Parameters<typeof customFetch>[1]): Promise<ReferralPreview> => {
+
+  return customFetch<ReferralPreview>(getGetStridePoolReferralPreviewUrl(code),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolReferralPreviewQueryKey = (code: string,) => {
+    return [
+    `/api/stridepool/referrals/${code}`
+    ] as const;
+    }
+
+
+export const getGetStridePoolReferralPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolReferralPreview>>, TError = ErrorType<void>>(code: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolReferralPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolReferralPreviewQueryKey(code);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolReferralPreview>>> = ({ signal }) => getStridePoolReferralPreview(code, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolReferralPreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolReferralPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolReferralPreview>>>
+export type GetStridePoolReferralPreviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary Preview a referral link
+ */
+
+export function useGetStridePoolReferralPreview<TData = Awaited<ReturnType<typeof getStridePoolReferralPreview>>, TError = ErrorType<void>>(
+ code: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolReferralPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolReferralPreviewQueryOptions(code,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getClaimStridePoolReferralUrl = () => {
+
+
+
+
+  return `/api/stridepool/referrals/claim`
+}
+
+/**
+ * @summary Attach a referral code to the current account
+ */
+export const claimStridePoolReferral = async (referralClaimInput: ReferralClaimInput, options?: Parameters<typeof customFetch>[1]): Promise<ReferralClaimResponse> => {
+
+  return customFetch<ReferralClaimResponse>(getClaimStridePoolReferralUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(referralClaimInput)
+  }
+);}
+
+
+
+
+
+export const getClaimStridePoolReferralMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimStridePoolReferral>>, TError,{data: BodyType<ReferralClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimStridePoolReferral>>, TError,{data: BodyType<ReferralClaimInput>}, TContext> => {
+
+const mutationKey = ['claimStridePoolReferral'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimStridePoolReferral>>, {data: BodyType<ReferralClaimInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  claimStridePoolReferral(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimStridePoolReferralMutationResult = NonNullable<Awaited<ReturnType<typeof claimStridePoolReferral>>>
+    export type ClaimStridePoolReferralMutationBody = BodyType<ReferralClaimInput>
+    export type ClaimStridePoolReferralMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Attach a referral code to the current account
+ */
+export const useClaimStridePoolReferral = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimStridePoolReferral>>, TError,{data: BodyType<ReferralClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof claimStridePoolReferral>>,
+        TError,
+        {data: BodyType<ReferralClaimInput>},
+        TContext
+      > => {
+      return useMutation(getClaimStridePoolReferralMutationOptions(options));
     }
 
 export const getGetStridePoolHealthSourcesUrl = () => {

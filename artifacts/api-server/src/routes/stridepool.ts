@@ -27,6 +27,11 @@ import {
   SearchStridePoolUsersResponse,
   UpdateStridePoolProfileBody,
   UpdateStridePoolProfileResponse,
+  GetStridePoolReferralSummaryResponse,
+  GetStridePoolReferralPreviewResponse,
+  GetStridePoolReferralPreviewParams,
+  ClaimStridePoolReferralBody,
+  ClaimStridePoolReferralResponse,
 } from "@workspace/api-zod";
 import {
   challengeInvitesTable,
@@ -49,6 +54,10 @@ import {
   groupMembersTable,
   groupsTable,
   notificationsTable,
+  getReferralPreview,
+  getReferralSummary,
+  claimReferralCode,
+  qualifyReferralForUser,
 } from "@workspace/db";
 import { challengeParticipantOverridesTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
@@ -966,6 +975,42 @@ router.post("/stridepool/invites/:token/accept", async (req, res): Promise<void>
   res.json(AcceptStridePoolInviteResponse.parse({ joined: false, challenge: challengeFor(row.challenge, new Set(), membership.challengeJoinPrice, userId) }));
 });
 
+router.get("/stridepool/referrals/me", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json(GetStridePoolReferralSummaryResponse.parse(await getReferralSummary(userId)));
+});
+
+router.get("/stridepool/referrals/:code", async (req, res): Promise<void> => {
+  const params = GetStridePoolReferralPreviewParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "That referral code is invalid." });
+    return;
+  }
+  const preview = await getReferralPreview(params.data.code);
+  if (!preview) {
+    res.status(404).json({ error: "That referral link is not available." });
+    return;
+  }
+  res.json(GetStridePoolReferralPreviewResponse.parse(preview));
+});
+
+router.post("/stridepool/referrals/claim", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const body = ClaimStridePoolReferralBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: "Enter a valid referral code." });
+    return;
+  }
+  try {
+    const result = await claimReferralCode(userId, body.data.code);
+    res.json(ClaimStridePoolReferralResponse.parse({ claimed: true, status: result.status }));
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "That referral code could not be claimed." });
+  }
+});
+
 router.get("/stridepool/sources", async (req, res): Promise<void> => {
   const userId = requireUser(req, res);
   if (!userId) return;
@@ -1136,6 +1181,7 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
   }
   try {
     const result = await joinMoneyChallenge(userId, params.data.id);
+    if (req.isAuthenticated()) await qualifyReferralForUser(userId);
     res.json(JoinStridePoolChallengeResponse.parse({ joined: true, wallet: result.wallet }));
   } catch (error) {
     if (error instanceof MoneyLogicError) {

@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { runMigrations } from "stripe-replit-sync";
-import { activateProviderChallengeEntry, db, usersTable } from "@workspace/db";
+import { activateProviderChallengeEntry, db, qualifyReferralForUser, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import {
   getStripeSync,
@@ -410,6 +410,7 @@ export async function processStripeWebhook(payload: Buffer, signature: string) {
         normalized.amountCents,
         normalized.providerEventId,
       );
+      await qualifyReferralForUser(normalized.userId);
     } catch (error) {
       const paymentIntent = event.type === "payment_intent.succeeded" ? event.data.object.id : undefined;
       if (!paymentIntent) throw error;
