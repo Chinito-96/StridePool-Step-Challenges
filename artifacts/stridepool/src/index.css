@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&family=Nunito:wght@600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -64,8 +64,8 @@
   --sidebar-border: 213 29% 27%;
   --sidebar-primary: 174 82% 45%;
   --sidebar-primary-foreground: 42 50% 99%;
-  --app-font-sans: 'DM Sans', sans-serif;
-  --app-font-display: 'Nunito', sans-serif;
+  --app-font-sans: 'Plus Jakarta Sans', sans-serif;
+  --app-font-display: 'Fredoka', sans-serif;
   --app-font-mono: 'DM Mono', monospace;
   --radius: 14px;
   --shadow-soft: 0 22px 58px rgba(20, 43, 52, 0.13);
