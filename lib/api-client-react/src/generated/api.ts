@@ -1624,7 +1624,7 @@ export const getCreateStridePoolChallengeUrl = () => {
 }
 
 /**
- * @summary Create a total-steps podium challenge
+ * @summary Create a daily-goal or total-steps podium challenge
  */
 export const createStridePoolChallenge = async (challengeInput: ChallengeInput, options?: Parameters<typeof customFetch>[1]): Promise<Challenge> => {
 
@@ -1673,7 +1673,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateStridePoolChallengeMutationError = ErrorType<ErrorResponse | void>
 
     /**
- * @summary Create a total-steps podium challenge
+ * @summary Create a daily-goal or total-steps podium challenge
  */
 export const useCreateStridePoolChallenge = <TError = ErrorType<ErrorResponse | void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolChallenge>>, TError,{data: BodyType<ChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

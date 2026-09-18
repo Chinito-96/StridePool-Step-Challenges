@@ -564,11 +564,19 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
   }
   const start = body.data.startDate;
   const end = body.data.endDate;
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+    res.status(400).json({ error: "Choose valid start and end dates." });
+    return;
+  }
   const startDate = start.toISOString().slice(0, 10);
   const endDate = end.toISOString().slice(0, 10);
-  const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
-  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || days < 1 || days > 90) {
+  const calculatedDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+  if (calculatedDays !== body.data.days || calculatedDays < 1 || calculatedDays > 90) {
     res.status(400).json({ error: "Choose a challenge window between one and 90 days." });
+    return;
+  }
+  if (body.data.challengeType === "goal" && body.data.dailyGoal < 1) {
+    res.status(400).json({ error: "Daily-goal challenges need at least one step per day." });
     return;
   }
   const user = await getUser(userId);
@@ -596,25 +604,25 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
     res.status(409).json({ error: "Challenge creation is locked until launch controls and your eligibility checks pass." });
     return;
   }
-  const challengeId = `ranking_challenge_${randomBytes(12).toString("hex")}`;
+  const challengeId = `${body.data.challengeType}_challenge_${randomBytes(12).toString("hex")}`;
   const [challenge] = await db.transaction(async (tx) => {
     const [created] = await tx.insert(challengesTable).values({
       id: challengeId,
       name: body.data.name,
       theme: body.data.theme,
-      level: "Open",
+      level: body.data.challengeType === "goal" ? "Steady" : "Open",
       startDate,
       endDate,
-      days,
-      dailyGoal: 0,
+      days: body.data.days,
+      dailyGoal: body.data.dailyGoal,
       entryFee: body.data.entryFee.toFixed(2),
       prizePool: "0.00",
       participantCount: 0,
       finishers: 0,
       settlementStatus: "open",
       color: body.data.color,
-      challengeType: "ranking",
-      goalType: "total_steps",
+      challengeType: body.data.challengeType,
+      goalType: body.data.challengeType === "goal" ? "fixed" : "total_steps",
       community: false,
       creatorUserId: userId,
       graceDays: 0,

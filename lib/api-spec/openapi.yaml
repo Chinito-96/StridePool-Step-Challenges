@@ -384,7 +384,7 @@ paths:
     post:
       tags: [stridepool]
       operationId: createStridePoolChallenge
-      summary: Create a total-steps podium challenge
+      summary: Create a daily-goal or total-steps podium challenge
       parameters:
         - $ref: "#/components/parameters/AuthorizationSessionHeader"
         - $ref: "#/components/parameters/SessionCookie"
@@ -396,7 +396,7 @@ paths:
               $ref: "#/components/schemas/ChallengeInput"
       responses:
         "201":
-          description: Ranking challenge created.
+          description: Challenge created.
           content:
             application/json:
               schema:
@@ -1217,12 +1217,15 @@ components:
           items: { $ref: "#/components/schemas/Challenge" }
     ChallengeInput:
       type: object
-      required: [name, theme, startDate, endDate, entryFee, color]
+      required: [name, theme, startDate, endDate, days, dailyGoal, challengeType, entryFee, color]
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         theme: { type: string, minLength: 1, maxLength: 240 }
         startDate: { type: string, format: date }
         endDate: { type: string, format: date }
+        days: { type: integer, minimum: 1, maximum: 90 }
+        dailyGoal: { type: integer, minimum: 0, maximum: 100000 }
+        challengeType: { type: string, enum: [goal, ranking] }
         entryFee: { type: number, minimum: 1, maximum: 500 }
         color: { type: string, minLength: 4, maxLength: 30 }
     MembershipSummary:

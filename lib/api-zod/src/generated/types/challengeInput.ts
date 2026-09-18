@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChallengeInputChallengeType } from './challengeInputChallengeType';
 
 export interface ChallengeInput {
   /**
@@ -19,6 +20,17 @@ export interface ChallengeInput {
   theme: string;
   startDate: Date;
   endDate: Date;
+  /**
+     * @minimum 1
+     * @maximum 90
+     */
+  days: number;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  dailyGoal: number;
+  challengeType: ChallengeInputChallengeType;
   /**
      * @minimum 1
      * @maximum 500

@@ -33,7 +33,7 @@ export function calculatePodiumPayouts(
   ranked: Array<{ entryId: number; steps: number }>,
   poolTotalCents: number,
 ): PodiumPayout[] {
-  const shares = [50, 30, 20];
+  const shares = [60, 25, 15];
   const groups: Array<{ rank: number; entries: Array<{ entryId: number; steps: number }> }> = [];
   for (const entry of ranked.slice().sort((a, b) => b.steps - a.steps || a.entryId - b.entryId)) {
     const previous = groups.at(-1);

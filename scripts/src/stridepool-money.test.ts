@@ -6,6 +6,7 @@ import {
   dailyStepRecordsTable,
   entriesTable,
   activateProviderChallengeEntry,
+  calculatePodiumPayouts,
   getMembershipSummary,
   joinChallenge,
   leaveChallenge,
@@ -203,6 +204,37 @@ describe("membership challenge limits and platform fees", () => {
 });
 
 describe("settlement pool split and refunds", () => {
+  it("pays a total-steps podium 60% / 25% / 15%", async () => {
+    const challengeId = await addChallenge({
+      challengeType: "ranking",
+      goalType: "total_steps",
+      days: 3,
+      endDate: "2026-06-04",
+      prizePool: "70.00",
+    });
+    await joinChallenge(userIds[0], challengeId, beforeStart);
+    await joinChallenge(userIds[1], challengeId, beforeStart);
+    await joinChallenge(userIds[2], challengeId, beforeStart);
+    await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02"], 9000);
+    await addVerifiedSteps(userIds[1], challengeId, ["2026-06-02"], 7000);
+    await addVerifiedSteps(userIds[2], challengeId, ["2026-06-02"], 5000);
+
+    const result = await settleChallenge(challengeId, new Date("2026-06-05T00:00:00Z"));
+
+    assert.equal(result.finisherCount, 3);
+    assert.deepEqual(
+      calculatePodiumPayouts([
+        { entryId: 1, steps: 9000 },
+        { entryId: 2, steps: 7000 },
+        { entryId: 3, steps: 5000 },
+      ], 10_000).map((payout) => payout.payoutCents),
+      [6000, 2500, 1500],
+    );
+    assert.deepEqual(await wallet(userIds[0]), { balance: "150.00", pending: "0.00", totalEarned: "60.00" });
+    assert.deepEqual(await wallet(userIds[1]), { balance: "115.00", pending: "0.00", totalEarned: "25.00" });
+    assert.deepEqual(await wallet(userIds[2]), { balance: "105.00", pending: "0.00", totalEarned: "15.00" });
+  });
+
   it("splits an even pool among one finisher", async () => {
     const challengeId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "30.00" });
     await joinChallenge(userIds[0], challengeId, beforeStart);

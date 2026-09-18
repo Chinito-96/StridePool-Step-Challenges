@@ -295,6 +295,14 @@ export interface CommunityChallengesResponse {
   challenges: Challenge[];
 }
 
+export type ChallengeInputChallengeType = typeof ChallengeInputChallengeType[keyof typeof ChallengeInputChallengeType];
+
+
+export const ChallengeInputChallengeType = {
+  goal: 'goal',
+  ranking: 'ranking',
+} as const;
+
 export interface ChallengeInput {
   /**
      * @minLength 1
@@ -308,6 +316,17 @@ export interface ChallengeInput {
   theme: string;
   startDate: string;
   endDate: string;
+  /**
+     * @minimum 1
+     * @maximum 90
+     */
+  days: number;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  dailyGoal: number;
+  challengeType: ChallengeInputChallengeType;
   /**
      * @minimum 1
      * @maximum 500

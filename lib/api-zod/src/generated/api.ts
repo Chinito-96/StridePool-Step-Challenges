@@ -478,7 +478,7 @@ export const GetStridePoolCommunityChallengesResponse = zod.object({
 
 
 /**
- * @summary Create a total-steps podium challenge
+ * @summary Create a daily-goal or total-steps podium challenge
  */
 export const CreateStridePoolChallengeHeader = zod.object({
   "Authorization": zod.string().optional()
@@ -487,6 +487,11 @@ export const CreateStridePoolChallengeHeader = zod.object({
 export const createStridePoolChallengeBodyNameMax = 120;
 
 export const createStridePoolChallengeBodyThemeMax = 240;
+
+export const createStridePoolChallengeBodyDaysMax = 90;
+
+export const createStridePoolChallengeBodyDailyGoalMin = 0;
+export const createStridePoolChallengeBodyDailyGoalMax = 100000;
 
 export const createStridePoolChallengeBodyEntryFeeMax = 500;
 
@@ -500,6 +505,9 @@ export const CreateStridePoolChallengeBody = zod.object({
   "theme": zod.string().min(1).max(createStridePoolChallengeBodyThemeMax),
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date(),
+  "days": zod.int().min(1).max(createStridePoolChallengeBodyDaysMax),
+  "dailyGoal": zod.int().min(createStridePoolChallengeBodyDailyGoalMin).max(createStridePoolChallengeBodyDailyGoalMax),
+  "challengeType": zod.enum(['goal', 'ranking']),
   "entryFee": zod.number().min(1).max(createStridePoolChallengeBodyEntryFeeMax),
   "color": zod.string().min(createStridePoolChallengeBodyColorMin).max(createStridePoolChallengeBodyColorMax)
 })

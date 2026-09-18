@@ -40,6 +40,7 @@ export * from './beginBrowserLoginParams';
 export * from './challenge';
 export * from './challengeChallengeType';
 export * from './challengeInput';
+export * from './challengeInputChallengeType';
 export * from './challengeInviteInput';
 export * from './challengeInvitePreview';
 export * from './challengeInviteResponse';
