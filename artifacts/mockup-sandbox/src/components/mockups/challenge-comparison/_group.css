@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --background: 42 42% 96%;
+  --foreground: 213 48% 16%;
+  --border: 39 24% 84%;
+  --card: 42 50% 99%;
+  --card-foreground: 213 48% 16%;
+  --primary: 174 82% 38%;
+  --primary-foreground: 42 50% 99%;
+  --secondary: 174 36% 84%;
+  --secondary-foreground: 184 46% 18%;
+  --muted: 40 30% 90%;
+  --muted-foreground: 214 17% 42%;
+  --accent: 20 93% 61%;
+  --accent-foreground: 17 56% 18%;
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: var(--font-sans); }
+.comparison-shell { min-height: 100vh; background: radial-gradient(circle at 100% 0%, hsl(var(--accent) / .12), transparent 24rem), hsl(var(--background)); }
+.display { font-family: var(--font-display); }
+.mono { font-family: var(--font-mono); }
+.lace-mark { display: inline-block; width: 42px; height: 32px; color: hsl(var(--primary)); }
+.lace-mark path { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 6; }
+.lace-mark rect { fill: hsl(var(--accent)); stroke: hsl(var(--foreground)); stroke-width: 1.5; }
+.preview-label { border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .78); color: hsl(var(--muted-foreground)); }
+.proposed-glow { box-shadow: 0 20px 60px hsl(var(--primary) / .13); }
+.proposed-progress { background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent))); }
+@keyframes preview-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.preview-rise { animation: preview-rise .5s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .preview-rise { animation: none; } }
