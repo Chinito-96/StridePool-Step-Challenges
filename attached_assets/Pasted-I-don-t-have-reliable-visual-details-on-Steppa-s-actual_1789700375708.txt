@@ -1,0 +1,14 @@
+I don't have reliable visual details on Steppa's actual colorway/typography — the site's metadata only confirms a white base, not the real palette or type choices. Rather than guess and risk the prompt being built on wrong assumptions, the Replit prompt below has the agent pull the real screenshots itself before matching.
+
+**Replit prompt:**
+
+> Update StridePool's visual design to more closely mirror Steppa's look and feel while keeping our own identity distinct. Steps:
+>
+> 1. Pull actual reference images first — Steppa's App Store listing (search "Steppa - Step Challenges" on the App Store, id 6755126064) has real screenshots, and playsteppa.com has a live preview. Use these as the actual visual reference, not assumptions about the category.
+> 2. From those references, extract: the real color palette (background, primary accent, card colors), typography style (weight, roundedness, display vs. body pairing), button/card shape language (corner radius, shadow style, spacing density), and overall layout patterns (how challenge cards, progress indicators, and leaderboards are structured).
+> 3. Apply that visual language to StridePool's existing screens — same category conventions (card layout, progress display, challenge list structure) so it reads as a natural competitor in the same space.
+> 4. Differentiate deliberately within that shared visual language:
+>    - Replace any generic sneaker/footprint iconography with a shoelace-based mascot (a lace character, aglets as simple eyes, a tie-into-a-bow animation for completion/success moments)
+>    - Keep StridePool's own accent color distinct from Steppa's primary color so the two apps are never confusable in a screenshot
+>    - Add the animation/motion layer Steppa's static screenshots don't show: bounce/idle on the mascot, pulse on streak indicators, staggered card entrance, animated progress fills
+> 5. Show before/after for at least the challenge list and challenge detail screens so the direction can be reviewed before it's applied everywhere.
