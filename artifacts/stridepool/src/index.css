@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&family=Nunito:wght@600;700;800;900&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -39,65 +39,65 @@
 }
 
 :root {
-  --background: 52 44% 96%;
-  --foreground: 222 29% 15%;
-  --border: 48 22% 84%;
-  --input: 48 22% 84%;
-  --ring: 13 82% 54%;
-  --card: 52 100% 99%;
-  --card-foreground: 222 29% 15%;
-  --card-border: 48 22% 84%;
-  --popover: 52 100% 99%;
-  --popover-foreground: 222 29% 15%;
-  --primary: 13 82% 54%;
-  --primary-foreground: 52 100% 99%;
-  --secondary: 178 43% 82%;
-  --secondary-foreground: 181 38% 19%;
-  --muted: 50 31% 90%;
-  --muted-foreground: 222 13% 43%;
-  --accent: 76 76% 62%;
-  --accent-foreground: 78 26% 17%;
+  --background: 42 42% 96%;
+  --foreground: 213 48% 16%;
+  --border: 39 24% 84%;
+  --input: 39 24% 84%;
+  --ring: 174 82% 38%;
+  --card: 42 50% 99%;
+  --card-foreground: 213 48% 16%;
+  --card-border: 39 24% 84%;
+  --popover: 42 50% 99%;
+  --popover-foreground: 213 48% 16%;
+  --primary: 174 82% 38%;
+  --primary-foreground: 42 50% 99%;
+  --secondary: 174 36% 84%;
+  --secondary-foreground: 184 46% 18%;
+  --muted: 40 30% 90%;
+  --muted-foreground: 214 17% 42%;
+  --accent: 20 93% 61%;
+  --accent-foreground: 17 56% 18%;
   --destructive: 2 65% 47%;
-  --destructive-foreground: 52 100% 99%;
-  --sidebar: 222 30% 15%;
-  --sidebar-foreground: 52 44% 96%;
-  --sidebar-border: 222 20% 26%;
-  --sidebar-primary: 13 82% 54%;
-  --sidebar-primary-foreground: 52 100% 99%;
-  --app-font-sans: 'Manrope', sans-serif;
-  --app-font-display: 'Space Grotesk', sans-serif;
+  --destructive-foreground: 42 50% 99%;
+  --sidebar: 213 48% 16%;
+  --sidebar-foreground: 42 42% 96%;
+  --sidebar-border: 213 29% 27%;
+  --sidebar-primary: 174 82% 45%;
+  --sidebar-primary-foreground: 42 50% 99%;
+  --app-font-sans: 'DM Sans', sans-serif;
+  --app-font-display: 'Nunito', sans-serif;
   --app-font-mono: 'DM Mono', monospace;
   --radius: 14px;
-  --shadow-soft: 0 22px 58px rgba(43, 47, 65, 0.11);
-  --shadow-card: 0 7px 22px rgba(43, 47, 65, 0.065);
+  --shadow-soft: 0 22px 58px rgba(20, 43, 52, 0.13);
+  --shadow-card: 0 7px 22px rgba(20, 43, 52, 0.075);
 }
 
 .dark {
-  --background: 222 29% 16%;
-  --foreground: 52 44% 96%;
-  --border: 222 20% 27%;
-  --input: 222 20% 27%;
-  --ring: 13 82% 54%;
-  --card: 222 25% 20%;
-  --card-foreground: 52 44% 96%;
-  --card-border: 222 20% 31%;
-  --popover: 222 25% 20%;
-  --popover-foreground: 52 44% 96%;
-  --primary: 13 82% 54%;
-  --primary-foreground: 52 100% 99%;
-  --secondary: 180 25% 28%;
-  --secondary-foreground: 52 44% 96%;
-  --muted: 222 20% 25%;
-  --muted-foreground: 220 15% 70%;
-  --accent: 76 76% 62%;
-  --accent-foreground: 78 26% 17%;
+  --background: 213 48% 16%;
+  --foreground: 42 42% 96%;
+  --border: 213 29% 27%;
+  --input: 213 29% 27%;
+  --ring: 174 82% 45%;
+  --card: 213 39% 21%;
+  --card-foreground: 42 42% 96%;
+  --card-border: 213 29% 31%;
+  --popover: 213 39% 21%;
+  --popover-foreground: 42 42% 96%;
+  --primary: 174 82% 45%;
+  --primary-foreground: 213 48% 16%;
+  --secondary: 174 29% 29%;
+  --secondary-foreground: 42 42% 96%;
+  --muted: 213 29% 25%;
+  --muted-foreground: 215 15% 72%;
+  --accent: 20 93% 61%;
+  --accent-foreground: 17 56% 12%;
   --destructive: 2 64% 54%;
   --destructive-foreground: 39 50% 98%;
-  --sidebar: 224 35% 11%;
-  --sidebar-foreground: 39 44% 95%;
-  --sidebar-border: 224 20% 22%;
-  --sidebar-primary: 11 77% 58%;
-  --sidebar-primary-foreground: 39 50% 98%;
+  --sidebar: 213 55% 11%;
+  --sidebar-foreground: 42 42% 96%;
+  --sidebar-border: 213 29% 22%;
+  --sidebar-primary: 174 82% 45%;
+  --sidebar-primary-foreground: 213 48% 16%;
 }
 
 @layer base {
@@ -175,6 +175,12 @@
 .delay-5 { animation-delay: .35s; }
 .delay-6 { animation-delay: .42s; }
 .pulse-dot { animation: pulse-dot 2.1s ease-in-out infinite; }
+.spring-bounce { transform-origin: 50% 88%; animation: spring-bounce 3.8s ease-in-out infinite; }
+.streak-pulse { animation: streak-pulse 2.8s ease-in-out infinite; }
+.challenge-stagger:nth-child(2) { animation-delay: .08s; }
+.challenge-stagger:nth-child(3) { animation-delay: .16s; }
+.challenge-stagger:nth-child(4) { animation-delay: .24s; }
+.progress-ring { animation: ring-draw 1.1s cubic-bezier(.2,.8,.2,1) both; }
 .progress-fill { transition: width .55s cubic-bezier(.2,.8,.2,1); }
 .icon-button { transition: transform .2s ease, background-color .2s ease; }
 .icon-button:hover { transform: translateY(-1px); }
@@ -249,6 +255,18 @@ input[type='checkbox'] {
   91% { transform: scale(1.14); }
   96% { transform: scale(.96); }
 }
+@keyframes spring-bounce {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  45% { transform: translateY(-4px) scaleY(1.03); }
+  55% { transform: translateY(-5px) scaleY(.97); }
+}
+@keyframes streak-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0); }
+  45% { box-shadow: 0 0 0 5px hsl(var(--accent) / .13); }
+}
+@keyframes ring-draw {
+  from { stroke-dashoffset: 276.46; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -257,6 +275,7 @@ input[type='checkbox'] {
     scroll-behavior: auto !important;
     transition-duration: .01ms !important;
   }
+  .spring-bounce, .streak-pulse, .progress-ring { animation: none !important; }
   button:not(:disabled):active, a:active, [role='button']:active,
   .lift-card:hover, .lift-card:active {
     transform: none;
