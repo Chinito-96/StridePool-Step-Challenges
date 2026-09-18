@@ -175,7 +175,10 @@
 .delay-5 { animation-delay: .35s; }
 .delay-6 { animation-delay: .42s; }
 .pulse-dot { animation: pulse-dot 2.1s ease-in-out infinite; }
-.spring-bounce { transform-origin: 50% 88%; animation: spring-bounce 3.8s ease-in-out infinite; }
+.shoelace-whip { transform-origin: 50% 72%; animation: shoelace-whip 4.8s cubic-bezier(.45,.05,.55,.95) infinite; }
+.shoelace-lace { transform-origin: 50% 55%; animation: shoelace-curl 4.8s cubic-bezier(.45,.05,.55,.95) infinite; }
+.shoelace-aglets { transform-origin: 50% 50%; animation: shoelace-aglets 4.8s cubic-bezier(.45,.05,.55,.95) infinite; }
+.shoelace-bow { transform-origin: 50% 52%; animation: shoelace-tie 4.8s cubic-bezier(.45,.05,.55,.95) infinite; }
 .streak-pulse { animation: streak-pulse 2.8s ease-in-out infinite; }
 .challenge-stagger:nth-child(2) { animation-delay: .08s; }
 .challenge-stagger:nth-child(3) { animation-delay: .16s; }
@@ -255,10 +258,29 @@ input[type='checkbox'] {
   91% { transform: scale(1.14); }
   96% { transform: scale(.96); }
 }
-@keyframes spring-bounce {
-  0%, 100% { transform: translateY(0) scaleY(1); }
-  45% { transform: translateY(-4px) scaleY(1.03); }
-  55% { transform: translateY(-5px) scaleY(.97); }
+@keyframes shoelace-whip {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  18% { transform: translateY(-2px) rotate(-3deg); }
+  32% { transform: translateY(1px) rotate(3deg); }
+  48%, 72% { transform: translateY(0) rotate(0); }
+  84% { transform: translateY(-1px) rotate(-2deg); }
+}
+@keyframes shoelace-curl {
+  0%, 34%, 100% { transform: rotate(0) scaleX(1); }
+  44% { transform: rotate(-5deg) scaleX(.97); }
+  54% { transform: rotate(4deg) scaleX(1.02); }
+  67% { transform: rotate(0) scaleX(1); }
+}
+@keyframes shoelace-aglets {
+  0%, 38%, 100% { transform: translate(0, 0) rotate(0); }
+  48% { transform: translate(-1px, -2px) rotate(-8deg); }
+  58% { transform: translate(1px, 1px) rotate(6deg); }
+  70% { transform: translate(0, 0) rotate(0); }
+}
+@keyframes shoelace-tie {
+  0%, 58% { opacity: 0; transform: scale(.72) rotate(-8deg); }
+  68%, 82% { opacity: 1; transform: scale(1) rotate(0); }
+  92%, 100% { opacity: 0; transform: scale(.82) rotate(6deg); }
 }
 @keyframes streak-pulse {
   0%, 100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0); }
@@ -275,7 +297,7 @@ input[type='checkbox'] {
     scroll-behavior: auto !important;
     transition-duration: .01ms !important;
   }
-  .spring-bounce, .streak-pulse, .progress-ring { animation: none !important; }
+  .shoelace-whip, .shoelace-lace, .shoelace-aglets, .shoelace-bow, .streak-pulse, .progress-ring { animation: none !important; }
   button:not(:disabled):active, a:active, [role='button']:active,
   .lift-card:hover, .lift-card:active {
     transform: none;
