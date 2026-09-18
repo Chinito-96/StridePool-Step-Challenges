@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -136,6 +136,7 @@
 
 @layer utilities {
   .font-display { font-family: var(--app-font-display); }
+  .font-brand { font-family: 'Fredoka', var(--app-font-display), sans-serif; }
   .font-mono-app { font-family: var(--app-font-mono); }
 }
 
@@ -197,6 +198,14 @@
 }
 .bg-sidebar [data-testid='link-logo'] > span:last-child .text-primary {
   color: hsl(var(--sidebar-foreground));
+}
+.bg-sidebar [data-testid='link-logo'] > span:last-child {
+  color: hsl(var(--sidebar-foreground));
+}
+.stridepool-mark {
+  display: block;
+  object-fit: cover;
+  user-select: none;
 }
 @keyframes shoelace-motion-pulse {
   0%, 100% { opacity: .38; }

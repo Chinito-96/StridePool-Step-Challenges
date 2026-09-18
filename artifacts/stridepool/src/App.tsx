@@ -153,10 +153,10 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
 
 function Logo() {
   return <Link href="/" className="flex items-center gap-2.5" data-testid="link-logo">
-    <span className="relative flex h-10 w-10 items-center justify-center rounded-[13px] bg-primary/10 text-primary">
-      <ShoelaceMascot size={42} mood="happy" label="StridePool shoelace mascot" />
+    <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[13px] bg-primary/10">
+      <ShoelaceMascot size={44} mood="happy" label="StridePool logo" />
     </span>
-    <span className="font-display text-[20px] font-bold tracking-[-.04em]">stride<span className="text-primary">pool</span></span>
+    <span className="font-brand text-[20px] font-bold tracking-[-.04em] text-primary">StridePool</span>
   </Link>;
 }
 
