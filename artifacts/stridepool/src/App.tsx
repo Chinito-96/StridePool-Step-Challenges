@@ -156,7 +156,7 @@ function Logo() {
     <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[13px] bg-primary/10">
       <ShoelaceMascot size={44} mood="happy" label="StridePool logo" />
     </span>
-    <span className="font-brand text-[20px] font-bold tracking-[-.04em] text-primary">StridePool</span>
+    <span className="font-display text-[20px] font-bold tracking-[-.04em] text-primary">StridePool</span>
   </Link>;
 }
 
