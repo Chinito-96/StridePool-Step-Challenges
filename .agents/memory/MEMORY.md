@@ -16,3 +16,4 @@
 - [Wallet withdrawal policy](wallet-withdrawal-policy.md) — require $20 available and a payout-enabled Stripe bank account; pending funds do not count.
 - [Referral entitlement behavior](referral-entitlements.md) — qualify after a successful join and preserve earned trial time even for current paid Pro members.
 - [Emerald-gold value system](emerald-gold-value-system.md) — reserve bright gold for confirmed value on emerald; use dark brass text when gold sits on warm cream.
+- [Automatic payout test isolation](automatic-payout-test-isolation.md) — global closeout discovery needs a historical test clock to avoid touching ordinary challenges in shared databases.
