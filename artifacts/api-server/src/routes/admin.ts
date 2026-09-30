@@ -5,6 +5,7 @@ import {
   DecideAdminRecoveryCaseBody,
   DecideAdminRecoveryCaseResponse,
   GetAdminSettlementHistoryResponse,
+  GetAdminCloseoutAlertsResponse,
   GetAdminUserResponse,
   OverrideAdminChallengeParticipantBody,
   OverrideAdminChallengeParticipantResponse,
@@ -25,7 +26,7 @@ import {
   usersTable,
   walletLedgerEntriesTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getParticipantStatus, type ParticipantStatus } from "../services/stridepool-status";
 import { rebuildVerifiedDailyTotal } from "./stridepool";
@@ -379,6 +380,29 @@ router.get("/admin/settlements", async (req, res): Promise<void> => {
         noFinisherRefundCents: refundAmounts.reduce((total, amount) => total + amount, 0),
       };
     }),
+  }));
+});
+
+router.get("/admin/closeout-alerts", async (req, res): Promise<void> => {
+  if (!await requireAdmin(req, res)) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const challenges = await db.select({
+    challengeId: challengesTable.id,
+    challengeName: challengesTable.name,
+    endDate: challengesTable.endDate,
+    failureCount: challengesTable.closeoutFailureCount,
+    lastFailedAt: challengesTable.closeoutLastFailedAt,
+  }).from(challengesTable).where(and(
+    eq(challengesTable.challengeType, "ranking"),
+    eq(challengesTable.settlementStatus, "open"),
+    lt(challengesTable.endDate, today),
+    gte(challengesTable.closeoutFailureCount, 3),
+  )).orderBy(desc(challengesTable.closeoutLastFailedAt));
+  res.json(GetAdminCloseoutAlertsResponse.parse({
+    alerts: challenges.map((challenge) => ({
+      ...challenge,
+      lastFailedAt: challenge.lastFailedAt?.toISOString(),
+    })),
   }));
 });
 

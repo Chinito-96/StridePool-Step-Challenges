@@ -1415,6 +1415,24 @@ export const GetAdminSettlementHistoryResponse = zod.object({
 
 
 /**
+ * @summary List ranking challenges blocked by repeated automatic closeout failures
+ */
+export const GetAdminCloseoutAlertsHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetAdminCloseoutAlertsResponse = zod.object({
+  "alerts": zod.array(zod.object({
+  "challengeId": zod.string(),
+  "challengeName": zod.string(),
+  "endDate": zod.coerce.date(),
+  "failureCount": zod.int(),
+  "lastFailedAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Search users by email, ID, or name
  */
 export const SearchAdminUsersQueryParams = zod.object({

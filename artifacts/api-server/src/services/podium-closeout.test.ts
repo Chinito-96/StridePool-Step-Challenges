@@ -16,6 +16,7 @@ describe("podium challenge closeout", () => {
       settle: async (challengeId, settledAt) => {
         settled.push({ challengeId, now: settledAt });
       },
+      recordFailure: async () => {},
     });
 
     assert.equal(receivedToday, "2026-09-16");
@@ -28,6 +29,7 @@ describe("podium challenge closeout", () => {
 
   it("continues after a failure so later challenges can close", async () => {
     const attempted: string[] = [];
+    const failures: Array<{ challengeId: string; now: Date; today: string }> = [];
 
     const result = await closeFinishedPodiumChallenges(new Date("2026-09-16T12:00:00Z"), {
       findChallengeIds: async () => ["fails-once", "still-closes"],
@@ -35,9 +37,13 @@ describe("podium challenge closeout", () => {
         attempted.push(challengeId);
         if (challengeId === "fails-once") throw new Error("temporary failure");
       },
+      recordFailure: async (challengeId, now, today) => {
+        failures.push({ challengeId, now, today });
+      },
     });
 
     assert.deepEqual(attempted, ["fails-once", "still-closes"]);
+    assert.deepEqual(failures, [{ challengeId: "fails-once", now: new Date("2026-09-16T12:00:00Z"), today: "2026-09-16" }]);
     assert.deepEqual(result, { found: 2, settled: 1, failed: 1 });
   });
 });

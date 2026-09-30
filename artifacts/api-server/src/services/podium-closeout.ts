@@ -1,5 +1,5 @@
 import { challengesTable, db, settleChallenge } from "@workspace/db";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 const DEFAULT_CLOSEOUT_INTERVAL_MS = 60_000;
@@ -7,6 +7,7 @@ const DEFAULT_CLOSEOUT_INTERVAL_MS = 60_000;
 type CloseoutDependencies = {
   findChallengeIds: (today: string) => Promise<string[]>;
   settle: (challengeId: string, now: Date) => Promise<unknown>;
+  recordFailure: (challengeId: string, now: Date, today: string) => Promise<void>;
 };
 
 const defaultDependencies: CloseoutDependencies = {
@@ -22,6 +23,18 @@ const defaultDependencies: CloseoutDependencies = {
     return challenges.map((challenge) => challenge.id);
   },
   settle: settleChallenge,
+  async recordFailure(challengeId, now, today) {
+    // A concurrent successful settlement must never regain an active alert.
+    await db.update(challengesTable).set({
+      closeoutFailureCount: sql`${challengesTable.closeoutFailureCount} + 1`,
+      closeoutLastFailedAt: now,
+    }).where(and(
+      eq(challengesTable.id, challengeId),
+      eq(challengesTable.challengeType, "ranking"),
+      eq(challengesTable.settlementStatus, "open"),
+      lt(challengesTable.endDate, today),
+    ));
+  },
 };
 
 export type PodiumCloseoutResult = {
@@ -46,6 +59,11 @@ export async function closeFinishedPodiumChallenges(
     } catch (err) {
       failed += 1;
       logger.error({ err, challengeId }, "Podium challenge closeout failed");
+      try {
+        await dependencies.recordFailure(challengeId, now, today);
+      } catch (recordError) {
+        logger.error({ err: recordError, challengeId }, "Could not record podium closeout failure");
+      }
     }
   }
 

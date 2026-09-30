@@ -44,6 +44,8 @@ export const challengesTable = pgTable("challenges", {
   participantCount: integer("participant_count").notNull().default(0),
   finishers: integer("finishers").notNull().default(0),
   settlementStatus: varchar("settlement_status").notNull().default("open"),
+  closeoutFailureCount: integer("closeout_failure_count").notNull().default(0),
+  closeoutLastFailedAt: timestamp("closeout_last_failed_at", { withTimezone: true }),
   settledAt: timestamp("settled_at", { withTimezone: true }),
   settledPool: numeric("settled_pool", { precision: 12, scale: 2 }),
   color: varchar("color").notNull(),

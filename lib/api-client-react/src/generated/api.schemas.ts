@@ -1124,6 +1124,18 @@ export interface AdminSettlementHistoryResponse {
   settlements: AdminSettlement[];
 }
 
+export interface AdminCloseoutAlert {
+  challengeId: string;
+  challengeName: string;
+  endDate: string;
+  failureCount: number;
+  lastFailedAt: string;
+}
+
+export interface AdminCloseoutAlertsResponse {
+  alerts: AdminCloseoutAlert[];
+}
+
 export interface AdminUserSearchResult {
   id: string;
   email: string;

@@ -169,7 +169,15 @@ describe("automatic podium closeout with the database", () => {
       amountCents: 0,
     });
 
-    assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 1, settled: 0, failed: 1 });
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 1, settled: 0, failed: 1 });
+      const [failedChallenge] = await db.select({
+        count: challengesTable.closeoutFailureCount,
+        lastFailedAt: challengesTable.closeoutLastFailedAt,
+      }).from(challengesTable).where(eq(challengesTable.id, challengeId));
+      assert.equal(failedChallenge.count, attempt);
+      assert.deepEqual(failedChallenge.lastFailedAt, now);
+    }
     assert.deepEqual(await status(challengeId), { settlementStatus: "open", settledAt: null });
     const [afterFailure] = await db.select({
       walletBalance: usersTable.walletBalance,
@@ -183,6 +191,11 @@ describe("automatic podium closeout with the database", () => {
     assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 1, settled: 1, failed: 0 });
     assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 0, settled: 0, failed: 0 });
     assert.equal((await status(challengeId)).settlementStatus, "settled");
+    const [cleared] = await db.select({
+      count: challengesTable.closeoutFailureCount,
+      lastFailedAt: challengesTable.closeoutLastFailedAt,
+    }).from(challengesTable).where(eq(challengesTable.id, challengeId));
+    assert.deepEqual(cleared, { count: 0, lastFailedAt: null });
     assert.deepEqual(await settlementEvents(challengeId), [
       { userId, eventType: "settlement_earned", amountCents: 1000 },
     ]);

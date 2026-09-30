@@ -293,7 +293,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
     }
     if (cents(challenge.prizePool) === 0) {
       await tx.update(entriesTable).set({ settlementStatus: "free-complete", settlementAmount: "0.00", settledAt: now }).where(and(eq(entriesTable.challengeId, challengeId), eq(entriesTable.status, "active")));
-      await tx.update(challengesTable).set({ settlementStatus: "settled", settledAt: now, settledPool: "0.00", finishers: 0 }).where(eq(challengesTable.id, challengeId));
+      await tx.update(challengesTable).set({ settlementStatus: "settled", settledAt: now, settledPool: "0.00", finishers: 0, closeoutFailureCount: 0, closeoutLastFailedAt: null }).where(eq(challengesTable.id, challengeId));
       return { challengeId, poolTotal: 0, finisherCount: 0, perFinisherBase: 0, roundingRemainder: 0, refundedTotal: 0, alreadySettled: false };
     }
 
@@ -388,6 +388,8 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
       settledAt: now,
       settledPool: (poolTotalCents / 100).toFixed(2),
       finishers: finisherCount,
+      closeoutFailureCount: 0,
+      closeoutLastFailedAt: null,
     }).where(eq(challengesTable.id, challengeId));
     return {
       challengeId,

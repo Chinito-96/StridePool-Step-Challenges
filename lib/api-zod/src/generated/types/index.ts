@@ -10,6 +10,8 @@ export * from './activity';
 export * from './adminChallenge';
 export * from './adminChallengesResponse';
 export * from './adminChallengeStatus';
+export * from './adminCloseoutAlert';
+export * from './adminCloseoutAlertsResponse';
 export * from './adminFlaggedStepRecord';
 export * from './adminFlaggedStepRecordsResponse';
 export * from './adminParticipantOverride';

@@ -1084,6 +1084,25 @@ paths:
           description: Login required.
         "403":
           description: Admin access required.
+  /admin/closeout-alerts:
+    get:
+      tags: [admin]
+      operationId: getAdminCloseoutAlerts
+      summary: List ranking challenges blocked by repeated automatic closeout failures
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Ended, unsettled rankings with three or more failed closeout attempts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCloseoutAlertsResponse"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
   /admin/users/search:
     get:
       tags: [admin]
@@ -1982,6 +2001,23 @@ components:
           items:
             $ref: "#/components/schemas/AdminSettlement"
       required: [settlements]
+    AdminCloseoutAlert:
+      type: object
+      properties:
+        challengeId: { type: string }
+        challengeName: { type: string }
+        endDate: { type: string, format: date }
+        failureCount: { type: integer }
+        lastFailedAt: { type: string, format: date-time }
+      required: [challengeId, challengeName, endDate, failureCount, lastFailedAt]
+    AdminCloseoutAlertsResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCloseoutAlert"
+      required: [alerts]
     AdminUserSearchResult:
       type: object
       properties:

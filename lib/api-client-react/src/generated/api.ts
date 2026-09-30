@@ -21,6 +21,7 @@ import type {
 
 import type {
   AdminChallengesResponse,
+  AdminCloseoutAlertsResponse,
   AdminFlaggedStepRecordsResponse,
   AdminParticipantOverrideBody,
   AdminParticipantOverrideResponse,
@@ -3843,6 +3844,83 @@ export function useGetAdminSettlementHistory<TData = Awaited<ReturnType<typeof g
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAdminSettlementHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminCloseoutAlertsUrl = () => {
+
+
+
+
+  return `/api/admin/closeout-alerts`
+}
+
+/**
+ * @summary List ranking challenges blocked by repeated automatic closeout failures
+ */
+export const getAdminCloseoutAlerts = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminCloseoutAlertsResponse> => {
+
+  return customFetch<AdminCloseoutAlertsResponse>(getGetAdminCloseoutAlertsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminCloseoutAlertsQueryKey = () => {
+    return [
+    `/api/admin/closeout-alerts`
+    ] as const;
+    }
+
+
+export const getGetAdminCloseoutAlertsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminCloseoutAlerts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCloseoutAlerts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminCloseoutAlertsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminCloseoutAlerts>>> = ({ signal }) => getAdminCloseoutAlerts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminCloseoutAlerts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminCloseoutAlertsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminCloseoutAlerts>>>
+export type GetAdminCloseoutAlertsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List ranking challenges blocked by repeated automatic closeout failures
+ */
+
+export function useGetAdminCloseoutAlerts<TData = Awaited<ReturnType<typeof getAdminCloseoutAlerts>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCloseoutAlerts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminCloseoutAlertsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
