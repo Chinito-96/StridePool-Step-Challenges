@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/companion/"
+title = "StridePool Companion"
+description = "The iOS and Android companion for StridePool that embeds the authenticated web experience, requests Apple HealthKit or Android Health Connect access, and securely syncs normalized step samples through the existing StridePool API."
+version = "1.0.0"
+id = "artifacts/stridepool-companion"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/companion/" ]
+localPort = 23681
+
+[services.development]
+run = "pnpm --filter @workspace/stridepool-companion run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/stridepool-companion", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/stridepool-companion", "run", "serve" ]
+
+[services.env]
+PORT = "23681"
+BASE_PATH = "/companion/"

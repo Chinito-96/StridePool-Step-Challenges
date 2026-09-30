@@ -1,0 +1,9 @@
+{
+  "name": "stridepool-health",
+  "version": "1.0.0",
+  "main": "index",
+  "peerDependencies": {
+    "expo": "*",
+    "react-native": "*"
+  }
+}

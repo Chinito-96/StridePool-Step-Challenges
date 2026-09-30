@@ -24,6 +24,9 @@ import type {
   AdminFlaggedStepRecordsResponse,
   AdminParticipantOverrideBody,
   AdminParticipantOverrideResponse,
+  AdminRecoveryCasesResponse,
+  AdminRecoveryDecisionBody,
+  AdminRecoveryDecisionResponse,
   AdminSettlementHistoryResponse,
   AdminStepSampleDecisionBody,
   AdminStepSampleDecisionResponse,
@@ -71,6 +74,9 @@ import type {
   ProfileSettings,
   ProfileUpdate,
   ReceiveStripeWebhook200,
+  RecoveryCase,
+  RecoveryCasesResponse,
+  RecoveryRequestBody,
   ReferralClaimInput,
   ReferralClaimResponse,
   ReferralPreview,
@@ -2957,6 +2963,154 @@ export const useUpdateStridePoolHealthSourceConnection = <TError = ErrorType<Err
       return useMutation(getUpdateStridePoolHealthSourceConnectionMutationOptions(options));
     }
 
+export const getGetStridePoolRecoveryCasesUrl = () => {
+
+
+
+
+  return `/api/stridepool/recovery`
+}
+
+/**
+ * @summary List recovery and settlement states
+ */
+export const getStridePoolRecoveryCases = async ( options?: Parameters<typeof customFetch>[1]): Promise<RecoveryCasesResponse> => {
+
+  return customFetch<RecoveryCasesResponse>(getGetStridePoolRecoveryCasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolRecoveryCasesQueryKey = () => {
+    return [
+    `/api/stridepool/recovery`
+    ] as const;
+    }
+
+
+export const getGetStridePoolRecoveryCasesQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolRecoveryCasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>> = ({ signal }) => getStridePoolRecoveryCases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolRecoveryCasesQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>>
+export type GetStridePoolRecoveryCasesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List recovery and settlement states
+ */
+
+export function useGetStridePoolRecoveryCases<TData = Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolRecoveryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolRecoveryCasesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestStridePoolRecoveryUrl = () => {
+
+
+
+
+  return `/api/stridepool/recovery`
+}
+
+/**
+ * @summary Request a grace day or support review
+ */
+export const requestStridePoolRecovery = async (recoveryRequestBody: RecoveryRequestBody, options?: Parameters<typeof customFetch>[1]): Promise<RecoveryCase> => {
+
+  return customFetch<RecoveryCase>(getRequestStridePoolRecoveryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recoveryRequestBody)
+  }
+);}
+
+
+
+
+
+export const getRequestStridePoolRecoveryMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStridePoolRecovery>>, TError,{data: BodyType<RecoveryRequestBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestStridePoolRecovery>>, TError,{data: BodyType<RecoveryRequestBody>}, TContext> => {
+
+const mutationKey = ['requestStridePoolRecovery'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestStridePoolRecovery>>, {data: BodyType<RecoveryRequestBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestStridePoolRecovery(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestStridePoolRecoveryMutationResult = NonNullable<Awaited<ReturnType<typeof requestStridePoolRecovery>>>
+    export type RequestStridePoolRecoveryMutationBody = BodyType<RecoveryRequestBody>
+    export type RequestStridePoolRecoveryMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Request a grace day or support review
+ */
+export const useRequestStridePoolRecovery = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStridePoolRecovery>>, TError,{data: BodyType<RecoveryRequestBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestStridePoolRecovery>>,
+        TError,
+        {data: BodyType<RecoveryRequestBody>},
+        TContext
+      > => {
+      return useMutation(getRequestStridePoolRecoveryMutationOptions(options));
+    }
+
 export const getAddStridePoolDemoFundsUrl = () => {
 
 
@@ -3323,6 +3477,155 @@ export const useDecideAdminStepSample = <TError = ErrorType<ErrorResponse | void
         TContext
       > => {
       return useMutation(getDecideAdminStepSampleMutationOptions(options));
+    }
+
+export const getGetAdminRecoveryCasesUrl = () => {
+
+
+
+
+  return `/api/admin/recovery-cases`
+}
+
+/**
+ * @summary List pending recovery cases
+ */
+export const getAdminRecoveryCases = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminRecoveryCasesResponse> => {
+
+  return customFetch<AdminRecoveryCasesResponse>(getGetAdminRecoveryCasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminRecoveryCasesQueryKey = () => {
+    return [
+    `/api/admin/recovery-cases`
+    ] as const;
+    }
+
+
+export const getGetAdminRecoveryCasesQueryOptions = <TData = Awaited<ReturnType<typeof getAdminRecoveryCases>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminRecoveryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminRecoveryCasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminRecoveryCases>>> = ({ signal }) => getAdminRecoveryCases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminRecoveryCases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminRecoveryCasesQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminRecoveryCases>>>
+export type GetAdminRecoveryCasesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List pending recovery cases
+ */
+
+export function useGetAdminRecoveryCases<TData = Awaited<ReturnType<typeof getAdminRecoveryCases>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminRecoveryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminRecoveryCasesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDecideAdminRecoveryCaseUrl = (recoveryCaseId: number,) => {
+
+
+
+
+  return `/api/admin/recovery-cases/${recoveryCaseId}/decision`
+}
+
+/**
+ * @summary Record an auditable recovery decision
+ */
+export const decideAdminRecoveryCase = async (recoveryCaseId: number,
+    adminRecoveryDecisionBody: AdminRecoveryDecisionBody, options?: Parameters<typeof customFetch>[1]): Promise<AdminRecoveryDecisionResponse> => {
+
+  return customFetch<AdminRecoveryDecisionResponse>(getDecideAdminRecoveryCaseUrl(recoveryCaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminRecoveryDecisionBody)
+  }
+);}
+
+
+
+
+
+export const getDecideAdminRecoveryCaseMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideAdminRecoveryCase>>, TError,{recoveryCaseId: number;data: BodyType<AdminRecoveryDecisionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideAdminRecoveryCase>>, TError,{recoveryCaseId: number;data: BodyType<AdminRecoveryDecisionBody>}, TContext> => {
+
+const mutationKey = ['decideAdminRecoveryCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideAdminRecoveryCase>>, {recoveryCaseId: number;data: BodyType<AdminRecoveryDecisionBody>}> = (props) => {
+          const {recoveryCaseId,data} = props ?? {};
+
+          return  decideAdminRecoveryCase(recoveryCaseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideAdminRecoveryCaseMutationResult = NonNullable<Awaited<ReturnType<typeof decideAdminRecoveryCase>>>
+    export type DecideAdminRecoveryCaseMutationBody = BodyType<AdminRecoveryDecisionBody>
+    export type DecideAdminRecoveryCaseMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Record an auditable recovery decision
+ */
+export const useDecideAdminRecoveryCase = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideAdminRecoveryCase>>, TError,{recoveryCaseId: number;data: BodyType<AdminRecoveryDecisionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideAdminRecoveryCase>>,
+        TError,
+        {recoveryCaseId: number;data: BodyType<AdminRecoveryDecisionBody>},
+        TContext
+      > => {
+      return useMutation(getDecideAdminRecoveryCaseMutationOptions(options));
     }
 
 export const getGetAdminChallengesUrl = () => {

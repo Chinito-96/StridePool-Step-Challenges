@@ -8,12 +8,14 @@ import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
 import type { ProfileUpdate } from '@workspace/api-client-react';
 import { normalizeAppleHealthSamples, normalizeHealthConnectSamples, type NormalizedStepSample } from '@/step-sources';
 import { ShoelaceMascot } from '@/components/shoelace-mascot';
+import { getGetAdminRecoveryCasesQueryKey, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, type AdminRecoveryCase, type AdminRecoveryDecisionBody } from '@workspace/api-client-react';
 
 type Challenge = ApiChallenge;
 type Activity = { id: string; type: string; title: string; meta: string; timestamp: string };
 type WalletSummary = { balance: number; pending: number; totalEarned: number };
 type ProfileSettings = ApiProfileSettings;
 type EligibilityProfile = EligibilityInput;
+
 type AppState = {
   challenges: Challenge[];
   joinedIds: string[];
@@ -106,7 +108,18 @@ function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const permission = await bridge.requestPermissions(source);
+      const savedStatus = healthSources.find((item) => item.source === source)?.status;
+      let permission;
+      if (savedStatus === 'revoked' && bridge.getPermissionStatus && bridge.openSettings) {
+        permission = await bridge.getPermissionStatus(source);
+        if (permission !== 'connected') {
+          await bridge.openSettings(source);
+          setNativeSourceMessages((current) => ({ ...current, [source]: 'Device settings opened. Re-enable step access, then return and sync again.' }));
+          return;
+        }
+      } else {
+        permission = await bridge.requestPermissions(source);
+      }
       connectionMutation.mutate({ source, data: { status: permission } }, { onSuccess: invalidateBootstrap });
       if (permission !== 'connected') {
         setNativeSourceMessages((current) => ({ ...current, [source]: permission === 'denied' ? 'Permission was denied. You can allow step access in your device settings.' : 'Health access was revoked. Re-enable it in your device settings.' }));
@@ -118,15 +131,17 @@ function AppProvider({ children }: { children: ReactNode }) {
         setNativeSourceMessages((current) => ({ ...current, [source]: 'Permission is active, but the companion returned no step samples from the last 48 hours.' }));
         return;
       }
-      sourceMutation.mutate({ source, data: { samples } }, {
-        onSuccess: (result) => {
-          setNativeSourceMessages((current) => ({ ...current, [source]: `${result.acceptedCount} sample${result.acceptedCount === 1 ? '' : 's'} received${result.pendingReviewCount ? ` · ${result.pendingReviewCount} held for review` : ''}.` }));
-          invalidateBootstrap();
-        },
-        onError: () => setNativeSourceMessages((current) => ({ ...current, [source]: 'The samples could not be saved. Permission remains connected; try syncing again.' })),
-      });
+      const batches = Array.from({ length: Math.ceil(samples.length / 500) }, (_, index) => samples.slice(index * 500, (index + 1) * 500));
+      const results = [];
+      for (const batch of batches) {
+        results.push(await sourceMutation.mutateAsync({ source, data: { samples: batch } }));
+      }
+      const acceptedCount = results.reduce((total, result) => total + result.acceptedCount, 0);
+      const pendingReviewCount = results.reduce((total, result) => total + result.pendingReviewCount, 0);
+      setNativeSourceMessages((current) => ({ ...current, [source]: `${acceptedCount} sample${acceptedCount === 1 ? '' : 's'} received${pendingReviewCount ? ` · ${pendingReviewCount} held for review` : ''}.` }));
+      invalidateBootstrap();
     } catch {
-      setNativeSourceMessages((current) => ({ ...current, [source]: 'The companion could not complete the permission request. Try again from the mobile app.' }));
+      setNativeSourceMessages((current) => ({ ...current, [source]: 'The companion could not complete the permission request or save the samples. Try again from the mobile app.' }));
     }
   };
   const updateEligibility = (next: EligibilityProfile) => updateProfile({ eligibilityAge: next.age, eligibilityState: next.state, identityStatus: next.identityStatus, acceptedTerms: next.acceptedTerms });
@@ -252,7 +267,7 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
 }
 
 function Dashboard() {
-  const { challenges, steps, activities, wallet, freeStreak } = useApp();
+  const { challenges, steps, activities, wallet, freeStreak, healthSources } = useApp();
   const [showAllActivity, setShowAllActivity] = useState(false);
   const goal = 10_000;
   const percent = Math.min(100, Math.round((steps / goal) * 100));
@@ -378,6 +393,8 @@ function Dashboard() {
       </div>
     </section>
 
+    <SourceTrustPanel sources={healthSources} />
+
     {/* Row 2: Secondary Content */}
     <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
       {/* Active Challenges */}
@@ -458,17 +475,19 @@ function Dashboard() {
     </section>
   </div>;
 }
-
-function HealthSourcesPanel({ sources }: { sources: HealthSource[] }) {
+function SourceTrustPanel({ sources }: { sources: HealthSource[] }) {
   const { stepReviews } = useApp();
-  return <section className="grid gap-5" data-testid="panel-source-trust">
+  return <section className="mt-8 grid gap-5 lg:grid-cols-1" data-testid="panel-source-trust">
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Verified movement</p><h2 className="mt-1 font-display text-xl font-bold">Your health sources</h2><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">All challenge steps must come from Apple Health on iPhone or Health Connect on Android. StridePool checks every uploaded sample before it can affect progress or payouts.</p></div><ShieldCheck size={20} className="shrink-0 text-primary" /></div>
       <div className="mt-5 rounded-xl border border-secondary/70 bg-secondary/35 p-4"><div className="flex items-start gap-3"><HeartPulse size={17} className="mt-0.5 shrink-0 text-secondary-foreground" /><div><p className="text-sm font-bold text-secondary-foreground">Native health data stays permissioned</p><p className="mt-1 text-[11px] leading-5 text-secondary-foreground/75">StridePool never asks the browser for health data. The iOS and Android companion requests the platform permission, reads step records, and sends only normalized samples for server-side verification.</p></div></div></div>
       <NativeSourceCards sources={sources} />
       {stepReviews.length > 0 && <div className="mt-5 rounded-xl border border-primary/25 bg-primary/10 p-4" data-testid="panel-step-reviews"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-primary">Records held for review</p><Badge tone="coral">{stepReviews.length} flagged</Badge></div><div className="mt-3 space-y-2">{stepReviews.slice(0, 5).map((review) => <div className="rounded-lg bg-background/70 p-3" key={review.id}><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold">{review.steps.toLocaleString()} steps · {review.recordDate}</p><span className="font-mono-app text-[9px] uppercase text-primary">not counted</span></div><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{review.reviewFlags.map((flag) => flag.replaceAll('_', ' ')).join(' · ')} · {review.source.replaceAll('_', ' ')}</p></div>)}</div></div>}
-     </div>
-   </section>;
+    </div>
+  </section>;
+}
+function HealthSourcesPanel({ sources }: { sources: HealthSource[] }) {
+  return <SettingsGroup eyebrow="Connected sources" title="Where your steps come from"><NativeSourceCards sources={sources} /></SettingsGroup>;
 }
 
 function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
@@ -867,7 +886,6 @@ function ProfilePage() {
   useEffect(() => { if (!editing && name.trim() && name.trim() !== profile.displayName) updateProfile({ displayName: name.trim() }); }, [editing]);
   return <div className="mx-auto max-w-[1000px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Your space</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Profile & settings</h1><p className="mt-3 text-sm text-muted-foreground">Keep StridePool useful, comfortable, and yours.</p></div><div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]"><section className="rounded-2xl bg-secondary p-6 sm:p-8"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-foreground font-display text-2xl font-bold text-background shadow-[4px_4px_0_hsl(var(--primary))]">AM</div>{editing ? <div className="mt-6 flex gap-2"><input value={name} onChange={(event) => setName(event.target.value)} aria-label="Profile name" className="min-w-0 flex-1 rounded-xl border border-secondary-foreground/20 bg-secondary/40 px-3 py-2 text-lg font-bold outline-none focus:border-primary" data-testid="input-profile-name" /><button onClick={() => setEditing(false)} className="rounded-xl bg-foreground px-3 text-xs font-bold text-background" data-testid="button-save-profile">Save</button></div> : <h2 className="mt-6 font-display text-2xl font-bold tracking-[-.04em]">{name}</h2>}<p className="mt-1 text-sm text-secondary-foreground/70">Walking since March 2024</p><div className="mt-8 space-y-4 border-t border-secondary-foreground/15 pt-6"><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Active challenges</span><span className="font-bold">{membership.activeChallengeCount}/{membership.activeChallengeLimit}</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">StridePool platform fee</span><span className="font-bold">${membership.challengeJoinPrice.toFixed(2)}</span></div><div className="flex justify-between text-xs"><span className="text-secondary-foreground/65">Membership</span><span className="font-bold capitalize">{membership.plan}</span></div></div>{!editing && <button onClick={() => setEditing(true)} className="mt-8 flex items-center gap-2 text-xs font-bold text-secondary-foreground underline underline-offset-4" data-testid="button-edit-profile">Edit profile <ExternalLink size={13} /></button>}</section><section className="space-y-5">{auth.isAuthenticated && <MembershipCard membership={membership} />}{auth.isAuthenticated && pendingInvites.length > 0 && <PendingInvitesPanel invites={pendingInvites} />}<HealthSourcesPanel sources={healthSources} /><div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div><SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weekly-digest')} testId="toggle-weekly-digest" /></SettingsGroup><SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup></section></div></div>;
 }
-
 function ReferralCard() {
   const { auth } = useApp();
   const referral = useGetStridePoolReferralSummary({ query: { queryKey: getGetStridePoolReferralSummaryQueryKey(), enabled: auth.isAuthenticated, staleTime: 30_000 } });
@@ -1048,11 +1066,12 @@ function AdminPage() {
   const [userQuery, setUserQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const flagged = useGetAdminFlaggedStepRecords({ query: { queryKey: getGetAdminFlaggedStepRecordsQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
+  const recovery = useGetAdminRecoveryCases({ query: { queryKey: getGetAdminRecoveryCasesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const challenges = useGetAdminChallenges({ query: { queryKey: getGetAdminChallengesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const settlements = useGetAdminSettlementHistory({ query: { queryKey: getGetAdminSettlementHistoryQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const users = useSearchAdminUsers(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined, { query: { queryKey: getSearchAdminUsersQueryKey(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined), enabled: auth.isAuthenticated && userQuery.trim().length >= 2, staleTime: 10_000 } });
   const user = useGetAdminUser(selectedUserId, { query: { queryKey: getGetAdminUserQueryKey(selectedUserId), enabled: auth.isAuthenticated && Boolean(selectedUserId), staleTime: 15_000 } });
-  const requests = [flagged, challenges, settlements];
+  const requests = [flagged, recovery, challenges, settlements];
   const forbidden = requests.find((request) => adminErrorStatus(request.error) === 403) || (users.error && adminErrorStatus(users.error) === 403 ? users : null) || (user.error && adminErrorStatus(user.error) === 403 ? user : null);
   const unauthenticated = !auth.isLoading && !auth.isAuthenticated;
 
@@ -1064,6 +1083,7 @@ function AdminPage() {
   }
 
   const flaggedRecords = flagged.data?.records ?? [];
+  const recoveryRows = recovery.data?.cases ?? [];
   const challengeRows = challenges.data?.challenges ?? [];
   const settlementRows = settlements.data?.settlements ?? [];
   const searchUsers = users.data?.users ?? [];
@@ -1077,11 +1097,13 @@ function AdminPage() {
 
      <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <AdminMetric label="Flagged records" value={flagged.isLoading ? '…' : String(flaggedRecords.length)} detail="Unverified daily totals" />
+       <AdminMetric label="Recovery queue" value={recovery.isLoading ? '…' : String(recoveryRows.length)} detail="Cases awaiting a decision" />
       <AdminMetric label="Challenges" value={challenges.isLoading ? '…' : String(challengeRows.length)} detail="Current status overview" />
       <AdminMetric label="Settlements" value={settlements.isLoading ? '…' : String(settlementRows.length)} detail="Recorded settlement runs" />
     </section>
 
     <div className="grid gap-8">
+       <AdminRecoveryQueue cases={recoveryRows} />
       <AdminPanel eyebrow="Anti-cheat queue" title="Flagged step records" count={flaggedRecords.length}>
         {flagged.isLoading ? <AdminLoading /> : flaggedRecords.length === 0 ? <AdminEmpty text="No suspicious daily records are waiting for review." /> : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="border-b border-border bg-muted/45 font-mono-app text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Walker</th><th className="px-4 py-3">Challenge</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Steps</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Flag reason</th></tr></thead><tbody>{flaggedRecords.map((record: AdminFlaggedStepRecord) => <tr className="border-b border-border/70 last:border-0" key={record.id}><td className="px-4 py-3"><button className="text-left font-bold hover:text-primary" onClick={() => { setSelectedUserId(record.userId); setUserQuery(record.userEmail || record.userName); }} data-testid={`button-admin-record-user-${record.id}`}>{record.userName}<span className="mt-0.5 block font-normal text-muted-foreground">{record.userEmail || record.userId}</span></button></td><td className="px-4 py-3 font-semibold">{record.challengeName}</td><td className="px-4 py-3 whitespace-nowrap">{record.recordDate}</td><td className="px-4 py-3 font-mono-app font-bold">{record.steps.toLocaleString()}</td><td className="px-4 py-3 text-muted-foreground">{record.source.replaceAll('_', ' ')}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{record.flagReasons.map((reason) => <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary" key={reason}>{reason.replaceAll('_', ' ')}</span>)}</div></td></tr>)}</tbody></table></div>}
       </AdminPanel>
@@ -1105,6 +1127,68 @@ function AdminPage() {
   </div>;
 }
 
+function AdminRecoveryQueue({ cases }: { cases: AdminRecoveryCase[] }) {
+  const mutation = useDecideAdminRecoveryCase();
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [decision, setDecision] = useState<AdminRecoveryDecisionBody['decision']>('approved');
+  const [explanation, setExplanation] = useState('');
+  const [message, setMessage] = useState('');
+
+  const chooseDecision = (id: string, nextDecision: AdminRecoveryDecisionBody['decision']) => {
+    setActiveId(id);
+    setDecision(nextDecision);
+    setExplanation('');
+    setMessage('');
+  };
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeId || explanation.trim().length < 8) return;
+    mutation.mutate({ recoveryCaseId: Number(activeId), data: { decision, explanation: explanation.trim() } }, {
+      onSuccess: (result) => {
+        setActiveId(null);
+        setExplanation('');
+        setMessage(`Case ${result.decision.decision} and logged to the recovery audit.`);
+        queryClient.invalidateQueries({ queryKey: getGetAdminRecoveryCasesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetAdminChallengesQueryKey() });
+        queryClient.invalidateQueries({ predicate: (query) => typeof query.queryKey[0] === 'string' && query.queryKey[0].includes('/bootstrap') });
+      },
+      onError: () => setMessage('That decision could not be saved. No recovery or settlement status changed.'),
+    });
+  };
+
+  return <AdminPanel eyebrow="Recovery queue" title="Pending recovery cases" count={cases.length}>
+    {cases.length === 0 ? <AdminEmpty text="No recovery cases are waiting for support." /> : <div className="divide-y divide-border/70">
+      {cases.map((item) => <article className="p-5 sm:p-6" key={item.id} data-testid={`admin-recovery-case-${item.id}`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-bold">{item.challengeName}</p>
+              <Badge tone="coral">{item.type.replaceAll('_', ' ')}</Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{item.userName} · {item.userEmail || item.userId}</p>
+            <p className="mt-4 max-w-3xl text-sm leading-6">{item.reason}</p>
+            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-muted-foreground">
+              <span>Requested {adminDate(item.requestedAt)}</span>
+              <span>Updated {adminDate(item.updatedAt)}</span>
+            </div>
+            <div className="mt-4">
+              <p className="font-mono-app text-[10px] uppercase tracking-[.14em] text-muted-foreground">Source flags</p>
+              {item.sourceFlags.length ? <div className="mt-2 flex flex-wrap gap-1.5">{item.sourceFlags.map((flag) => <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary" key={flag}>{flag.replaceAll('_', ' ')}</span>)}</div> : <p className="mt-1 text-xs text-muted-foreground">No flagged source samples were attached.</p>}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2 lg:max-w-[310px] lg:justify-end">
+            {(['approved', 'denied', 'resolved'] as const).map((nextDecision) => <Button key={nextDecision} variant={nextDecision === 'denied' ? 'danger' : nextDecision === 'approved' ? 'primary' : 'secondary'} onClick={() => chooseDecision(item.id, nextDecision)} data-testid={`button-admin-recovery-${nextDecision}-${item.id}`}>{nextDecision === 'approved' ? 'Approve' : nextDecision === 'denied' ? 'Deny' : 'Resolve'}</Button>)}
+          </div>
+        </div>
+        {activeId === item.id && <form className="mt-5 rounded-xl border border-border bg-muted/45 p-4" onSubmit={submit}>
+          <label className="block text-xs font-bold">Explanation for {decision} decision<textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} minLength={8} maxLength={1000} rows={3} placeholder="Record what was reviewed and why this decision is appropriate…" className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-sm font-normal outline-none focus:border-primary" data-testid={`textarea-admin-recovery-explanation-${item.id}`} /></label>
+          <div className="mt-3 flex flex-wrap items-center gap-3"><Button type="submit" disabled={mutation.isPending || explanation.trim().length < 8} data-testid={`button-submit-admin-recovery-${item.id}`}>{mutation.isPending ? 'Saving…' : `Record ${decision} decision`}</Button><Button type="button" variant="quiet" onClick={() => setActiveId(null)}>Cancel</Button></div>
+        </form>}
+      </article>)}
+    </div>}
+    {message && <p className="border-t border-border/70 px-5 py-4 text-xs font-semibold text-primary" role="status" data-testid="status-admin-recovery">{message}</p>}
+  </AdminPanel>;
+}
 function AdminGate({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
   return <div className="mx-auto flex min-h-[55vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={26} /></div><h1 className="mt-5 font-display text-2xl font-bold">{title}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>{action && <div className="mt-5">{action}</div>}</div>;
 }
