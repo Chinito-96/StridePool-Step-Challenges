@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { HealthSourceDeliveryFailure } from './healthSourceDeliveryFailure';
 import type { HealthSourceSource } from './healthSourceSource';
 import type { HealthSourceStatus } from './healthSourceStatus';
 
@@ -14,6 +15,12 @@ export interface HealthSource {
   status: HealthSourceStatus;
   /** @nullable */
   lastSyncedAt: Date | null;
+  /** @nullable */
+  lastAttemptedAt: Date | null;
+  /** @nullable */
+  deliveryFailure: HealthSourceDeliveryFailure;
+  /** @nullable */
+  nextRetryAt: Date | null;
   verifiedSamples: number;
   pendingReview: number;
 }

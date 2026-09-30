@@ -11,6 +11,7 @@ import {
   CreateStridePoolChallengeInviteResponse,
   GetStridePoolBootstrapResponse,
   GetStridePoolHealthSourcesResponse,
+  ReportStridePoolSourceDeliveryBody,
   UpdateStridePoolHealthSourceConnectionBody,
   GetStridePoolInviteResponse,
   GetStridePoolPendingInvitesResponse,
@@ -293,6 +294,9 @@ async function getHealthSources(userId: string) {
       label,
       status,
       lastSyncedAt: connection?.lastSyncedAt?.toISOString() ?? null,
+      lastAttemptedAt: connection?.lastAttemptedAt?.toISOString() ?? null,
+      deliveryFailure: connection?.deliveryFailure ?? null,
+      nextRetryAt: connection?.nextRetryAt?.toISOString() ?? null,
       verifiedSamples: Number(verified?.count ?? 0),
       pendingReview: Number(pending?.count ?? 0),
     };
@@ -508,10 +512,10 @@ async function getBootstrap(req: Request) {
     const joinedIds = anonymousId
       ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, anonymousId), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
       : new Set<string>();
-    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)), joinedIds: [...joinedIds], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
+    return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, joinedIds)), joinedIds: [...joinedIds], steps: 7284, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, lastAttemptedAt: null, deliveryFailure: null, nextRetryAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   }
   const user = await getUser(req.user.id);
-  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
+  if (!user) return { user: null, challenges: challenges.map((challenge) => challengeFor(challenge, new Set())), joinedIds: [], steps: 0, activities: [], wallet: DEFAULT_WALLET, profile: DEFAULT_PROFILE, membership: DEFAULT_MEMBERSHIP, healthSources: HEALTH_SOURCES.map(({ source, label }) => ({ source, label, status: "available" as const, lastSyncedAt: null, lastAttemptedAt: null, deliveryFailure: null, nextRetryAt: null, verifiedSamples: 0, pendingReview: 0 })), recoveryCases: [], stepReviews: [], freeStreak: { current: 0, best: 0, lastGoalDate: null }, pendingInvites: [] };
   const entries = await db.select().from(entriesTable).where(and(eq(entriesTable.userId, user.id), eq(entriesTable.status, "active")));
   const joinedIds = new Set(entries.map((entry) => entry.challengeId));
   const today = new Date().toISOString().slice(0, 10);
@@ -1081,9 +1085,46 @@ router.post("/stridepool/sources/:source/connection", async (req, res): Promise<
     label: HEALTH_SOURCES.find((item) => item.source === source)?.label ?? source,
     status: body.data.status,
     lastSyncedAt: connection?.lastSyncedAt?.toISOString() ?? null,
+    lastAttemptedAt: connection?.lastAttemptedAt?.toISOString() ?? null,
+    deliveryFailure: connection?.deliveryFailure ?? null,
+    nextRetryAt: connection?.nextRetryAt?.toISOString() ?? null,
     verifiedSamples: Number(verified?.count ?? 0),
     pendingReview: Number(pending?.count ?? 0),
   });
+});
+
+router.post("/stridepool/sources/:source/delivery", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const params = IngestStridePoolSourceSamplesParams.pick({ source: true }).safeParse(req.params);
+  const body = ReportStridePoolSourceDeliveryBody.safeParse(req.body);
+  if (!params.success || !body.success || (body.data.outcome === "failure") !== Boolean(body.data.reason)) {
+    res.status(400).json({ error: "Send a valid delivery outcome and failure reason." });
+    return;
+  }
+  const now = new Date();
+  const supplied = body.data.attemptedAt;
+  const attemptedAt = supplied && supplied.getTime() <= now.getTime() && supplied.getTime() >= now.getTime() - 30 * 86400000 ? supplied : now;
+  const failure = body.data.outcome === "failure" ? body.data.reason! : null;
+  const retry = failure ? new Date(attemptedAt.getTime() + 5 * 60000) : null;
+  const table = healthSourceConnectionsTable;
+  await db.insert(table).values({
+    userId, source: params.data.source, status: "connected",
+    lastAttemptedAt: attemptedAt, lastSyncedAt: failure ? null : attemptedAt,
+    deliveryFailure: failure, nextRetryAt: retry, updatedAt: now,
+  }).onConflictDoUpdate({
+    target: [table.userId, table.source],
+    // A delayed offline report cannot overwrite a newer successful upload.
+    set: {
+      lastAttemptedAt: sql`greatest(${table.lastAttemptedAt}, ${attemptedAt})`,
+      lastSyncedAt: failure ? table.lastSyncedAt : sql`greatest(${table.lastSyncedAt}, ${attemptedAt})`,
+      deliveryFailure: sql`case when ${table.lastAttemptedAt} is null or ${table.lastAttemptedAt} <= ${attemptedAt} then ${failure} else ${table.deliveryFailure} end`,
+      nextRetryAt: sql`case when ${table.lastAttemptedAt} is null or ${table.lastAttemptedAt} <= ${attemptedAt} then ${retry} else ${table.nextRetryAt} end`,
+      updatedAt: now,
+    },
+  });
+  const sources = await getHealthSources(userId);
+  res.json(sources.find((item) => item.source === params.data.source));
 });
 
 router.post("/stridepool/sources/:source/samples", async (req, res): Promise<void> => {
@@ -1154,11 +1195,13 @@ router.post("/stridepool/sources/:source/samples", async (req, res): Promise<voi
     userId,
     source,
     status: "connected",
-    lastSyncedAt: now,
+    lastAttemptedAt: now,
     updatedAt: now,
   }).onConflictDoUpdate({
     target: [healthSourceConnectionsTable.userId, healthSourceConnectionsTable.source],
-    set: { status: "connected", lastSyncedAt: now, updatedAt: now },
+    // A batch is not a completed delivery. The companion confirms success after
+    // every batch has been accepted, so a partial upload retains its old cursor.
+    set: { status: "connected", updatedAt: now },
   });
 
   for (const [recordDate] of dayTotals) await rebuildVerifiedDailyTotal(userId, recordDate, source);

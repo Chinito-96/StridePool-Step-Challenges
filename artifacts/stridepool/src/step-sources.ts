@@ -27,6 +27,7 @@ export type NativeHealthSample = {
 };
 
 export type NativeHealthBridge = {
+  supportedSource?: StepSourceId;
   requestPermissions: (source: "apple_health" | "health_connect") => Promise<NativePermissionStatus>;
   getPermissionStatus?: (source: "apple_health" | "health_connect") => Promise<NativePermissionStatus>;
   readStepSamples: (source: "apple_health" | "health_connect", since?: string) => Promise<NativeHealthSample[]>;

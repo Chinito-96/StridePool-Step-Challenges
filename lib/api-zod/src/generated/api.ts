@@ -327,6 +327,9 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "label": zod.string(),
   "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),
+  "lastAttemptedAt": zod.coerce.date().nullable(),
+  "deliveryFailure": zod.union([zod.literal('offline'),zod.literal('native_read'),zod.literal('upload_failed'),zod.literal(null)]).nullable(),
+  "nextRetryAt": zod.coerce.date().nullable(),
   "verifiedSamples": zod.int(),
   "pendingReview": zod.int()
 })),
@@ -977,6 +980,9 @@ export const GetStridePoolHealthSourcesResponse = zod.object({
   "label": zod.string(),
   "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),
+  "lastAttemptedAt": zod.coerce.date().nullable(),
+  "deliveryFailure": zod.union([zod.literal('offline'),zod.literal('native_read'),zod.literal('upload_failed'),zod.literal(null)]).nullable(),
+  "nextRetryAt": zod.coerce.date().nullable(),
   "verifiedSamples": zod.int(),
   "pendingReview": zod.int()
 }))
@@ -1048,6 +1054,39 @@ export const UpdateStridePoolHealthSourceConnectionResponse = zod.object({
   "label": zod.string(),
   "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
   "lastSyncedAt": zod.coerce.date().nullable(),
+  "lastAttemptedAt": zod.coerce.date().nullable(),
+  "deliveryFailure": zod.union([zod.literal('offline'),zod.literal('native_read'),zod.literal('upload_failed'),zod.literal(null)]).nullable(),
+  "nextRetryAt": zod.coerce.date().nullable(),
+  "verifiedSamples": zod.int(),
+  "pendingReview": zod.int()
+})
+
+
+/**
+ * @summary Record the result of a companion delivery attempt
+ */
+export const ReportStridePoolSourceDeliveryParams = zod.object({
+  "source": zod.enum(['apple_health', 'health_connect'])
+})
+
+export const ReportStridePoolSourceDeliveryHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const ReportStridePoolSourceDeliveryBody = zod.object({
+  "outcome": zod.enum(['success', 'failure']),
+  "reason": zod.enum(['offline', 'native_read', 'upload_failed']).optional(),
+  "attemptedAt": zod.coerce.date().optional()
+})
+
+export const ReportStridePoolSourceDeliveryResponse = zod.object({
+  "source": zod.enum(['apple_health', 'health_connect']),
+  "label": zod.string(),
+  "status": zod.enum(['available', 'connected', 'denied', 'stale', 'revoked']),
+  "lastSyncedAt": zod.coerce.date().nullable(),
+  "lastAttemptedAt": zod.coerce.date().nullable(),
+  "deliveryFailure": zod.union([zod.literal('offline'),zod.literal('native_read'),zod.literal('upload_failed'),zod.literal(null)]).nullable(),
+  "nextRetryAt": zod.coerce.date().nullable(),
   "verifiedSamples": zod.int(),
   "pendingReview": zod.int()
 })

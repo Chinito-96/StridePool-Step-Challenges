@@ -211,12 +211,30 @@ export const HealthSourceStatus = {
   revoked: 'revoked',
 } as const;
 
+/**
+ * @nullable
+ */
+export type HealthSourceDeliveryFailure = typeof HealthSourceDeliveryFailure[keyof typeof HealthSourceDeliveryFailure] | null;
+
+
+export const HealthSourceDeliveryFailure = {
+  offline: 'offline',
+  native_read: 'native_read',
+  upload_failed: 'upload_failed',
+} as const;
+
 export interface HealthSource {
   source: HealthSourceSource;
   label: string;
   status: HealthSourceStatus;
   /** @nullable */
   lastSyncedAt: string | null;
+  /** @nullable */
+  lastAttemptedAt: string | null;
+  /** @nullable */
+  deliveryFailure: HealthSourceDeliveryFailure;
+  /** @nullable */
+  nextRetryAt: string | null;
   verifiedSamples: number;
   pendingReview: number;
 }
@@ -594,6 +612,29 @@ export type NotificationMutationResponse = typeof NotificationMutationResponseVa
 export interface InviteAcceptResponse {
   joined: boolean;
   challenge: Challenge;
+}
+
+export type HealthDeliveryInputOutcome = typeof HealthDeliveryInputOutcome[keyof typeof HealthDeliveryInputOutcome];
+
+
+export const HealthDeliveryInputOutcome = {
+  success: 'success',
+  failure: 'failure',
+} as const;
+
+export type HealthDeliveryInputReason = typeof HealthDeliveryInputReason[keyof typeof HealthDeliveryInputReason];
+
+
+export const HealthDeliveryInputReason = {
+  offline: 'offline',
+  native_read: 'native_read',
+  upload_failed: 'upload_failed',
+} as const;
+
+export interface HealthDeliveryInput {
+  outcome: HealthDeliveryInputOutcome;
+  reason?: HealthDeliveryInputReason;
+  attemptedAt?: string;
 }
 
 export interface HealthSourcesResponse {

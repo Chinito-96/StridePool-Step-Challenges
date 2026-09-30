@@ -240,6 +240,89 @@ describe("StridePool source sample ingestion", () => {
     assert.equal(storedRows.length, 1);
   });
 
+  it("records failed delivery, keeps verified steps unchanged, and clears the failure after retry", async () => {
+    const before = (await request("/stridepool/bootstrap")).body as { steps: number };
+    const sourceBefore = (await request("/stridepool/sources")).body as { sources: Array<{ source: string; lastSyncedAt: string | null }> };
+    const previousSuccess = sourceBefore.sources.find((item) => item.source === "apple_health")?.lastSyncedAt ?? null;
+    const failure = await request("/stridepool/sources/apple_health/delivery", {
+      method: "POST",
+      body: JSON.stringify({ outcome: "failure", reason: "offline" }),
+    });
+    assert.equal(failure.status, 200);
+    const failedSource = failure.body as { lastAttemptedAt: string; lastSyncedAt: string | null; deliveryFailure: string; nextRetryAt: string };
+    assert.equal(failedSource.deliveryFailure, "offline");
+    assert.ok(failedSource.lastAttemptedAt);
+    assert.ok(failedSource.nextRetryAt);
+    assert.equal(failedSource.lastSyncedAt, previousSuccess);
+    assert.equal(((await request("/stridepool/bootstrap")).body as { steps: number }).steps, before.steps);
+
+    const invalid = await request("/stridepool/sources/apple_health/delivery", {
+      method: "POST",
+      body: JSON.stringify({ outcome: "failure" }),
+    });
+    assert.equal(invalid.status, 400);
+
+    const duplicate = await ingest("apple_health", [sample("apple-sample-1")]);
+    assert.equal(duplicate.acceptedCount, 0);
+    const success = await request("/stridepool/sources/apple_health/delivery", {
+      method: "POST",
+      body: JSON.stringify({ outcome: "success" }),
+    });
+    assert.equal(success.status, 200);
+    const recovered = success.body as { deliveryFailure: null; nextRetryAt: null; lastSyncedAt: string };
+    assert.equal(recovered.deliveryFailure, null);
+    assert.equal(recovered.nextRetryAt, null);
+    assert.ok(recovered.lastSyncedAt);
+    assert.equal(((await request("/stridepool/bootstrap")).body as { steps: number }).steps, before.steps);
+
+    const delayed = await request("/stridepool/sources/apple_health/delivery", {
+      method: "POST",
+      body: JSON.stringify({ outcome: "failure", reason: "offline", attemptedAt: new Date(Date.now() - 60000).toISOString() }),
+    });
+    assert.equal(delayed.status, 200);
+    assert.equal((delayed.body as { deliveryFailure: null }).deliveryFailure, null);
+  });
+
+  it("retries a partial multi-day delivery without advancing the successful cursor", async () => {
+    const source = "health_connect";
+    const first = sample("multi-day-first", { recordDate: dateDaysAgo(20), steps: 320 });
+    const later = sample("multi-day-later", { recordDate: dateDaysAgo(19), steps: 410 });
+    const before = (await request("/stridepool/sources")).body as { sources: Array<{ source: string; lastSyncedAt: string | null }> };
+    const cursor = before.sources.find((item) => item.source === source)?.lastSyncedAt ?? null;
+
+    assert.equal((await ingest(source, [first])).acceptedCount, 1);
+    const partial = (await request("/stridepool/sources")).body as { sources: Array<{ source: string; lastSyncedAt: string | null }> };
+    assert.equal(partial.sources.find((item) => item.source === source)?.lastSyncedAt ?? null, cursor);
+    const interrupted = await request(`/stridepool/sources/${source}/samples`, {
+      method: "POST",
+      body: JSON.stringify({ samples: [{ ...later, steps: -1 }] }),
+    });
+    assert.equal(interrupted.status, 400);
+    const failed = await request(`/stridepool/sources/${source}/delivery`, {
+      method: "POST",
+      body: JSON.stringify({ outcome: "failure", reason: "upload_failed" }),
+    });
+    assert.equal(failed.status, 200);
+    assert.equal((failed.body as { lastSyncedAt: string | null }).lastSyncedAt, cursor);
+
+    // The next read includes both IDs; the first batch must not count twice.
+    const retry = await ingest(source, [first, later]);
+    assert.equal(retry.acceptedCount, 1);
+    const done = await request(`/stridepool/sources/${source}/delivery`, {
+      method: "POST",
+      body: JSON.stringify({ outcome: "success" }),
+    });
+    assert.equal(done.status, 200);
+    assert.equal((done.body as { deliveryFailure: null }).deliveryFailure, null);
+    const rows = await db.select().from(stepSourceSamplesTable).where(and(
+      eq(stepSourceSamplesTable.userId, userId),
+      eq(stepSourceSamplesTable.source, source),
+      inArray(stepSourceSamplesTable.sourceSampleId, [first.sourceSampleId, later.sourceSampleId]),
+    ));
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows.map((row) => row.steps).sort((a, b) => a - b), [320, 410]);
+  });
+
   it("normalizes Health Connect samples and scopes idempotency by source", async () => {
     const result = await ingest("health_connect", [sample("health-connect-sample-1", {
       steps: 900,

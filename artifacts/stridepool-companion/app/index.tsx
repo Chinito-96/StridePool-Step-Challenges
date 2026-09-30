@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,6 +57,7 @@ const bridgeScript = `
     }));
   });
   window.StridePoolHealth = {
+    supportedSource: '${Platform.OS === 'ios' ? 'apple_health' : 'health_connect'}',
     requestPermissions: (source) => invoke('requestPermissions', source),
     getPermissionStatus: (source) => invoke('getPermissionStatus', source),
     readStepSamples: (source, since) => invoke('readStepSamples', source, since),
@@ -83,6 +84,16 @@ export default function CompanionScreen() {
   const uri = domain ? `https://${domain}/` : null;
   const trustedOrigin = domain ? `https://${domain}` : null;
   const styles = useMemo(() => createStyles(colors), [colors]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && trustedOrigin && isTrustedUrl(currentUrl.current, trustedOrigin)) {
+        webView.current?.injectJavaScript(
+          `if(location.origin===${JSON.stringify(trustedOrigin)})window.dispatchEvent(new Event('stridepool-companion-active'));true;`,
+        );
+      }
+    });
+    return () => subscription.remove();
+  }, [trustedOrigin]);
 
   const respond = useCallback((id: string, documentId: string, ok: boolean, result?: unknown, error?: string) => {
     if (!trustedOrigin || !isTrustedUrl(currentUrl.current, trustedOrigin)) return;

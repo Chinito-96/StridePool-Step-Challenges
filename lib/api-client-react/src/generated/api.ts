@@ -52,6 +52,7 @@ import type {
   GetStridePoolCommunityChallengesParams,
   GroupChallengeInput,
   GroupChallengeResponse,
+  HealthDeliveryInput,
   HealthSource,
   HealthSourceConnectionInput,
   HealthSourcesResponse,
@@ -2961,6 +2962,78 @@ export const useUpdateStridePoolHealthSourceConnection = <TError = ErrorType<Err
         TContext
       > => {
       return useMutation(getUpdateStridePoolHealthSourceConnectionMutationOptions(options));
+    }
+
+export const getReportStridePoolSourceDeliveryUrl = (source: 'apple_health' | 'health_connect',) => {
+
+
+
+
+  return `/api/stridepool/sources/${source}/delivery`
+}
+
+/**
+ * @summary Record the result of a companion delivery attempt
+ */
+export const reportStridePoolSourceDelivery = async (source: 'apple_health' | 'health_connect',
+    healthDeliveryInput: HealthDeliveryInput, options?: Parameters<typeof customFetch>[1]): Promise<HealthSource> => {
+
+  return customFetch<HealthSource>(getReportStridePoolSourceDeliveryUrl(source),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(healthDeliveryInput)
+  }
+);}
+
+
+
+
+
+export const getReportStridePoolSourceDeliveryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportStridePoolSourceDelivery>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<HealthDeliveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportStridePoolSourceDelivery>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<HealthDeliveryInput>}, TContext> => {
+
+const mutationKey = ['reportStridePoolSourceDelivery'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportStridePoolSourceDelivery>>, {source: 'apple_health' | 'health_connect';data: BodyType<HealthDeliveryInput>}> = (props) => {
+          const {source,data} = props ?? {};
+
+          return  reportStridePoolSourceDelivery(source,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportStridePoolSourceDeliveryMutationResult = NonNullable<Awaited<ReturnType<typeof reportStridePoolSourceDelivery>>>
+    export type ReportStridePoolSourceDeliveryMutationBody = BodyType<HealthDeliveryInput>
+    export type ReportStridePoolSourceDeliveryMutationError = ErrorType<void>
+
+    /**
+ * @summary Record the result of a companion delivery attempt
+ */
+export const useReportStridePoolSourceDelivery = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportStridePoolSourceDelivery>>, TError,{source: 'apple_health' | 'health_connect';data: BodyType<HealthDeliveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reportStridePoolSourceDelivery>>,
+        TError,
+        {source: 'apple_health' | 'health_connect';data: BodyType<HealthDeliveryInput>},
+        TContext
+      > => {
+      return useMutation(getReportStridePoolSourceDeliveryMutationOptions(options));
     }
 
 export const getGetStridePoolRecoveryCasesUrl = () => {
