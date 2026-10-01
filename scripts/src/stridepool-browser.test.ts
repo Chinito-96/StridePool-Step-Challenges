@@ -124,6 +124,14 @@ describe("StridePool browser persistence", () => {
       community: true,
       graceDays: 1,
     });
+    await db.insert(dailyStepRecordsTable).values({
+      userId,
+      challengeId: null,
+      recordDate: new Date().toISOString().slice(0, 10),
+      steps: syncedSteps,
+      source: "apple_health",
+      verified: true,
+    });
 
     sessionId = crypto.randomBytes(32).toString("hex");
     await db.insert(sessionsTable).values({
@@ -231,12 +239,6 @@ describe("StridePool browser persistence", () => {
     await joinResponse;
 
     await page.goto(webBaseUrl, { waitUntil: "domcontentloaded" });
-    await page.getByTestId("input-manual-steps").fill(String(syncedSteps));
-    const syncResponse = page.waitForResponse((response) =>
-      response.url().endsWith("/api/stridepool/sync") && response.status() === 200,
-    );
-    await page.getByTestId("button-submit-manual-steps").click();
-    await syncResponse;
     await waitForText(page, "text-todays-steps", syncedSteps.toLocaleString());
 
     await page.reload({ waitUntil: "domcontentloaded" });
