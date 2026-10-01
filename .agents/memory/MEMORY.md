@@ -10,6 +10,7 @@
 - [Health delivery retry boundary](health-delivery-retry.md) — foreground reopen retries reread native samples; delivery health never changes verified totals.
 - [Expo Go native health limits](expo-go-native-health.md) — custom HealthKit and Health Connect modules need an installed native build; keep Expo Go from importing them eagerly.
 - [Managed Stripe webhook rotation](stripe-managed-webhook-rotation.md) — persist and resolve signing secrets from the sync record; runtime docs may expose methods missing from the installed package.
+- [Stripe Connect sandbox prerequisite](stripe-connect-sandbox.md) — test Connect payouts can emit `payout.paid` with a final failed status; verify object status, not only event name.
 - [Browser persistence assertions](browser-persistence-assertions.md) — wait for persisted values, not placeholder elements, when bootstrap data loads after navigation.
 - [Nullable daily-record upserts](daily-record-null-upsert.md) — composite uniqueness does not deduplicate rows when the challenge reference is NULL.
 - [Membership pricing](membership-pricing.md) — creator-set entry fees fund pools; Free/Pro add separate $2/$1 platform fees.

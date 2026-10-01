@@ -9,6 +9,19 @@ type StripeCredentials = {
 let runtimeWebhookSecret: string | undefined;
 
 async function getStripeCredentials(): Promise<StripeCredentials> {
+  const sandboxSecretKey = process.env.STRIPE_SANDBOX_SECRET_KEY;
+
+  if (process.env.NODE_ENV === "development" && sandboxSecretKey) {
+    if (!sandboxSecretKey.startsWith("sk_test_")) {
+      throw new Error("STRIPE_SANDBOX_SECRET_KEY must be a Stripe test-mode secret key.");
+    }
+
+    return {
+      secretKey: sandboxSecretKey,
+      ...(runtimeWebhookSecret ? { webhookSecret: runtimeWebhookSecret } : {}),
+    };
+  }
+
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? `repl ${process.env.REPL_IDENTITY}`

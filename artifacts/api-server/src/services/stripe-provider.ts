@@ -119,13 +119,25 @@ export async function initializeStripeProvider(): Promise<void> {
 
   await runMigrations({ databaseUrl });
   const stripe = await getUncachableStripeClient();
-  await stripe.accounts.retrieve(null);
+  const stripeAccount = await stripe.accounts.retrieve(null);
+  if (process.env.NODE_ENV === "development" && process.env.STRIPE_SANDBOX_SECRET_KEY) {
+    const expectedSandboxAccountId = process.env.STRIPE_SANDBOX_ACCOUNT_ID;
+    if (!expectedSandboxAccountId) {
+      throw new Error("STRIPE_SANDBOX_ACCOUNT_ID is required when using the development sandbox key.");
+    }
+    if (stripeAccount.id !== expectedSandboxAccountId) {
+      throw new Error("The development Stripe key does not match STRIPE_SANDBOX_ACCOUNT_ID.");
+    }
+  }
   providerReady = true;
 
   const stripeSync = await getStripeSync();
+  const isSandboxConnectEndpoint =
+    process.env.NODE_ENV === "development" && Boolean(process.env.STRIPE_SANDBOX_SECRET_KEY);
   const webhook = await stripeSync.findOrCreateManagedWebhook(
     `${publicBaseUrl()}/api/stripe/webhook`,
     {
+      ...(isSandboxConnectEndpoint ? { connect: true } : {}),
       enabled_events: [
         "payment_intent.succeeded",
         "payment_intent.payment_failed",
@@ -302,16 +314,22 @@ export async function createStripeWithdrawal(
 async function metadataFromPaymentIntent(
   stripe: Stripe,
   paymentIntent: string | Stripe.PaymentIntent | null,
+  connectedAccountId?: string,
 ): Promise<Stripe.Metadata> {
   if (!paymentIntent) return {};
   if (typeof paymentIntent !== "string") return paymentIntent.metadata;
-  return (await stripe.paymentIntents.retrieve(paymentIntent)).metadata;
+  return (await stripe.paymentIntents.retrieve(
+    paymentIntent,
+    {},
+    connectedAccountId ? { stripeAccount: connectedAccountId } : undefined,
+  )).metadata;
 }
 
 async function normalizedStripeEvent(
   event: Stripe.Event,
 ): Promise<Parameters<typeof recordProviderWebhook>[0] | null> {
   const stripe = await getUncachableStripeClient();
+  const connectedAccountId = typeof event.account === "string" ? event.account : undefined;
   let userId: string | undefined;
   let challengeId: string | null = null;
   let amountCents = 0;
@@ -331,7 +349,7 @@ async function normalizedStripeEvent(
     const charge = event.data.object;
     metadata = {
       ...charge.metadata,
-      ...await metadataFromPaymentIntent(stripe, charge.payment_intent),
+      ...await metadataFromPaymentIntent(stripe, charge.payment_intent, connectedAccountId),
     };
     userId = metadata.stridepool_user_id;
     challengeId = metadata.stridepool_challenge_id ?? null;
@@ -341,12 +359,16 @@ async function normalizedStripeEvent(
   } else if (event.type === "charge.dispute.created" || event.type === "charge.dispute.closed") {
     const dispute = event.data.object;
     const charge = typeof dispute.charge === "string"
-      ? await stripe.charges.retrieve(dispute.charge)
+      ? await stripe.charges.retrieve(
+        dispute.charge,
+        {},
+        connectedAccountId ? { stripeAccount: connectedAccountId } : undefined,
+      )
       : dispute.charge;
     metadata = {
       ...dispute.metadata,
       ...charge.metadata,
-      ...await metadataFromPaymentIntent(stripe, charge.payment_intent),
+      ...await metadataFromPaymentIntent(stripe, charge.payment_intent, connectedAccountId),
     };
     userId = metadata.stridepool_user_id;
     challengeId = metadata.stridepool_challenge_id ?? null;
@@ -392,8 +414,10 @@ export async function processStripeWebhook(payload: Buffer, signature: string) {
   const stripe = await getUncachableStripeClient();
   const webhookSecret = await getStripeWebhookSecret();
   const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-  const stripeSync = await getStripeSync();
-  await stripeSync.processWebhook(payload, signature);
+  if (!event.account) {
+    const stripeSync = await getStripeSync();
+    await stripeSync.processWebhook(payload, signature);
+  }
   if (await applySubscriptionEvent(event)) return { accepted: true, ignored: false };
   const normalized = await normalizedStripeEvent(event);
   if (!normalized) return { accepted: true, ignored: true };

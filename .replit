@@ -71,3 +71,10 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+packages = ["stripe-cli"]
+
+[userenv]
+
+[userenv.development]
+STRIPE_SANDBOX_ACCOUNT_ID = "acct_1ULZZUH12DVa3iB6"
+STRIPE_SANDBOX_RECONCILIATION_PASSED = "true"

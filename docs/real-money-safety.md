@@ -60,6 +60,14 @@ The Safety screen collects age, state, provider identity status, and terms conse
 
 The reconciliation flag is deliberately manual. Set it only after Stripe test-mode evidence confirms signed capture, duplicate/out-of-order recovery, and a matched persisted reconciliation run for `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`, `payout.paid`, and `payout.failed`. Connecting Stripe alone never enables paid play.
 
+### Provider-backed sandbox reconciliation — 2026-10-01
+
+- In standalone Stripe test account `acct_1ULZZUH12DVa3iB6` and connected account `acct_1ULZwUH12DTsS9se`, genuine test events covered `payment_intent.succeeded` (3), `payment_intent.payment_failed` (2), `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`, `payout.paid` (2), and `payout.failed`. The existing managed webhook remained in place; its exact original event list was restored after a brief test-only filter change.
+- For a controlled out-of-order delivery, the newer failure event `evt_3ULaDNH12DTsS9se1SuDHeS8` was delivered before the older success event `evt_3ULaDLH12DTsS9se1nvdXB1D`; persisted receipt timestamps confirm that order. Duplicate resends left exactly one provider receipt and one wallet ledger row for each of the 11 unique Stripe event IDs.
+- An independent Stripe test-mode Events API report for `2026-10-01 02:48–03:01 UTC` recorded 11 events and 10,200 cents. Persisted run `reconciliation_6739426f-9629-4e1f-952b-4c1bb82d8f04` (`stripe-sandbox-events-20261001-024800-030100-v1`) is `matched`: provider and ledger totals are both 10,200 cents, discrepancy is zero, and both event counts are 11. The local fixture run was not used.
+- `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` is set in the **development environment only**, after the matched run was persisted. `PAID_PLAY_ENABLED` and counsel approval remain unset; no production settings or live Stripe account were changed.
+- **Payout follow-up before paid play:** event `evt_1ULa9XH12DTsS9seEAKJlNDG` was named `payout.paid`, but its payout object had `status=failed` and `failure_code=no_account`. The app records payout ledger type from the event name, so the failed payout's projection currently reads `paid`. This does not change the raw event-count reconciliation, but the payout-state behavior must be corrected and retested before enabling paid play.
+
 The final production launch requires all of these controls together:
 
 1. Written counsel approval is recorded and `PAID_PLAY_COUNSEL_APPROVED=true`.
