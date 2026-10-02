@@ -2,6 +2,23 @@
 
 This is a launch-control memo, not legal advice. Paid pooled challenges remain disabled by default. A qualified attorney must review and sign off before `PAID_PLAY_ENABLED=true` or any state is added to `PAID_PLAY_APPROVED_STATES`. Stripe can be connected and exercised in sandbox mode without opening paid play.
 
+## Launch-gate regression validation
+
+Run `pnpm --filter @workspace/api-server run test:launch-gate` to execute
+`artifacts/api-server/src/services/ledger-recovery.test.ts`. The root `pnpm test`
+command runs this same suite, and `pnpm run validate` runs it before the full
+workspace typecheck. The standard registered `test` validation check runs
+`pnpm test`; existing typecheck and build checks remain separate.
+
+The test command starts with a clean environment, retaining only `PATH` and
+`HOME` and supplying a non-secret local placeholder `DATABASE_URL` for database
+module initialization. No database server, Stripe credentials (sandbox or
+production), Replit connector credentials, or live provider requests are needed:
+the tests pass explicit synthetic provider readiness and launch controls.
+Any failing assertion exits nonzero and fails both the root validation command
+and the registered test check. Passing these regressions does not grant counsel
+approval or satisfy the actual provider reconciliation launch requirements.
+
 ## Counsel sign-off required
 
 - Confirm whether the fixed-stake, shared-pool challenge model is lawful in each target jurisdiction, including contest, gambling, sweepstakes, prize, money-transmission, and consumer-protection rules.

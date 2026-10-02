@@ -28,6 +28,10 @@ args = "api-build"
 task = "workflow.run"
 args = "stridepool-build"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "test"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -57,6 +61,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "PORT=20949 BASE_PATH=/ pnpm --filter @workspace/stridepool run build"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "test"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm test"
 
 [workflows.workflow.metadata]
 isValidation = true
