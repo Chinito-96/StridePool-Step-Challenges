@@ -11,15 +11,15 @@ const base = {
   endDate: "2026-09-07",
   today: "2026-09-03",
   missedDays: 1,
-  graceDays: 1,
   status: "on_track" as const,
 };
 
-test("daily reminder is created only when today's verified record is absent and grace is at risk", () => {
+test("daily reminder is created when today's verified record is absent", () => {
   const candidates = buildParticipantNotificationCandidates({ ...base, todayHasVerifiedRecord: false });
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0]?.type, "daily_reminder");
   assert.equal(candidates[0]?.dedupeKey, "daily-reminder:challenge-1:user-1:2026-09-03");
+  assert.match(candidates[0]?.body ?? "", /daily goal/);
   assert.deepEqual(buildParticipantNotificationCandidates({ ...base, todayHasVerifiedRecord: true }), []);
 });
 
@@ -32,6 +32,7 @@ test("daily reminder dedupe key stays stable for repeated fetches", () => {
 test("elimination and completion notices are durable single candidates", () => {
   const eliminated = buildParticipantNotificationCandidates({ ...base, today: "2026-09-03", status: "eliminated", todayHasVerifiedRecord: true });
   assert.equal(eliminated[0]?.type, "eliminated");
+  assert.match(eliminated[0]?.body ?? "", /missed a required daily goal/);
   const finished = buildParticipantNotificationCandidates({ ...base, today: "2026-09-08", status: "finished", todayHasVerifiedRecord: true });
   assert.equal(finished.length, 1);
   assert.equal(finished[0]?.type, "challenge_finished");

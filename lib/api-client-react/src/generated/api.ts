@@ -3124,7 +3124,7 @@ export const getRequestStridePoolRecoveryUrl = () => {
 }
 
 /**
- * @summary Request a grace day or support review
+ * @summary Request an injury pause or support review
  */
 export const requestStridePoolRecovery = async (recoveryRequestBody: RecoveryRequestBody, options?: Parameters<typeof customFetch>[1]): Promise<RecoveryCase> => {
 
@@ -3173,7 +3173,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RequestStridePoolRecoveryMutationError = ErrorType<ErrorResponse | void>
 
     /**
- * @summary Request a grace day or support review
+ * @summary Request an injury pause or support review
  */
 export const useRequestStridePoolRecovery = <TError = ErrorType<ErrorResponse | void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStridePoolRecovery>>, TError,{data: BodyType<RecoveryRequestBody>}, TContext>, request?: SecondParameter<typeof customFetch>}

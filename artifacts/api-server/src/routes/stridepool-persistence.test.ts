@@ -105,7 +105,6 @@ describe("StridePool authenticated persistence across sessions", () => {
       challengeType: "goal",
       goalType: "fixed",
       community: false,
-      graceDays: 0,
     });
     await db.insert(walletLedgerEntriesTable).values({
       id: decoyLedgerId,

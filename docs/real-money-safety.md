@@ -22,7 +22,7 @@ approval or satisfy the actual provider reconciliation launch requirements.
 ## Counsel sign-off required
 
 - Confirm whether the fixed-stake, shared-pool challenge model is lawful in each target jurisdiction, including contest, gambling, sweepstakes, prize, money-transmission, and consumer-protection rules.
-- Confirm the published no-finisher refund policy, grace-day and injury-review rules, fee disclosures, terms, age threshold, and required notices.
+- Confirm the published no-finisher refund policy, injury-review rules, fee disclosures, terms, age threshold, and required notices.
 - Produce the state-by-state allow/deny matrix and document the reason and effective date for every change.
 - Confirm identity, age, geolocation, sanctions, tax reporting, responsible-play, complaints, and record-retention obligations.
 
@@ -52,7 +52,7 @@ Counsel must approve the final copy, placement, and acknowledgement/recording me
 - **Identity and sanctions:** explain provider identity verification, beneficial-owner/sanctions screening where applicable, and what happens when verification is pending or fails.
 - **Geolocation:** explain that eligibility is jurisdiction-specific, how location is checked, and that location spoofing is prohibited.
 - **Fees and tax:** disclose the entry amount, any platform or processing fee, pool calculation, payout timing, tax forms/reporting, and participant responsibility for taxes.
-- **Settlement and no-finisher refund:** explain the fixed-stake shared pool, finisher calculation, grace/injury review rules, and that every entry is refunded when there are no finishers.
+- **Settlement and no-finisher refund:** explain the fixed-stake shared pool, finisher calculation, injury/support review rules, and that every entry is refunded when there are no finishers.
 - **Disputes and complaints:** explain provider disputes, chargebacks, support escalation, response timelines, and that disputes remain separate from settlement and refund events.
 - **Responsible play:** state that participation is voluntary, set expectations for spending limits and self-exclusion or pause options, and provide a support contact or process for concerns.
 - **Records and privacy:** state what eligibility, identity, location, payment, dispute, source, and settlement records are retained, for how long, why they are retained, and how access/deletion requests are handled where applicable.

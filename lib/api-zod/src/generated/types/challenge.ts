@@ -27,7 +27,6 @@ export interface Challenge {
   goalType: string;
   community: boolean;
   visibility: ChallengeVisibility;
-  graceDays: number;
   settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
   createdByCurrentUser: boolean;

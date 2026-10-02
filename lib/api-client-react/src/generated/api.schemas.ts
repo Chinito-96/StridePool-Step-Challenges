@@ -91,7 +91,6 @@ export interface Challenge {
   goalType: string;
   community: boolean;
   visibility: ChallengeVisibility;
-  graceDays: number;
   settlementStatus: ChallengeSettlementStatus;
   joined: boolean;
   createdByCurrentUser: boolean;
@@ -243,7 +242,6 @@ export type RecoveryCaseType = typeof RecoveryCaseType[keyof typeof RecoveryCase
 
 
 export const RecoveryCaseType = {
-  grace_day: 'grace_day',
   injury_pause: 'injury_pause',
   support_review: 'support_review',
 } as const;
@@ -472,11 +470,6 @@ export interface GroupChallengeInput {
   dailyGoal: number;
   challengeType: GroupChallengeInputChallengeType;
   goalType: GroupChallengeInputGoalType;
-  /**
-     * @minimum 0
-     * @maximum 30
-     */
-  graceDays: number;
   /**
      * @minLength 4
      * @maxLength 30
@@ -717,7 +710,6 @@ export type RecoveryRequestBodyType = typeof RecoveryRequestBodyType[keyof typeo
 
 
 export const RecoveryRequestBodyType = {
-  grace_day: 'grace_day',
   injury_pause: 'injury_pause',
   support_review: 'support_review',
 } as const;
@@ -1039,7 +1031,6 @@ export type AdminRecoveryCaseType = typeof AdminRecoveryCaseType[keyof typeof Ad
 
 
 export const AdminRecoveryCaseType = {
-  grace_day: 'grace_day',
   injury_pause: 'injury_pause',
   support_review: 'support_review',
 } as const;

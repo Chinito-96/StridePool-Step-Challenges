@@ -10,7 +10,6 @@ export type AdminRecoveryCaseType = typeof AdminRecoveryCaseType[keyof typeof Ad
 
 
 export const AdminRecoveryCaseType = {
-  grace_day: 'grace_day',
   injury_pause: 'injury_pause',
   support_review: 'support_review',
 } as const;

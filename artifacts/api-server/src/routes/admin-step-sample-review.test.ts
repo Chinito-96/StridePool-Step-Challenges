@@ -103,7 +103,6 @@ describe("admin source sample review", () => {
       challengeType: "goal",
       goalType: "fixed",
       community: true,
-      graceDays: 0,
     });
     await db.insert(entriesTable).values({
       userId,

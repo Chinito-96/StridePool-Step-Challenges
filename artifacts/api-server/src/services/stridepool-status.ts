@@ -24,7 +24,7 @@ export function getParticipantStatus(
   today = new Date().toISOString().slice(0, 10),
 ): { status: ParticipantStatus; missedDays: number; elapsedDays: number } {
   if (overrideStatus) return { status: overrideStatus, missedDays: 0, elapsedDays: 0 };
-  const through = today < challenge.startDate ? null : today < challenge.endDate ? today : challenge.endDate;
+  const through = today < challenge.startDate ? null : today > challenge.endDate ? challenge.endDate : shiftDate(today, -1);
   const elapsedDays = through ? daysThrough(challenge.startDate, through).length : 0;
   if (challenge.challengeType === "ranking") {
     return { status: today > challenge.endDate ? "finished" : "on_track", missedDays: 0, elapsedDays };
@@ -35,11 +35,11 @@ export function getParticipantStatus(
       .map((record) => record.recordDate),
   );
   const missedDays = through ? daysThrough(challenge.startDate, through).filter((date) => !qualifyingDates.has(date)).length : 0;
-  if (challenge.challengeType === "elimination" && missedDays > challenge.graceDays) {
+  if (challenge.challengeType === "elimination" && missedDays > 0) {
     return { status: "eliminated", missedDays, elapsedDays };
   }
   if (today > challenge.endDate) {
-    return { status: missedDays <= challenge.graceDays ? "finished" : "eliminated", missedDays, elapsedDays };
+    return { status: missedDays === 0 ? "finished" : "eliminated", missedDays, elapsedDays };
   }
   return { status: "on_track", missedDays, elapsedDays };
 }

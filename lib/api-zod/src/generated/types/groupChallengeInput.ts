@@ -40,11 +40,6 @@ export interface GroupChallengeInput {
   challengeType: GroupChallengeInputChallengeType;
   goalType: GroupChallengeInputGoalType;
   /**
-     * @minimum 0
-     * @maximum 30
-     */
-  graceDays: number;
-  /**
      * @minLength 4
      * @maxLength 30
      */

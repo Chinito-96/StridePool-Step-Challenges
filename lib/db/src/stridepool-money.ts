@@ -311,7 +311,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
         const record = records.find((candidate) => candidate.userId === entry.userId && candidate.recordDate === date);
         return !record || !record.verified || record.steps < goal;
       }).length;
-      return missedDays <= challenge.graceDays;
+      return missedDays === 0;
     });
 
     const poolTotalCents = cents(challenge.prizePool);

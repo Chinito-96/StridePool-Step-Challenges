@@ -55,7 +55,6 @@ async function addChallenge(options: Partial<typeof challengesTable.$inferInsert
     color: "#000000",
     goalType: "fixed",
     community: false,
-    graceDays: 0,
     ...options,
   });
   return id;
@@ -294,9 +293,9 @@ describe("settlement pool split and refunds", () => {
   });
 });
 
-describe("free community and grace-day paths", () => {
+describe("free community and daily qualification paths", () => {
   it("joins and leaves a free community challenge without changing wallet or pool", async () => {
-    const challengeId = await addChallenge({ community: true, entryFee: "0.00", prizePool: "0.00", graceDays: 2 });
+    const challengeId = await addChallenge({ community: true, entryFee: "0.00", prizePool: "0.00" });
     const before = await wallet(userIds[0]);
     const joined = await joinChallenge(userIds[0], challengeId, beforeStart);
     assert.equal(joined.freeCommunity, true);
@@ -313,22 +312,23 @@ describe("free community and grace-day paths", () => {
     assert.deepEqual(await wallet(userIds[0]), before);
   });
 
-  it("counts one missed grace-eligible day as a finisher", async () => {
-    const challengeId = await addChallenge({ graceDays: 1, prizePool: "0.00" });
+  it("does not finish a participant who misses any required day", async () => {
+    const challengeId = await addChallenge({ prizePool: "0.00" });
     await joinChallenge(userIds[0], challengeId, beforeStart);
     await db.update(challengesTable).set({ prizePool: "10.00" }).where(eq(challengesTable.id, challengeId));
     await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02", "2026-06-04"]);
     const result = await settleChallenge(challengeId, new Date("2026-06-05T00:00:00Z"));
-    assert.equal(result.finisherCount, 1);
-  });
-
-  it("does not finish a participant who exceeds the grace allowance", async () => {
-    const challengeId = await addChallenge({ graceDays: 1, prizePool: "0.00" });
-    await joinChallenge(userIds[0], challengeId, beforeStart);
-    await db.update(challengesTable).set({ prizePool: "10.00" }).where(eq(challengesTable.id, challengeId));
-    await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02"]);
-    const result = await settleChallenge(challengeId, new Date("2026-06-05T00:00:00Z"));
     assert.equal(result.finisherCount, 0);
     assert.equal(result.refundedTotal, 10);
+  });
+
+  it("finishes a participant who meets the daily goal on every challenge day", async () => {
+    const challengeId = await addChallenge({ prizePool: "0.00" });
+    await joinChallenge(userIds[0], challengeId, beforeStart);
+    await db.update(challengesTable).set({ prizePool: "10.00" }).where(eq(challengesTable.id, challengeId));
+    await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02", "2026-06-03", "2026-06-04"]);
+    const result = await settleChallenge(challengeId, new Date("2026-06-05T00:00:00Z"));
+    assert.equal(result.finisherCount, 1);
+    assert.equal(result.refundedTotal, 0);
   });
 });

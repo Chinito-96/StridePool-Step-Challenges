@@ -153,7 +153,6 @@ describe("StridePool browser persistence", () => {
       challengeType: "goal",
       goalType: "fixed",
       community: true,
-      graceDays: 1,
     });
     await db.insert(dailyStepRecordsTable).values({
       userId,

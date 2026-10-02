@@ -10,7 +10,6 @@ export type RecoveryCaseType = typeof RecoveryCaseType[keyof typeof RecoveryCase
 
 
 export const RecoveryCaseType = {
-  grace_day: 'grace_day',
   injury_pause: 'injury_pause',
   support_review: 'support_review',
 } as const;

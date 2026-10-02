@@ -286,7 +286,6 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -342,7 +341,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "id": zod.string(),
   "challengeId": zod.string(),
   "challengeName": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "type": zod.enum(['injury_pause', 'support_review']),
   "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
   "reason": zod.string(),
   "sourceFlags": zod.array(zod.string()),
@@ -386,7 +385,6 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -489,7 +487,6 @@ export const GetStridePoolCommunityChallengesResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -550,7 +547,6 @@ export const CreateStridePoolChallengeResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -575,9 +571,6 @@ export const createStridePoolGroupChallengeBodyThemeMax = 240;
 
 export const createStridePoolGroupChallengeBodyDailyGoalMax = 100000;
 
-export const createStridePoolGroupChallengeBodyGraceDaysMin = 0;
-export const createStridePoolGroupChallengeBodyGraceDaysMax = 30;
-
 export const createStridePoolGroupChallengeBodyColorMin = 4;
 export const createStridePoolGroupChallengeBodyColorMax = 30;
 
@@ -593,7 +586,6 @@ export const CreateStridePoolGroupChallengeBody = zod.object({
   "dailyGoal": zod.int().min(1).max(createStridePoolGroupChallengeBodyDailyGoalMax),
   "challengeType": zod.enum(['goal', 'elimination', 'ranking']),
   "goalType": zod.enum(['fixed', 'personalized']),
-  "graceDays": zod.int().min(createStridePoolGroupChallengeBodyGraceDaysMin).max(createStridePoolGroupChallengeBodyGraceDaysMax),
   "color": zod.string().min(createStridePoolGroupChallengeBodyColorMin).max(createStridePoolGroupChallengeBodyColorMax)
 })
 
@@ -622,7 +614,6 @@ export const CreateStridePoolGroupChallengeResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -763,7 +754,6 @@ export const GetStridePoolPendingInvitesResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -860,7 +850,6 @@ export const GetStridePoolInviteResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -909,7 +898,6 @@ export const AcceptStridePoolInviteResponse = zod.object({
   "goalType": zod.string(),
   "community": zod.boolean(),
   "visibility": zod.enum(['public', 'private_group']),
-  "graceDays": zod.int(),
   "settlementStatus": zod.enum(['open', 'pending_review', 'settled']),
   "joined": zod.boolean(),
   "createdByCurrentUser": zod.boolean()
@@ -1109,7 +1097,7 @@ export const GetStridePoolRecoveryCasesResponse = zod.object({
   "id": zod.string(),
   "challengeId": zod.string(),
   "challengeName": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "type": zod.enum(['injury_pause', 'support_review']),
   "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
   "reason": zod.string(),
   "sourceFlags": zod.array(zod.string()),
@@ -1121,7 +1109,7 @@ export const GetStridePoolRecoveryCasesResponse = zod.object({
 
 
 /**
- * @summary Request a grace day or support review
+ * @summary Request an injury pause or support review
  */
 export const RequestStridePoolRecoveryHeader = zod.object({
   "Authorization": zod.string().optional()
@@ -1134,7 +1122,7 @@ export const requestStridePoolRecoveryBodyReasonMax = 1000;
 
 export const RequestStridePoolRecoveryBody = zod.object({
   "challengeId": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "type": zod.enum(['injury_pause', 'support_review']),
   "reason": zod.string().min(requestStridePoolRecoveryBodyReasonMin).max(requestStridePoolRecoveryBodyReasonMax)
 })
 
@@ -1142,7 +1130,7 @@ export const RequestStridePoolRecoveryResponse = zod.object({
   "id": zod.string(),
   "challengeId": zod.string(),
   "challengeName": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "type": zod.enum(['injury_pause', 'support_review']),
   "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
   "reason": zod.string(),
   "sourceFlags": zod.array(zod.string()),
@@ -1320,7 +1308,7 @@ export const GetAdminRecoveryCasesResponse = zod.object({
   "userId": zod.string(),
   "userName": zod.string(),
   "userEmail": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "type": zod.enum(['injury_pause', 'support_review']),
   "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
   "reason": zod.string(),
   "sourceFlags": zod.array(zod.string()),
@@ -1357,7 +1345,7 @@ export const DecideAdminRecoveryCaseResponse = zod.object({
   "userId": zod.string(),
   "userName": zod.string(),
   "userEmail": zod.string(),
-  "type": zod.enum(['grace_day', 'injury_pause', 'support_review']),
+  "type": zod.enum(['injury_pause', 'support_review']),
   "status": zod.enum(['requested', 'approved', 'denied', 'resolved']),
   "reason": zod.string(),
   "sourceFlags": zod.array(zod.string()),

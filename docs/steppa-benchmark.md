@@ -55,7 +55,7 @@ Public review snippets include praise for motivation, legitimate payouts, and re
 2. **Make social accountability first-class.** Support teams, invite links, private circles, and encouraging activity updates instead of only a global leaderboard.
 3. **Design for more than iPhone.** Start with a browser-friendly demo and plan for Apple Health plus Android Health Connect when production integrations are added.
 4. **Offer non-cash ways to participate.** Free community challenges and sponsor-funded rewards widen the funnel and reduce the gambling-adjacent feel.
-5. **Handle real life better.** Add grace days, injury pause requests, and clear support/review paths rather than making users feel they must choose between walking sick or losing everything.
+5. **Handle real life better.** Keep injury pause requests and clear support/review paths so users do not have to choose between walking sick and losing everything.
 6. **Make the product feel trustworthy.** Explain verification, settlement timing, fees, eligibility, and privacy in plain language before asking for money or health permissions.
 
 ## Sources

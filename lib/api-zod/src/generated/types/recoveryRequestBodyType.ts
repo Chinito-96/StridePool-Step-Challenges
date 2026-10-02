@@ -10,7 +10,6 @@ export type RecoveryRequestBodyType = typeof RecoveryRequestBodyType[keyof typeo
 
 
 export const RecoveryRequestBodyType = {
-  grace_day: 'grace_day',
   injury_pause: 'injury_pause',
   support_review: 'support_review',
 } as const;

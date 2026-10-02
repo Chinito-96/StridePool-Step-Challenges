@@ -37,7 +37,7 @@ rejected rather than counting the sample again.
 
 Participants can request one of three visible recovery states:
 
-- **Grace day** — consumes one of the challenge's published grace days.
+- **Daily-goal challenge** — every challenge day must meet the verified step target to qualify as a finisher.
 - **Injury pause** — asks support to protect affected days while reviewing the
   source history.
 - **Support review** — asks for a manual comparison of timestamps, raw source

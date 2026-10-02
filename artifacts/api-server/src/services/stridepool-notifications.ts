@@ -15,8 +15,6 @@ export function buildParticipantNotificationCandidates(input: {
   startDate: string;
   endDate: string;
   today: string;
-  missedDays: number;
-  graceDays: number;
   status: "on_track" | "eliminated" | "finished";
   todayHasVerifiedRecord: boolean;
 }): NotificationCandidate[] {
@@ -25,7 +23,7 @@ export function buildParticipantNotificationCandidates(input: {
     candidates.push({
       type: "eliminated",
       title: `You were eliminated from ${input.challengeName}`,
-      body: `Your missed days exceeded the ${input.graceDays}-day grace allowance. Review your source history if something arrived late.`,
+      body: "You missed a required daily goal. Review your source history if verified steps arrived late.",
       dedupeKey: `eliminated:${input.challengeId}:${input.userId}`,
     });
   }
@@ -38,14 +36,13 @@ export function buildParticipantNotificationCandidates(input: {
     });
   }
   const isActiveToday = input.today >= input.startDate && input.today <= input.endDate;
-  const isAtRisk = input.missedDays + 1 > input.graceDays;
-  if (isActiveToday && !input.todayHasVerifiedRecord && isAtRisk) {
+  if (isActiveToday && !input.todayHasVerifiedRecord) {
     candidates.push({
       type: "daily_reminder",
       title: `Today could change your ${input.challengeName} status`,
       body: input.challengeType === "elimination"
-        ? "You have used your grace allowance. Sync today's steps before the day closes to stay in the group."
-        : "You are at the edge of your grace allowance. Sync today's steps so your finish stays on track.",
+        ? "Sync today's verified steps to meet the daily goal before the day closes and stay in the group."
+        : "Sync today's verified steps before the day closes to meet the daily goal.",
       dedupeKey: `daily-reminder:${input.challengeId}:${input.userId}:${input.today}`,
     });
   }

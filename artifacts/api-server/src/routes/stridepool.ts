@@ -153,7 +153,6 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>, joinPrice = 
     goalType: challenge.goalType,
     community: challenge.community,
     visibility: challenge.groupId ? "private_group" as const : "public" as const,
-    graceDays: challenge.graceDays,
     settlementStatus: challenge.settlementStatus,
     joined: joinedIds.has(challenge.id),
     createdByCurrentUser: challenge.creatorUserId === currentUserId,
@@ -233,8 +232,6 @@ async function refreshNotifications(userId: string) {
       startDate: challenge.startDate,
       endDate: challenge.endDate,
       today,
-      missedDays: status.missedDays,
-      graceDays: challenge.graceDays,
       status: status.status,
       todayHasVerifiedRecord: Boolean(todayRecord),
     });
@@ -655,7 +652,6 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
       goalType: body.data.challengeType === "goal" ? "fixed" : "total_steps",
       community: false,
       creatorUserId: userId,
-      graceDays: 0,
     }).returning();
     return [created] as const;
   });
@@ -727,7 +723,6 @@ router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => 
       community: true,
       groupId,
       creatorUserId: userId,
-      graceDays: body.data.graceDays,
     };
     const [createdChallenge] = await tx.insert(challengesTable).values(challengeValues).returning();
     return [createdGroup, createdChallenge] as const;
@@ -1264,18 +1259,6 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Join the challenge before requesting recovery." });
     return;
   }
-  if (parsed.data.type === "grace_day") {
-    const priorGraceDays = await db.select({ count: sql<number>`count(*)` }).from(challengeRecoveryCasesTable).where(and(
-      eq(challengeRecoveryCasesTable.userId, userId),
-      eq(challengeRecoveryCasesTable.challengeId, challenge.id),
-      eq(challengeRecoveryCasesTable.type, "grace_day"),
-      inArray(challengeRecoveryCasesTable.status, ["requested", "approved"]),
-    ));
-    if (Number(priorGraceDays[0]?.count ?? 0) >= challenge.graceDays) {
-      res.status(400).json({ error: "This challenge has no grace days left." });
-      return;
-    }
-  }
   const pendingSamples = await db.select({ reviewFlags: stepSourceSamplesTable.reviewFlags })
     .from(stepSourceSamplesTable)
     .where(and(
@@ -1283,11 +1266,9 @@ router.post("/stridepool/recovery", async (req, res): Promise<void> => {
       eq(stepSourceSamplesTable.verificationStatus, "pending_review"),
     ));
   const sourceFlags = [...new Set(pendingSamples.flatMap((sample) => sample.reviewFlags))];
-  const reviewMessage = parsed.data.type === "grace_day"
-    ? "Your grace-day request is recorded and will be applied before settlement."
-    : parsed.data.type === "injury_pause"
-      ? "Your injury pause is pending. Support will protect the affected days while reviewing your source history."
-      : "Support review is open. We will compare source samples, timestamps, and challenge rules before settlement.";
+  const reviewMessage = parsed.data.type === "injury_pause"
+    ? "Your injury pause is pending. Support will protect the affected days while reviewing your source history."
+    : "Support review is open. We will compare source samples, timestamps, and challenge rules before settlement.";
   const recovery = await db.transaction(async (tx) => {
     const [created] = await tx.insert(challengeRecoveryCasesTable).values({
       userId,
