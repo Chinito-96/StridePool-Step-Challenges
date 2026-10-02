@@ -67,6 +67,7 @@ export * from './checkoutResponse';
 export * from './checkoutResponseStatus';
 export * from './communityChallengesResponse';
 export * from './complianceStatus';
+export * from './createMembershipBillingPortal201';
 export * from './eligibilityDecision';
 export * from './eligibilityInput';
 export * from './eligibilityInputIdentityStatus';

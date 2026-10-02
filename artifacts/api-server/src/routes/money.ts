@@ -8,6 +8,7 @@ import {
   createCheckout,
   getPayoutAccount,
   createProSubscriptionCheckout,
+  createMembershipBillingPortal,
   getLedger,
   isProviderConfigured,
   startPayoutOnboarding,
@@ -40,6 +41,21 @@ router.post("/money/checkout", async (req, res): Promise<void> => {
     res.status(201).json(await createCheckout(userId, parsed.data));
   } catch (error) {
     res.status(409).json({ error: error instanceof Error ? error.message : "Checkout is not available." });
+  }
+});
+
+router.post("/billing/portal", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  if (!isProviderConfigured()) {
+    res.status(409).json({ error: "Membership management is unavailable until Stripe and its signed webhook are configured." });
+    return;
+  }
+  try {
+    res.status(201).json(await createMembershipBillingPortal(userId));
+  } catch (error) {
+    req.log.warn({ err: error }, "Billing portal creation failed");
+    res.status(409).json({ error: "Membership management is unavailable. Please try again later." });
   }
 });
 

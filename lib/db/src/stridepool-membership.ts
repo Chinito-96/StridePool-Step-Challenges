@@ -63,6 +63,8 @@ export async function getMembershipSummary(userId: string, now = new Date()) {
         ? user.subscriptionStatus
         : "inactive" as const,
     monthlyPrice: policy.monthlyPriceCents / 100,
+    canManageBilling: Boolean(user.stripeCustomerId && user.stripeSubscriptionId
+      && ["active", "trialing", "past_due", "unpaid", "paused"].includes(user.subscriptionStatus)),
     challengeJoinPrice: policy.challengeJoinPriceCents / 100,
     activeChallengeLimit: policy.activeChallengeLimit,
     activeChallengeCount: Number(active?.count ?? 0),

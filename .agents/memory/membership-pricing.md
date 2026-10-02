@@ -8,3 +8,9 @@ Challenge creators choose the challenge entry fee, which is added to the prize p
 **Why:** The user corrected the earlier fixed-entry model: the creator’s fee funds the challenge prize pool, while the plan-based $2/$1 amount is revenue paid to the app owner.
 
 **How to apply:** Keep challenge and platform amounts separate in checkout metadata and fulfillment. Add only the creator-set amount to the prize pool. Enforce both amounts and plan limits on the server, and activate participation only after signed payment success.
+
+Self-service subscription cancellation should take effect at the end of the paid period, not immediately.
+
+**Why:** Members should retain the access they already paid for; returning from hosted billing is not evidence that their entitlement has ended.
+
+**How to apply:** Preserve signed subscription events as the authority for paid entitlement changes. Referral-earned Pro access remains independent of the paid subscription.

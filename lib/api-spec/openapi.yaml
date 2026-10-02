@@ -304,6 +304,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StridePoolBootstrap"
+  /billing/portal:
+    post:
+      tags: [billing]
+      operationId: createMembershipBillingPortal
+      summary: Open hosted subscription management for the signed-in member
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "201":
+          description: Stripe billing portal session created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [portalUrl]
+                properties:
+                  portalUrl: { type: string, format: uri }
+        "401":
+          description: Login required.
+        "409":
+          description: No manageable subscription or billing is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /billing/pro-checkout:
     post:
       tags: [billing]
@@ -1411,6 +1437,7 @@ components:
         plan: { type: string, enum: [free, pro] }
         status: { type: string, enum: [inactive, active, trialing, past_due, canceled] }
         monthlyPrice: { type: number }
+        canManageBilling: { type: boolean }
         challengeJoinPrice: { type: number }
         activeChallengeLimit: { type: integer }
         activeChallengeCount: { type: integer }

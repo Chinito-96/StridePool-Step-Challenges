@@ -29,6 +29,7 @@ import {
   createStripeCheckout,
   createStripePayoutOnboarding,
   createStripeProCheckout,
+  createStripeBillingPortal,
   createStripeWithdrawal,
   getStripePayoutAccount,
   getStripeProviderStatus,
@@ -271,6 +272,12 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
     provider: providerName,
     ledgerEntryId: entry.id,
   };
+}
+
+export async function createMembershipBillingPortal(userId: string) {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) throw new Error("Account not found.");
+  return createStripeBillingPortal(user);
 }
 
 export async function createProSubscriptionCheckout(userId: string) {

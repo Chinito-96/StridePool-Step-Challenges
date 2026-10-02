@@ -320,6 +320,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "plan": zod.enum(['free', 'pro']),
   "status": zod.enum(['inactive', 'active', 'trialing', 'past_due', 'canceled']),
   "monthlyPrice": zod.number(),
+  "canManageBilling": zod.boolean().optional(),
   "challengeJoinPrice": zod.number(),
   "activeChallengeLimit": zod.int(),
   "activeChallengeCount": zod.int(),
@@ -396,6 +397,18 @@ export const GetStridePoolBootstrapResponse = zod.object({
 }),
   "createdAt": zod.coerce.date()
 }))
+})
+
+
+/**
+ * @summary Open hosted subscription management for the signed-in member
+ */
+export const CreateMembershipBillingPortalHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const CreateMembershipBillingPortalResponse = zod.object({
+  "portalUrl": zod.url()
 })
 
 

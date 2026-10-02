@@ -184,6 +184,7 @@ export interface MembershipSummary {
   plan: MembershipSummaryPlan;
   status: MembershipSummaryStatus;
   monthlyPrice: number;
+  canManageBilling?: boolean;
   challengeJoinPrice: number;
   activeChallengeLimit: number;
   activeChallengeCount: number;
@@ -1287,6 +1288,10 @@ returnTo?: string;
 
 export type LogoutBrowserSessionParams = {
 returnTo?: string;
+};
+
+export type CreateMembershipBillingPortal201 = {
+  portalUrl: string;
 };
 
 export type GetStridePoolCommunityChallengesParams = {

@@ -10,6 +10,7 @@ import { normalizeAppleHealthSamples, normalizeHealthConnectSamples, type Normal
 import { ShoelaceMascot } from '@/components/shoelace-mascot';
 import { getGetAdminRecoveryCasesQueryKey, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, type AdminRecoveryCase, type AdminRecoveryDecisionBody } from '@workspace/api-client-react';
 import { getGetAdminStripeWebhookHealthQueryKey, useGetAdminStripeWebhookHealth } from '@workspace/api-client-react';
+import { useCreateMembershipBillingPortal } from '@workspace/api-client-react';
 
 type Challenge = ApiChallenge;
 type Activity = { id: string; type: string; title: string; meta: string; timestamp: string };
@@ -1051,7 +1052,27 @@ function ReferralsPage() {
 
 function MembershipCard({ membership }: { membership: MembershipSummary }) {
   const checkout = useCreateProSubscriptionCheckout();
+  const portal = useCreateMembershipBillingPortal();
   const [message, setMessage] = useState('');
+  const refreshMembership = () => queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('billing') !== 'return') return;
+    setMessage('Welcome back. Refreshing your membership from confirmed billing events. Changes may take a moment to arrive.');
+    void queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
+    // Signed webhooks can arrive after the hosted portal redirects back.
+    const interval = window.setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
+    }, 5_000);
+    const timeout = window.setTimeout(() => window.clearInterval(interval), 60_000);
+    return () => { window.clearInterval(interval); window.clearTimeout(timeout); };
+  }, []);
+  const manage = () => {
+    setMessage('');
+    portal.mutate(undefined, {
+      onSuccess: (result) => window.location.assign(result.portalUrl),
+      onError: () => setMessage('Membership management is unavailable right now. Please try again later.'),
+    });
+  };
   const upgrade = () => {
     setMessage('');
     checkout.mutate(undefined, {
@@ -1059,7 +1080,16 @@ function MembershipCard({ membership }: { membership: MembershipSummary }) {
       onError: () => setMessage('Pro checkout is unavailable right now. Your plan has not changed.'),
     });
   };
-  return <section className="rounded-2xl border border-primary/25 bg-primary/10 p-5 shadow-[var(--shadow-card)]" data-testid="card-membership"><div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Membership</p><h2 className="mt-1 font-display text-xl font-bold">{membership.plan === 'pro' ? 'StridePool Pro' : 'StridePool Free'}</h2></div><Badge tone={membership.plan === 'pro' ? 'lime' : 'neutral'}>{membership.status.replaceAll('_', ' ')}</Badge></div><div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-card p-3"><p className="font-display text-2xl font-bold">${membership.challengeJoinPrice.toFixed(2)}</p><p className="text-[10px] text-muted-foreground">platform fee per paid challenge</p></div><div className="rounded-xl bg-card p-3"><p className="font-display text-2xl font-bold">{membership.activeChallengeLimit}</p><p className="text-[10px] text-muted-foreground">active at once</p></div></div>{membership.plan === 'pro' ? <p className="mt-4 text-xs leading-5 text-muted-foreground">$5/month · create one active challenge and participate in it. The platform fee is separate from the creator-set challenge entry.</p> : <><p className="mt-4 text-xs leading-5 text-muted-foreground">Upgrade for $5/month to join up to five challenges, create one active challenge, and pay $1 platform fee per paid entry.</p><Button className="mt-4 w-full" onClick={upgrade} disabled={checkout.isPending} data-testid="button-upgrade-pro">{checkout.isPending ? 'Opening checkout…' : 'Upgrade to Pro — $5/month'}</Button></>}{message && <p className="mt-3 text-xs text-primary" role="status">{message}</p>}</section>;
+  return <section className="rounded-2xl border border-primary/25 bg-primary/10 p-5 shadow-[var(--shadow-card)]" data-testid="card-membership">
+    <div className="flex items-start justify-between gap-4"><div><p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Membership</p><h2 className="mt-1 font-display text-xl font-bold">{membership.plan === 'pro' ? 'StridePool Pro' : 'StridePool Free'}</h2></div><Badge tone={membership.plan === 'pro' ? 'lime' : 'neutral'}>{membership.status.replaceAll('_', ' ')}</Badge></div>
+    <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-card p-3"><p className="font-display text-2xl font-bold">${membership.challengeJoinPrice.toFixed(2)}</p><p className="text-[10px] text-muted-foreground">platform fee per paid challenge</p></div><div className="rounded-xl bg-card p-3"><p className="font-display text-2xl font-bold">{membership.activeChallengeLimit}</p><p className="text-[10px] text-muted-foreground">active at once</p></div></div>
+    {membership.plan === 'pro' ? <p className="mt-4 text-xs leading-5 text-muted-foreground">$5/month · create one active challenge and participate in it. The platform fee is separate from the creator-set challenge entry.</p> : !membership.canManageBilling && <><p className="mt-4 text-xs leading-5 text-muted-foreground">Upgrade for $5/month to join up to five challenges, create one active challenge, and pay $1 platform fee per paid entry.</p><Button className="mt-4 w-full" onClick={upgrade} disabled={checkout.isPending} data-testid="button-upgrade-pro">{checkout.isPending ? 'Opening checkout…' : 'Upgrade to Pro — $5/month'}</Button></>}
+    {membership.canManageBilling && <>
+      <Button className="mt-4 w-full" onClick={manage} disabled={portal.isPending} data-testid="button-manage-membership">{portal.isPending ? 'Opening billing portal…' : 'Manage membership'} <ExternalLink size={14} /></Button>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">Update payment details or cancel securely with Stripe. Cancellation takes effect at the end of your paid period.</p>
+    </>}
+    {message && <><p className="mt-3 text-xs text-primary" role="status">{message}</p><Button variant="quiet" className="mt-2 text-xs" onClick={() => void refreshMembership()} data-testid="button-refresh-membership">Refresh membership</Button></>}
+  </section>;
 }
 
 function PendingInvitesPanel({ invites }: { invites: PendingInvite[] }) {

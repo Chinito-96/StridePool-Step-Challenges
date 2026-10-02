@@ -12,6 +12,7 @@ export interface MembershipSummary {
   plan: MembershipSummaryPlan;
   status: MembershipSummaryStatus;
   monthlyPrice: number;
+  canManageBilling?: boolean;
   challengeJoinPrice: number;
   activeChallengeLimit: number;
   activeChallengeCount: number;

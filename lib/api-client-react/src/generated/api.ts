@@ -47,6 +47,7 @@ import type {
   CheckoutResponse,
   CommunityChallengesResponse,
   ComplianceStatus,
+  CreateMembershipBillingPortal201,
   EligibilityDecision,
   EligibilityInput,
   EntryMutationResponse,
@@ -1326,6 +1327,77 @@ export function useGetStridePoolBootstrap<TData = Awaited<ReturnType<typeof getS
 
 
 
+
+export const getCreateMembershipBillingPortalUrl = () => {
+
+
+
+
+  return `/api/billing/portal`
+}
+
+/**
+ * @summary Open hosted subscription management for the signed-in member
+ */
+export const createMembershipBillingPortal = async ( options?: Parameters<typeof customFetch>[1]): Promise<CreateMembershipBillingPortal201> => {
+
+  return customFetch<CreateMembershipBillingPortal201>(getCreateMembershipBillingPortalUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateMembershipBillingPortalMutationOptions = <TError = ErrorType<void | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMembershipBillingPortal>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMembershipBillingPortal>>, TError,void, TContext> => {
+
+const mutationKey = ['createMembershipBillingPortal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMembershipBillingPortal>>, void> = () => {
+
+
+          return  createMembershipBillingPortal(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMembershipBillingPortalMutationResult = NonNullable<Awaited<ReturnType<typeof createMembershipBillingPortal>>>
+
+    export type CreateMembershipBillingPortalMutationError = ErrorType<void | ErrorResponse>
+
+    /**
+ * @summary Open hosted subscription management for the signed-in member
+ */
+export const useCreateMembershipBillingPortal = <TError = ErrorType<void | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMembershipBillingPortal>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMembershipBillingPortal>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateMembershipBillingPortalMutationOptions(options));
+    }
 
 export const getCreateProSubscriptionCheckoutUrl = () => {
 

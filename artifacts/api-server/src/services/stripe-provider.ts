@@ -10,6 +10,7 @@ import {
   setRuntimeStripeWebhookSecret,
 } from "../stripeClient";
 import { recordProviderWebhook } from "./ledger";
+import { openBillingPortal } from "./billing-portal";
 import {
   initializeStripeWebhookHealthBaseline,
   processSignedStripeWebhook,
@@ -220,6 +221,11 @@ export async function createStripeProCheckout(
     metadata,
     subscription_data: { metadata },
   }, { idempotencyKey });
+}
+
+export async function createStripeBillingPortal(user: typeof usersTable.$inferSelect) {
+  const stripe = await getUncachableStripeClient();
+  return openBillingPortal(stripe, user, `${publicBaseUrl()}/profile?billing=return`);
 }
 
 async function applySubscriptionEvent(event: Stripe.Event): Promise<boolean> {
