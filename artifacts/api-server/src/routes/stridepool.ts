@@ -1315,7 +1315,7 @@ router.post("/stridepool/challenges/:id/join", async (req, res): Promise<void> =
   const userId = req.isAuthenticated()
     ? req.user.id
     : challenge.community && numberValue(challenge.entryFee) === 0
-      ? anonymousWalkerId(req)
+      ? await ensureAnonymousWalker(req, res)
       : null;
   if (!userId) {
     res.status(401).json({ error: "Login required to join a paid challenge." });

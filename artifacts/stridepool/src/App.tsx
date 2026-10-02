@@ -822,7 +822,7 @@ function ChallengeDetail() {
   const winnerShare = `${currentProjection.toFixed(2)} · ${leaderboard.data?.disqualifiedCount ?? 0} disqualified`;
   const paidEligible = eligibility.age >= 18 && eligibility.state.length === 2 && eligibility.identityStatus === 'verified' && eligibility.acceptedTerms && compliance.paidPlayEnabled;
   const joinChallenge = (challengeId: string) => {
-    if (!auth.isAuthenticated) { auth.login(); return false; }
+    if (!auth.isAuthenticated && !(challenge.community && challenge.entryFee === 0)) { auth.login(); return false; }
     if (membership.activeChallengeCount >= membership.activeChallengeLimit) {
       setCheckoutMessage(`${membership.plan === 'pro' ? 'Pro' : 'Free'} includes ${membership.activeChallengeLimit} active challenge${membership.activeChallengeLimit === 1 ? '' : 's'} at a time.`);
       return false;

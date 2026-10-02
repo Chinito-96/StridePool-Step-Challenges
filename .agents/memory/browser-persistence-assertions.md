@@ -14,3 +14,9 @@ Browser persistence validation should serve the real HTTP app without running th
 **Why:** Normal API startup initializes the payment provider and immediately discovers finished challenges for payout closeout. Unique browser fixtures alone do not protect unrelated records from those background jobs.
 
 **How to apply:** Keep operational initialization and payout scheduling out of isolated browser test servers; test those operations separately with controlled data and clocks.
+
+Anonymous browser regressions should check membership and challenge-scoped leaderboard progress, not enable anonymous native uploads or personal activity history to satisfy a test.
+
+**Why:** Anonymous free participation and account-bound health/history deliberately have different permissions. Persistence coverage must not weaken that product boundary.
+
+**How to apply:** Join through the real browser, then apply verified updates only to isolated fixture records and confirm the visible community totals after reload.
