@@ -82,3 +82,31 @@ The final production launch requires all of these controls together:
 3. `PAID_PLAY_ENABLED=true`.
 4. Stripe provider and managed webhook readiness are true.
 5. `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` is set after the required evidence is reviewed.
+
+## Per-control launch readiness
+
+`GET /api/compliance/status` retains the aggregate fields and adds `launchControls`.
+Each item contains a stable `id`, a `status` of `ready` or `blocking`, and an
+`explanation`. Blocking explanations describe the corrective action without
+returning credentials, signing secrets, raw environment values, or provider errors.
+The endpoint is public and sends `Cache-Control: no-store`; private operational
+evidence remains behind admin authorization.
+
+| Control ID | Ready when |
+| --- | --- |
+| `launch_enabled` | `PAID_PLAY_ENABLED` is exactly `true` |
+| `counsel_approval` | `PAID_PLAY_COUNSEL_APPROVED` is exactly `true` |
+| `approved_states` | The configured approved-jurisdiction list is nonempty |
+| `stripe_provider` | Stripe provider initialization is complete |
+| `managed_webhook` | Managed webhook signature-verification configuration is ready |
+| `provider_backfill` | Stripe sync backfill has completed |
+| `sandbox_reconciliation` | Manual sandbox reconciliation approval is exactly `true` |
+
+`paidPlayEnabled` is true only when all seven controls are ready. Controls are
+evaluated independently so operators can see every blocker at once, including
+backfill readiness which was not previously exposed separately. Readiness reports
+the existing launch checks, not independent proof of legal approval, jurisdiction
+validity, or recent webhook delivery health. Neither connecting Stripe nor seeing
+a ready webhook substitutes for reviewed reconciliation evidence. Do not turn on
+the launch switch until the remaining controls and documented launch obligations
+are satisfied.

@@ -5,8 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PaidPlayLaunchControl } from './paidPlayLaunchControl';
 
 export interface ComplianceStatus {
+  /** Each required launch control independently reports readiness; paidPlayEnabled is true only when every control is ready. */
+  launchControls: PaidPlayLaunchControl[];
   paidPlayEnabled: boolean;
   providerConfigured: boolean;
   providerName: string;

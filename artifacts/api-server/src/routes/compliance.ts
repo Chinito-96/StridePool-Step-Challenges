@@ -5,6 +5,8 @@ import { checkEligibility, getComplianceStatus } from "../services/ledger";
 const router: IRouter = Router();
 
 router.get("/compliance/status", (_req, res) => {
+  // Read current controls on every request; do not cache a previous launch approval.
+  res.set("Cache-Control", "no-store");
   res.json(getComplianceStatus());
 });
 

@@ -1733,10 +1733,25 @@ components:
       required: [error]
       properties:
         error: { type: string }
+    PaidPlayLaunchControl:
+      type: object
+      required: [id, status, explanation]
+      properties:
+        id:
+          type: string
+          enum: [launch_enabled, counsel_approval, approved_states, stripe_provider, managed_webhook, provider_backfill, sandbox_reconciliation]
+        status: { type: string, enum: [ready, blocking] }
+        explanation:
+          type: string
+          description: Fixed, non-secret readiness explanation or corrective action. Never includes raw configuration values or provider errors.
     ComplianceStatus:
       type: object
-      required: [paidPlayEnabled, providerConfigured, providerName, webhookReady, sandboxReconciliationPassed, counselReviewRequired, minAge, approvedStates, requirements, settlementPolicy]
+      required: [paidPlayEnabled, providerConfigured, providerName, webhookReady, sandboxReconciliationPassed, counselReviewRequired, minAge, approvedStates, requirements, settlementPolicy, launchControls]
       properties:
+        launchControls:
+          type: array
+          description: Each required launch control independently reports readiness; paidPlayEnabled is true only when every control is ready.
+          items: { $ref: "#/components/schemas/PaidPlayLaunchControl" }
         paidPlayEnabled: { type: boolean }
         providerConfigured: { type: boolean }
         providerName: { type: string }

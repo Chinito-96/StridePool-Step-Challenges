@@ -5,6 +5,7 @@ import type {
   EligibilityDecision,
   EligibilityInput,
   LedgerEntry,
+  PaidPlayLaunchControl,
   PayoutOnboardingInput,
   ProviderWebhookInput,
   WithdrawalInput,
@@ -45,7 +46,7 @@ function readApprovedStates(environment: LaunchEnvironment): string[] {
     .filter(Boolean);
 }
 
-export function isPaidPlayLaunchEnabled(input: {
+type PaidPlayLaunchInput = {
   enabled: boolean;
   counselApproved: boolean;
   approvedStates: string[];
@@ -53,14 +54,47 @@ export function isPaidPlayLaunchEnabled(input: {
   webhookReady: boolean;
   backfillReady: boolean;
   sandboxReconciliationPassed: boolean;
-}): boolean {
-  return input.enabled
-    && input.counselApproved
-    && input.approvedStates.length > 0
-    && input.providerReady
-    && input.webhookReady
-    && input.backfillReady
-    && input.sandboxReconciliationPassed;
+};
+
+function getPaidPlayLaunchControls(input: PaidPlayLaunchInput): PaidPlayLaunchControl[] {
+  const control = (
+    id: PaidPlayLaunchControl["id"],
+    ready: boolean,
+    readyExplanation: string,
+    blockingExplanation: string,
+  ): PaidPlayLaunchControl => ({
+    id,
+    status: ready ? "ready" : "blocking",
+    explanation: ready ? readyExplanation : blockingExplanation,
+  });
+  // Only fixed messages and readiness booleans belong in this public response.
+  return [
+    control("launch_enabled", input.enabled,
+      "The paid-play launch switch is enabled.",
+      "Keep paid play disabled until all other controls are ready, then set PAID_PLAY_ENABLED=true."),
+    control("counsel_approval", input.counselApproved,
+      "Written counsel approval is marked as recorded.",
+      "Obtain and record written qualified-counsel approval before setting PAID_PLAY_COUNSEL_APPROVED=true."),
+    control("approved_states", input.approvedStates.length > 0,
+      "An approved-jurisdiction list is configured.",
+      "After written counsel approval, add only covered jurisdictions to PAID_PLAY_APPROVED_STATES."),
+    control("stripe_provider", input.providerReady,
+      "Stripe provider initialization is complete.",
+      "Confirm the managed Stripe connection is authorized and resolve provider initialization failures in server logs."),
+    control("managed_webhook", input.webhookReady,
+      "Managed webhook signature-verification configuration is ready.",
+      "Complete managed webhook initialization and confirm signature verification is configured for /api/stripe/webhook."),
+    control("provider_backfill", input.backfillReady,
+      "Stripe provider backfill is complete.",
+      "Resolve Stripe sync backfill failures in server logs and rerun provider initialization until backfill completes."),
+    control("sandbox_reconciliation", input.sandboxReconciliationPassed,
+      "Sandbox reconciliation is marked as approved.",
+      "Review signed sandbox payment, refund, dispute, and payout evidence plus a matched persisted reconciliation run before setting STRIPE_SANDBOX_RECONCILIATION_PASSED=true."),
+  ];
+}
+
+export function isPaidPlayLaunchEnabled(input: PaidPlayLaunchInput): boolean {
+  return getPaidPlayLaunchControls(input).every((control) => control.status === "ready");
 }
 
 function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): string[] {
@@ -87,7 +121,7 @@ export function getComplianceStatus(
   const approvedStates = readApprovedStates(environment);
   const counselApproved = environment.PAID_PLAY_COUNSEL_APPROVED === "true";
   const providerConfigured = provider.providerReady && provider.webhookReady;
-  const paidPlayEnabled = isPaidPlayLaunchEnabled({
+  const launchControls = getPaidPlayLaunchControls({
     enabled: environment.PAID_PLAY_ENABLED === "true",
     counselApproved,
     approvedStates,
@@ -97,7 +131,8 @@ export function getComplianceStatus(
     sandboxReconciliationPassed: provider.sandboxReconciliationPassed,
   });
   return {
-    paidPlayEnabled,
+    paidPlayEnabled: launchControls.every((control) => control.status === "ready"),
+    launchControls,
     providerConfigured,
     providerName,
     webhookReady: provider.webhookReady,

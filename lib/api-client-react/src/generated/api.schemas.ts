@@ -740,7 +740,37 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type PaidPlayLaunchControlId = typeof PaidPlayLaunchControlId[keyof typeof PaidPlayLaunchControlId];
+
+
+export const PaidPlayLaunchControlId = {
+  launch_enabled: 'launch_enabled',
+  counsel_approval: 'counsel_approval',
+  approved_states: 'approved_states',
+  stripe_provider: 'stripe_provider',
+  managed_webhook: 'managed_webhook',
+  provider_backfill: 'provider_backfill',
+  sandbox_reconciliation: 'sandbox_reconciliation',
+} as const;
+
+export type PaidPlayLaunchControlStatus = typeof PaidPlayLaunchControlStatus[keyof typeof PaidPlayLaunchControlStatus];
+
+
+export const PaidPlayLaunchControlStatus = {
+  ready: 'ready',
+  blocking: 'blocking',
+} as const;
+
+export interface PaidPlayLaunchControl {
+  id: PaidPlayLaunchControlId;
+  status: PaidPlayLaunchControlStatus;
+  /** Fixed, non-secret readiness explanation or corrective action. Never includes raw configuration values or provider errors. */
+  explanation: string;
+}
+
 export interface ComplianceStatus {
+  /** Each required launch control independently reports readiness; paidPlayEnabled is true only when every control is ready. */
+  launchControls: PaidPlayLaunchControl[];
   paidPlayEnabled: boolean;
   providerConfigured: boolean;
   providerName: string;

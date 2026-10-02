@@ -81,6 +81,74 @@ test("paid play opens only when every launch control is true", () => {
   assert.equal(checkEligibility(eligibleParticipant, readyProvider, launchEnvironment).eligible, true);
 });
 
+test("compliance explains all seven launch controls and each independent blocker", () => {
+  const ready = getComplianceStatus(readyProvider, launchEnvironment);
+  const ids = [
+    "launch_enabled", "counsel_approval", "approved_states", "stripe_provider",
+    "managed_webhook", "provider_backfill", "sandbox_reconciliation",
+  ];
+  assert.deepEqual(ready.launchControls.map((control) => control.id), ids);
+  assert.ok(ready.launchControls.every((control) => control.status === "ready"));
+
+  const cases = [
+    { id: "launch_enabled", environment: { ...launchEnvironment, PAID_PLAY_ENABLED: "false" } },
+    { id: "counsel_approval", environment: { ...launchEnvironment, PAID_PLAY_COUNSEL_APPROVED: "TRUE" } },
+    { id: "approved_states", environment: { ...launchEnvironment, PAID_PLAY_APPROVED_STATES: " , " } },
+    { id: "stripe_provider", provider: { ...readyProvider, providerReady: false } },
+    { id: "managed_webhook", provider: { ...readyProvider, webhookReady: false } },
+    { id: "provider_backfill", provider: { ...readyProvider, backfillReady: false } },
+    { id: "sandbox_reconciliation", provider: { ...readyProvider, sandboxReconciliationPassed: false } },
+  ];
+  for (const example of cases) {
+    const status = getComplianceStatus(
+      example.provider ?? readyProvider,
+      example.environment ?? launchEnvironment,
+    );
+    assert.equal(status.paidPlayEnabled, false);
+    const blockers = status.launchControls.filter((control) => control.status === "blocking");
+    assert.deepEqual(blockers.map((control) => control.id), [example.id]);
+    assert.ok(blockers[0].explanation.length > 20, "blockers must explain corrective action");
+    assert.equal(status.launchControls.length, 7);
+  }
+
+  const closed = getComplianceStatus({
+    ...readyProvider,
+    providerReady: false,
+    webhookReady: false,
+    backfillReady: false,
+    sandboxReconciliationPassed: false,
+  }, {});
+  assert.deepEqual(closed.launchControls.map((control) => control.id), ids);
+  assert.ok(closed.launchControls.every((control) => control.status === "blocking"));
+  assert.equal(closed.paidPlayEnabled, false);
+});
+
+test("compliance never serializes credentials, signing secrets, or raw provider errors", () => {
+  // Synthetic markers only; do not read actual credentials in this regression.
+  const marker = "synthetic-sensitive-value-do-not-return";
+  const provider = {
+    ...readyProvider,
+    providerReady: false,
+    error: marker,
+    secretKey: marker,
+    webhookSecret: marker,
+  };
+  const environment = {
+    ...launchEnvironment,
+    PAID_PLAY_ENABLED: marker,
+    PAID_PLAY_COUNSEL_APPROVED: marker,
+    STRIPE_SECRET_KEY: marker,
+    STRIPE_SANDBOX_SECRET_KEY: marker,
+    STRIPE_WEBHOOK_SECRET: marker,
+    DATABASE_URL: marker,
+  };
+  const serialized = JSON.stringify(getComplianceStatus(provider, environment));
+  assert.ok(!serialized.includes(marker));
+  for (const key of ["secretKey", "webhookSecret", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "DATABASE_URL"]) {
+    assert.ok(!serialized.includes(key), `must not expose ${key}`);
+  }
+});
+
 test("eligibility allows approved states and denies unapproved states", () => {
   const allowed = checkEligibility(eligibleParticipant, readyProvider, launchEnvironment);
   const denied = checkEligibility(

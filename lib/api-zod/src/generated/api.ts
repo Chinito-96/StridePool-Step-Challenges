@@ -22,6 +22,11 @@ export const HealthCheckResponse = zod.object({
  * @summary Get paid-play launch controls
  */
 export const GetComplianceStatusResponse = zod.object({
+  "launchControls": zod.array(zod.object({
+  "id": zod.enum(['launch_enabled', 'counsel_approval', 'approved_states', 'stripe_provider', 'managed_webhook', 'provider_backfill', 'sandbox_reconciliation']),
+  "status": zod.enum(['ready', 'blocking']),
+  "explanation": zod.string().describe('Fixed, non-secret readiness explanation or corrective action. Never includes raw configuration values or provider errors.')
+})).describe('Each required launch control independently reports readiness; paidPlayEnabled is true only when every control is ready.'),
   "paidPlayEnabled": zod.boolean(),
   "providerConfigured": zod.boolean(),
   "providerName": zod.string(),
