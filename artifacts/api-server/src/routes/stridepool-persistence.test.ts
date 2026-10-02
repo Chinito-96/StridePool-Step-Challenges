@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { after, before, describe, it } from "node:test";
 import app from "../app";
-import { createSession } from "../lib/auth";
+import { createSession, type SessionData } from "../lib/auth";
 import {
   activateProviderChallengeEntry,
   challengesTable,
@@ -29,6 +29,7 @@ let server: Server | undefined;
 let baseUrl = "";
 let firstSession = "";
 let secondSession = "";
+const expiredSessions: string[] = [];
 
 async function request(
   path: string,
@@ -52,7 +53,11 @@ async function request(
   };
 }
 
-async function createTestSession(id: string, email: string) {
+async function createTestSession(
+  id: string,
+  email: string,
+  expiresAt = Math.floor(Date.now() / 1000) + 3600,
+) {
   return createSession({
     user: {
       id,
@@ -62,7 +67,7 @@ async function createTestSession(id: string, email: string) {
       profileImageUrl: null,
     },
     access_token: "test-access-token",
-    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    expires_at: expiresAt,
   });
 }
 
@@ -142,7 +147,7 @@ describe("StridePool authenticated persistence across sessions", () => {
         activeServer.close((error) => (error ? reject(error) : resolve()));
       });
     }
-    await db.delete(sessionsTable).where(inArray(sessionsTable.sid, [firstSession, secondSession]));
+    await db.delete(sessionsTable).where(inArray(sessionsTable.sid, [firstSession, secondSession, ...expiredSessions]));
     await db.delete(challengesTable).where(eq(challengesTable.id, challengeId));
     await db.delete(usersTable).where(inArray(usersTable.id, [userId, otherUserId]));
     await db.delete(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.id, decoyLedgerId));
@@ -256,6 +261,88 @@ describe("StridePool authenticated persistence across sessions", () => {
     assert.equal(first.challenges.find((challenge) => challenge.id === challengeId)?.joined, true);
     assert.ok(first.activities.some((activity) => activity.type === "sync" && activity.meta.includes("persisted to your account")));
     assert.ok(first.activities.some((activity) => activity.type === "challenge"));
+
+    const anonymousBootstrap = await request("/stridepool/bootstrap");
+    assert.equal(anonymousBootstrap.status, 200);
+    const anonymous = anonymousBootstrap.body as typeof first;
+
+    for (const expiration of ["database", "access-token"] as const) {
+      // Fresh sessions ensure every endpoint exercises expiration, rather than
+      // merely rejecting the session deleted by a previous request.
+      async function createExpiredSession() {
+        const sid = await createTestSession(
+          userId,
+          `${userId}@example.test`,
+          expiration === "access-token"
+            ? Math.floor(Date.now() / 1000) - 60
+            : undefined,
+        );
+        expiredSessions.push(sid);
+        if (expiration === "database") {
+          await db.update(sessionsTable).set({
+            expire: new Date(Date.now() - 60_000),
+          }).where(eq(sessionsTable.sid, sid));
+        }
+        const [stored] = await db.select().from(sessionsTable).where(eq(sessionsTable.sid, sid));
+        assert.ok(stored);
+        const sessionData = stored.sess as SessionData;
+        assert.equal(sessionData.refresh_token, undefined);
+        if (expiration === "database") {
+          assert.ok(stored.expire.getTime() < Date.now());
+        } else {
+          assert.ok(stored.expire.getTime() > Date.now());
+          assert.ok(Number(sessionData.expires_at) < Math.floor(Date.now() / 1000));
+        }
+        return sid;
+      }
+
+      const expiredBootstrapSession = await createExpiredSession();
+      const expiredBootstrap = await request("/stridepool/bootstrap", {
+        session: expiredBootstrapSession,
+      });
+      assert.equal(expiredBootstrap.status, 200, expiration);
+      const expired = expiredBootstrap.body as typeof first;
+      assert.equal(expired.user, null, expiration);
+      assert.deepEqual(expired.profile, anonymous.profile, expiration);
+      assert.deepEqual(expired.wallet, { balance: 0, pending: 0, totalEarned: 0 }, expiration);
+      assert.deepEqual(expired.joinedIds, [], expiration);
+      assert.notEqual(expired.steps, first.steps, expiration);
+      assert.deepEqual(expired.activities, [], expiration);
+      assert.equal(expired.challenges.find((challenge) => challenge.id === challengeId)?.joined, false, expiration);
+      assert.deepEqual(
+        await db.select().from(sessionsTable).where(eq(sessionsTable.sid, expiredBootstrapSession)),
+        [],
+        `${expiration} session should be deleted`,
+      );
+
+      const expiredLedger = await request(`/money/ledger?userId=${userId}`, {
+        session: await createExpiredSession(),
+      });
+      assert.equal(expiredLedger.status, 401, expiration);
+
+      const expiredCheckout = await request("/money/checkout", {
+        method: "POST",
+        session: await createExpiredSession(),
+        body: JSON.stringify({
+          challengeId,
+          amountCents: 500,
+          currency: "usd",
+          idempotencyKey: `${runId}-${expiration}-checkout`,
+          userId,
+        }),
+      });
+      assert.equal(expiredCheckout.status, 401, expiration);
+
+      const expiredPayout = await request("/money/payout-onboarding", {
+        method: "POST",
+        session: await createExpiredSession(),
+        body: JSON.stringify({
+          idempotencyKey: `${runId}-${expiration}-payout`,
+          userId,
+        }),
+      });
+      assert.equal(expiredPayout.status, 401, expiration);
+    }
 
     await db.delete(sessionsTable).where(eq(sessionsTable.sid, firstSession));
 

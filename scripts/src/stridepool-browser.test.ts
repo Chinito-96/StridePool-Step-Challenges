@@ -184,7 +184,6 @@ describe("StridePool browser persistence", () => {
       challengeType: "goal",
       goalType: "fixed",
       community: true,
-      graceDays: 1,
     });
 
     sessionId = crypto.randomBytes(32).toString("hex");
