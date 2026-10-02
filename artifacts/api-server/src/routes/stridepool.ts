@@ -423,8 +423,9 @@ async function upsertDailySteps(
   steps: number,
   source: string,
   verified: boolean,
+  database: Pick<typeof db, "select" | "insert" | "update"> = db,
 ) {
-  const [existing] = await db.select({ id: dailyStepRecordsTable.id })
+  const [existing] = await database.select({ id: dailyStepRecordsTable.id })
     .from(dailyStepRecordsTable)
     .where(and(
       eq(dailyStepRecordsTable.userId, userId),
@@ -434,10 +435,10 @@ async function upsertDailySteps(
       eq(dailyStepRecordsTable.recordDate, recordDate),
     ));
   if (existing) {
-    await db.update(dailyStepRecordsTable).set({ steps, source, verified }).where(eq(dailyStepRecordsTable.id, existing.id));
+    await database.update(dailyStepRecordsTable).set({ steps, source, verified }).where(eq(dailyStepRecordsTable.id, existing.id));
     return;
   }
-  await db.insert(dailyStepRecordsTable).values({
+  await database.insert(dailyStepRecordsTable).values({
     userId,
     challengeId,
     recordDate,
@@ -453,8 +454,9 @@ async function mirrorActiveChallengeSteps(
   steps: number,
   source: string,
   verified: boolean,
+  database: Pick<typeof db, "select" | "insert" | "update"> = db,
 ) {
-  const freeEntries = await db.select({
+  const freeEntries = await database.select({
     challengeId: entriesTable.challengeId,
   }).from(entriesTable).innerJoin(challengesTable, eq(entriesTable.challengeId, challengesTable.id)).where(and(
     eq(entriesTable.userId, userId),
@@ -462,11 +464,16 @@ async function mirrorActiveChallengeSteps(
     lte(challengesTable.startDate, recordDate),
     gte(challengesTable.endDate, recordDate),
   ));
-  await Promise.all(freeEntries.map(({ challengeId }) => upsertDailySteps(userId, challengeId, recordDate, steps, source, verified)));
+  await Promise.all(freeEntries.map(({ challengeId }) => upsertDailySteps(userId, challengeId, recordDate, steps, source, verified, database)));
 }
 
-export async function rebuildVerifiedDailyTotal(userId: string, recordDate: string, source: string) {
-  const [verifiedTotal] = await db.select({
+export async function rebuildVerifiedDailyTotal(
+  userId: string,
+  recordDate: string,
+  source: string,
+  database: Pick<typeof db, "select" | "insert" | "update"> = db,
+) {
+  const [verifiedTotal] = await database.select({
     total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
   }).from(stepSourceSamplesTable).where(and(
     eq(stepSourceSamplesTable.userId, userId),
@@ -474,8 +481,8 @@ export async function rebuildVerifiedDailyTotal(userId: string, recordDate: stri
     eq(stepSourceSamplesTable.verificationStatus, "verified"),
   ));
   const verifiedSteps = Number(verifiedTotal?.total ?? 0);
-  await upsertDailySteps(userId, null, recordDate, verifiedSteps, source, verifiedSteps > 0);
-  await mirrorActiveChallengeSteps(userId, recordDate, verifiedSteps, source, verifiedSteps > 0);
+  await upsertDailySteps(userId, null, recordDate, verifiedSteps, source, verifiedSteps > 0, database);
+  await mirrorActiveChallengeSteps(userId, recordDate, verifiedSteps, source, verifiedSteps > 0, database);
   return verifiedSteps;
 }
 
@@ -1134,93 +1141,99 @@ router.post("/stridepool/sources/:source/samples", async (req, res): Promise<voi
 
   const source = params.data.source;
   const now = new Date();
-  const existing = await db.select({
-    sourceSampleId: stepSourceSamplesTable.sourceSampleId,
-  }).from(stepSourceSamplesTable).where(and(
-    eq(stepSourceSamplesTable.userId, userId),
-    eq(stepSourceSamplesTable.source, source),
-    inArray(stepSourceSamplesTable.sourceSampleId, body.data.samples.map((sample) => sample.sourceSampleId)),
-  ));
-  const existingIds = new Set(existing.map((sample) => sample.sourceSampleId));
-  const seenIds = new Set<string>();
-  const candidates = body.data.samples.filter((sample) => {
-    if (existingIds.has(sample.sourceSampleId) || seenIds.has(sample.sourceSampleId)) return false;
-    seenIds.add(sample.sourceSampleId);
-    return true;
-  });
-  const dayTotals = new Map<string, number>();
-  const results = candidates.map((sample) => {
-    const flags = reviewStepSample(sample);
-    const recordDate = sample.recordDate.toISOString().slice(0, 10);
-    dayTotals.set(recordDate, (dayTotals.get(recordDate) ?? 0) + sample.steps);
-    return { sample, flags };
-  });
-  for (const [recordDate, incomingTotal] of dayTotals) {
-    const [historicalTotal] = await db.select({
+  const response = await db.transaction(async (tx) => {
+    // Serialize both native sources for this account before checking duplicates or
+    // rebuilding totals. A transaction alone cannot protect a missing daily row.
+    await tx.execute(sql`/* stridepool source ingestion */ select ${usersTable.id} from ${usersTable} where ${usersTable.id} = ${userId} for update`);
+    const existing = await tx.select({
+      sourceSampleId: stepSourceSamplesTable.sourceSampleId,
+    }).from(stepSourceSamplesTable).where(and(
+      eq(stepSourceSamplesTable.userId, userId),
+      eq(stepSourceSamplesTable.source, source),
+      inArray(stepSourceSamplesTable.sourceSampleId, body.data.samples.map((sample) => sample.sourceSampleId)),
+    ));
+    const existingIds = new Set(existing.map((sample) => sample.sourceSampleId));
+    const seenIds = new Set<string>();
+    const candidates = body.data.samples.filter((sample) => {
+      if (existingIds.has(sample.sourceSampleId) || seenIds.has(sample.sourceSampleId)) return false;
+      seenIds.add(sample.sourceSampleId);
+      return true;
+    });
+    const dayTotals = new Map<string, number>();
+    const results = candidates.map((sample) => {
+      const flags = reviewStepSample(sample);
+      const recordDate = sample.recordDate.toISOString().slice(0, 10);
+      dayTotals.set(recordDate, (dayTotals.get(recordDate) ?? 0) + sample.steps);
+      return { sample, flags };
+    });
+    for (const [recordDate, incomingTotal] of dayTotals) {
+      const [historicalTotal] = await tx.select({
+        total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
+      }).from(stepSourceSamplesTable).where(and(
+        eq(stepSourceSamplesTable.userId, userId),
+        eq(stepSourceSamplesTable.recordDate, recordDate),
+        eq(stepSourceSamplesTable.verificationStatus, "verified"),
+      ));
+      if (Number(historicalTotal?.total ?? 0) + incomingTotal > 60000) {
+        results.filter(({ sample }) => sample.recordDate.toISOString().slice(0, 10) === recordDate).forEach(({ flags }) => {
+          if (!flags.includes("implausible_daily_total")) flags.push("implausible_daily_total");
+        });
+      }
+    }
+
+    const sampleRows = results.map(({ sample, flags }) => ({
+      userId,
+      source,
+      sourceSampleId: sample.sourceSampleId,
+      recordDate: sample.recordDate.toISOString().slice(0, 10),
+      steps: sample.steps,
+      startTime: sample.startTime,
+      endTime: sample.endTime,
+      recordedAt: sample.recordedAt ?? null,
+      rawPayload: sample.rawPayload,
+      verificationStatus: flags.length ? "pending_review" : "verified",
+      reviewFlags: flags,
+    }));
+    const inserted = sampleRows.length
+      ? await tx.insert(stepSourceSamplesTable).values(sampleRows).onConflictDoNothing().returning()
+      : [];
+    await tx.insert(healthSourceConnectionsTable).values({
+      userId,
+      source,
+      status: "connected",
+      lastAttemptedAt: now,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: [healthSourceConnectionsTable.userId, healthSourceConnectionsTable.source],
+      // A batch is not a completed delivery. The companion confirms success after
+      // every batch has been accepted, so a partial upload retains its old cursor.
+      set: { status: "connected", updatedAt: now },
+    });
+
+    for (const [recordDate] of dayTotals) await rebuildVerifiedDailyTotal(userId, recordDate, source, tx);
+
+    const today = now.toISOString().slice(0, 10);
+    const [todayTotal] = await tx.select({
       total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
     }).from(stepSourceSamplesTable).where(and(
       eq(stepSourceSamplesTable.userId, userId),
-      eq(stepSourceSamplesTable.recordDate, recordDate),
+      eq(stepSourceSamplesTable.recordDate, today),
       eq(stepSourceSamplesTable.verificationStatus, "verified"),
     ));
-    if (Number(historicalTotal?.total ?? 0) + incomingTotal > 60000) {
-      results.filter(({ sample }) => sample.recordDate.toISOString().slice(0, 10) === recordDate).forEach(({ flags }) => {
-        if (!flags.includes("implausible_daily_total")) flags.push("implausible_daily_total");
-      });
-    }
-  }
-
-  const sampleRows = results.map(({ sample, flags }) => ({
-    userId,
-    source,
-    sourceSampleId: sample.sourceSampleId,
-    recordDate: sample.recordDate.toISOString().slice(0, 10),
-    steps: sample.steps,
-    startTime: sample.startTime,
-    endTime: sample.endTime,
-    recordedAt: sample.recordedAt ?? null,
-    rawPayload: sample.rawPayload,
-    verificationStatus: flags.length ? "pending_review" : "verified",
-    reviewFlags: flags,
-  }));
-  if (sampleRows.length) {
-    await db.insert(stepSourceSamplesTable).values(sampleRows).onConflictDoNothing();
-  }
-  await db.insert(healthSourceConnectionsTable).values({
-    userId,
-    source,
-    status: "connected",
-    lastAttemptedAt: now,
-    updatedAt: now,
-  }).onConflictDoUpdate({
-    target: [healthSourceConnectionsTable.userId, healthSourceConnectionsTable.source],
-    // A batch is not a completed delivery. The companion confirms success after
-    // every batch has been accepted, so a partial upload retains its old cursor.
-    set: { status: "connected", updatedAt: now },
+    const pendingReviewCount = inserted.filter((sample) => sample.reviewFlags.length > 0).length;
+    return IngestStridePoolSourceSamplesResponse.parse({
+      source,
+      acceptedCount: inserted.length,
+      pendingReviewCount,
+      steps: Number(todayTotal?.total ?? 0),
+      samples: inserted.map((sample) => ({
+        sourceSampleId: sample.sourceSampleId,
+        verificationStatus: sample.verificationStatus,
+        reviewFlags: sample.reviewFlags,
+      })),
+    });
   });
-
-  for (const [recordDate] of dayTotals) await rebuildVerifiedDailyTotal(userId, recordDate, source);
-
-  const today = now.toISOString().slice(0, 10);
-  const [todayTotal] = await db.select({
-    total: sql<number>`coalesce(sum(${stepSourceSamplesTable.steps}), 0)`,
-  }).from(stepSourceSamplesTable).where(and(
-    eq(stepSourceSamplesTable.userId, userId),
-    eq(stepSourceSamplesTable.recordDate, today),
-    eq(stepSourceSamplesTable.verificationStatus, "verified"),
-  ));
-  const pendingReviewCount = results.filter(({ flags }) => flags.length > 0).length;
-  res.json(IngestStridePoolSourceSamplesResponse.parse({
-    source,
-    acceptedCount: candidates.length,
-    pendingReviewCount,
-    steps: Number(todayTotal?.total ?? 0),
-    samples: results.map(({ sample, flags }) => ({
-      sourceSampleId: sample.sourceSampleId,
-      verificationStatus: flags.length ? "pending_review" : "verified",
-      reviewFlags: flags,
-    })),
-  }));
+  res.json(response);
 });
 
 router.get("/stridepool/recovery", async (req, res): Promise<void> => {

@@ -743,4 +743,101 @@ describe("StridePool source sample ingestion", () => {
     const revokedSources = await request("/stridepool/sources");
     assert.equal((revokedSources.body as { sources: Array<{ source: string; status: string }> }).sources.find((item) => item.source === "apple_health")?.status, "revoked");
   });
+
+  it("counts overlapping concurrent uploads once per account and source", { timeout: 20_000 }, async () => {
+    for (const [index, source] of (["apple_health", "health_connect"] as const).entries()) {
+      const recordDate = dateDaysAgo(7 + index);
+      const blocker = await pool.connect();
+      const uploads: Array<Promise<IngestResponse>> = [];
+      const accounts = [
+        { id: userId, session, multiplier: 1 },
+        { id: secondUserId, session: secondSession, multiplier: 2 },
+      ];
+      try {
+        await blocker.query("BEGIN");
+        await blocker.query("SELECT id FROM users WHERE id = ANY($1::varchar[]) ORDER BY id FOR UPDATE", [
+          accounts.map((account) => account.id),
+        ]);
+        const { rows: [backend] } = await blocker.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+
+        for (const account of accounts) {
+          const makeSample = (id: string, steps: number) => sample(`race-${source}-${id}`, {
+            recordDate,
+            steps: steps * account.multiplier,
+          });
+          uploads.push(
+            ingest(source, [makeSample("shared", 800), makeSample("first", 500)], account.session),
+            ingest(source, [makeSample("shared", 800), makeSample("second", 700)], account.session),
+          );
+        }
+        // Observe all four requests waiting on our lock (including waiters
+        // behind another waiter). Timing or Promise.all alone does not prove
+        // that the ingestion requests actually overlapped.
+        const deadline = Date.now() + 5_000;
+        let waiting = 0;
+        while (waiting < uploads.length && Date.now() < deadline) {
+          const { rows: [row] } = await pool.query<{ count: string }>(`
+            WITH RECURSIVE blocked(pid) AS (
+              SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))
+              UNION
+              SELECT activity.pid FROM pg_stat_activity activity
+              JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
+            )
+            SELECT count(*) FROM blocked
+            JOIN pg_stat_activity USING (pid)
+            WHERE query LIKE '/* stridepool source ingestion */%'
+          `, [backend!.pid]);
+          waiting = Number(row!.count);
+          if (waiting < uploads.length) await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        assert.equal(waiting, 4, "all authenticated uploads must reach the database lock before release");
+        await blocker.query("COMMIT");
+        const responses = await Promise.all(uploads);
+
+        for (const [accountIndex, account] of accounts.entries()) {
+          const pair = responses.slice(accountIndex * 2, accountIndex * 2 + 2);
+          assert.deepEqual(pair.map((result) => result.acceptedCount).sort(), [1, 2]);
+          assert.ok(pair.every((result) => result.pendingReviewCount === 0));
+          const acceptedIds = pair.flatMap((result) => result.samples.map((item) => item.sourceSampleId));
+          assert.equal(acceptedIds.length, 3);
+          assert.equal(new Set(acceptedIds).size, 3);
+
+          const stored = await db.select().from(stepSourceSamplesTable).where(and(
+            eq(stepSourceSamplesTable.userId, account.id),
+            eq(stepSourceSamplesTable.source, source),
+            eq(stepSourceSamplesTable.recordDate, recordDate),
+          ));
+          assert.equal(stored.length, 3);
+          assert.equal(new Set(stored.map((item) => item.sourceSampleId)).size, 3);
+          assert.ok(stored.every((item) => item.verificationStatus === "verified"));
+          assert.equal(stored.reduce((total, item) => total + item.steps, 0), 2_000 * account.multiplier);
+
+          const personalRecords = () => db.select().from(dailyStepRecordsTable).where(and(
+            eq(dailyStepRecordsTable.userId, account.id),
+            isNull(dailyStepRecordsTable.challengeId),
+            eq(dailyStepRecordsTable.recordDate, recordDate),
+          ));
+          const records = await personalRecords();
+          assert.equal(records.length, 1, "a missing personal daily row must only be created once");
+          assert.equal(records[0]!.steps, 2_000 * account.multiplier);
+          assert.equal(records[0]!.verified, true);
+
+          const replay = await ingest(source, [sample(`race-${source}-shared`, { recordDate, steps: 9_999 })], account.session);
+          assert.equal(replay.acceptedCount, 0);
+          assert.deepEqual(replay.samples, []);
+          assert.deepEqual(await personalRecords(), records, "retrying an overlapping sample must not change the daily row");
+          const [shared] = await db.select().from(stepSourceSamplesTable).where(and(
+            eq(stepSourceSamplesTable.userId, account.id),
+            eq(stepSourceSamplesTable.source, source),
+            eq(stepSourceSamplesTable.sourceSampleId, `race-${source}-shared`),
+          ));
+          assert.equal(shared!.steps, 800 * account.multiplier);
+        }
+      } finally {
+        await blocker.query("ROLLBACK");
+        blocker.release();
+        await Promise.allSettled(uploads);
+      }
+    }
+  });
 });
