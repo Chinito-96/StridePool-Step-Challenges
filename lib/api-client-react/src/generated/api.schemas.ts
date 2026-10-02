@@ -1136,6 +1136,36 @@ export interface AdminCloseoutAlertsResponse {
   alerts: AdminCloseoutAlert[];
 }
 
+export type AdminStripeWebhookHealthStatus = typeof AdminStripeWebhookHealthStatus[keyof typeof AdminStripeWebhookHealthStatus];
+
+
+export const AdminStripeWebhookHealthStatus = {
+  healthy: 'healthy',
+  idle: 'idle',
+  missing: 'missing',
+  disabled: 'disabled',
+  delivery_delayed: 'delivery_delayed',
+  repeated_failure: 'repeated_failure',
+  unknown: 'unknown',
+} as const;
+
+export interface AdminStripeWebhookHealth {
+  status: AdminStripeWebhookHealthStatus;
+  message: string;
+  checkedAt: string;
+  /** @nullable */
+  endpointId: string | null;
+  /** @nullable */
+  endpointUrl: string | null;
+  providerEventCount: number;
+  receivedEventCount: number;
+  overdueEventCount: number;
+  failedEventCount: number;
+  /** @nullable */
+  lastReceivedAt: string | null;
+  evidenceComplete: boolean;
+}
+
 export interface AdminUserSearchResult {
   id: string;
   email: string;

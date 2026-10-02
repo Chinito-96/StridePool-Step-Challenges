@@ -32,6 +32,7 @@ import type {
   AdminStepSampleDecisionBody,
   AdminStepSampleDecisionResponse,
   AdminStepSamplesResponse,
+  AdminStripeWebhookHealth,
   AdminUserResponse,
   AdminUserSearchResponse,
   AuthUserEnvelope,
@@ -3921,6 +3922,83 @@ export function useGetAdminCloseoutAlerts<TData = Awaited<ReturnType<typeof getA
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAdminCloseoutAlertsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminStripeWebhookHealthUrl = () => {
+
+
+
+
+  return `/api/admin/stripe-webhook-health`
+}
+
+/**
+ * @summary Review the exact managed Stripe endpoint and recent signed delivery evidence
+ */
+export const getAdminStripeWebhookHealth = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminStripeWebhookHealth> => {
+
+  return customFetch<AdminStripeWebhookHealth>(getGetAdminStripeWebhookHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminStripeWebhookHealthQueryKey = () => {
+    return [
+    `/api/admin/stripe-webhook-health`
+    ] as const;
+    }
+
+
+export const getGetAdminStripeWebhookHealthQueryOptions = <TData = Awaited<ReturnType<typeof getAdminStripeWebhookHealth>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStripeWebhookHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminStripeWebhookHealthQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminStripeWebhookHealth>>> = ({ signal }) => getAdminStripeWebhookHealth({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminStripeWebhookHealth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminStripeWebhookHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminStripeWebhookHealth>>>
+export type GetAdminStripeWebhookHealthQueryError = ErrorType<void>
+
+
+/**
+ * @summary Review the exact managed Stripe endpoint and recent signed delivery evidence
+ */
+
+export function useGetAdminStripeWebhookHealth<TData = Awaited<ReturnType<typeof getAdminStripeWebhookHealth>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStripeWebhookHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminStripeWebhookHealthQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -1103,6 +1103,25 @@ paths:
           description: Login required.
         "403":
           description: Admin access required.
+  /admin/stripe-webhook-health:
+    get:
+      tags: [admin]
+      operationId: getAdminStripeWebhookHealth
+      summary: Review the exact managed Stripe endpoint and recent signed delivery evidence
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Informational health evidence; never changes paid-play launch controls.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStripeWebhookHealth"
+        "401":
+          description: Login required.
+        "403":
+          description: Admin access required.
   /admin/users/search:
     get:
       tags: [admin]
@@ -2018,6 +2037,23 @@ components:
           items:
             $ref: "#/components/schemas/AdminCloseoutAlert"
       required: [alerts]
+    AdminStripeWebhookHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, idle, missing, disabled, delivery_delayed, repeated_failure, unknown]
+        message: { type: string }
+        checkedAt: { type: string, format: date-time }
+        endpointId: { type: [string, "null"] }
+        endpointUrl: { type: [string, "null"] }
+        providerEventCount: { type: integer }
+        receivedEventCount: { type: integer }
+        overdueEventCount: { type: integer }
+        failedEventCount: { type: integer }
+        lastReceivedAt: { type: [string, "null"], format: date-time }
+        evidenceComplete: { type: boolean }
+      required: [status, message, checkedAt, endpointId, endpointUrl, providerEventCount, receivedEventCount, overdueEventCount, failedEventCount, lastReceivedAt, evidenceComplete]
     AdminUserSearchResult:
       type: object
       properties:

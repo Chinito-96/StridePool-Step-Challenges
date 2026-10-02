@@ -39,6 +39,8 @@ export * from './adminStepSampleDecisionResponseDecision';
 export * from './adminStepSampleRawPayload';
 export * from './adminStepSamplesResponse';
 export * from './adminStepSampleVerificationStatus';
+export * from './adminStripeWebhookHealth';
+export * from './adminStripeWebhookHealthStatus';
 export * from './adminUser';
 export * from './adminUserChallenge';
 export * from './adminUserResponse';

@@ -1433,6 +1433,28 @@ export const GetAdminCloseoutAlertsResponse = zod.object({
 
 
 /**
+ * @summary Review the exact managed Stripe endpoint and recent signed delivery evidence
+ */
+export const GetAdminStripeWebhookHealthHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetAdminStripeWebhookHealthResponse = zod.object({
+  "status": zod.enum(['healthy', 'idle', 'missing', 'disabled', 'delivery_delayed', 'repeated_failure', 'unknown']),
+  "message": zod.string(),
+  "checkedAt": zod.coerce.date(),
+  "endpointId": zod.string().nullable(),
+  "endpointUrl": zod.string().nullable(),
+  "providerEventCount": zod.int(),
+  "receivedEventCount": zod.int(),
+  "overdueEventCount": zod.int(),
+  "failedEventCount": zod.int(),
+  "lastReceivedAt": zod.coerce.date().nullable(),
+  "evidenceComplete": zod.boolean()
+})
+
+
+/**
  * @summary Search users by email, ID, or name
  */
 export const SearchAdminUsersQueryParams = zod.object({

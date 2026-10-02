@@ -9,6 +9,7 @@ import type { ProfileUpdate } from '@workspace/api-client-react';
 import { normalizeAppleHealthSamples, normalizeHealthConnectSamples, type NormalizedStepSample } from '@/step-sources';
 import { ShoelaceMascot } from '@/components/shoelace-mascot';
 import { getGetAdminRecoveryCasesQueryKey, useGetAdminRecoveryCases, useDecideAdminRecoveryCase, type AdminRecoveryCase, type AdminRecoveryDecisionBody } from '@workspace/api-client-react';
+import { getGetAdminStripeWebhookHealthQueryKey, useGetAdminStripeWebhookHealth } from '@workspace/api-client-react';
 
 type Challenge = ApiChallenge;
 type Activity = { id: string; type: string; title: string; meta: string; timestamp: string };
@@ -1138,9 +1139,10 @@ function AdminPage() {
   const challenges = useGetAdminChallenges({ query: { queryKey: getGetAdminChallengesQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const settlements = useGetAdminSettlementHistory({ query: { queryKey: getGetAdminSettlementHistoryQueryKey(), enabled: auth.isAuthenticated, staleTime: 15_000 } });
   const closeoutAlerts = useGetAdminCloseoutAlerts({ query: { queryKey: getGetAdminCloseoutAlertsQueryKey(), enabled: auth.isAuthenticated, refetchInterval: 60_000 } });
+  const webhookHealth = useGetAdminStripeWebhookHealth({ query: { queryKey: [...getGetAdminStripeWebhookHealthQueryKey(), auth.user?.id], enabled: auth.isAuthenticated, refetchInterval: 60_000, staleTime: 0, retry: false } });
   const users = useSearchAdminUsers(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined, { query: { queryKey: getSearchAdminUsersQueryKey(userQuery.trim().length >= 2 ? { q: userQuery.trim() } : undefined), enabled: auth.isAuthenticated && userQuery.trim().length >= 2, staleTime: 10_000 } });
   const user = useGetAdminUser(selectedUserId, { query: { queryKey: getGetAdminUserQueryKey(selectedUserId), enabled: auth.isAuthenticated && Boolean(selectedUserId), staleTime: 15_000 } });
-  const requests = [flagged, recovery, challenges, settlements, closeoutAlerts];
+  const requests = [flagged, recovery, challenges, settlements, closeoutAlerts, webhookHealth];
   const forbidden = requests.find((request) => adminErrorStatus(request.error) === 403) || (users.error && adminErrorStatus(users.error) === 403 ? users : null) || (user.error && adminErrorStatus(user.error) === 403 ? user : null);
   const unauthenticated = !auth.isLoading && !auth.isAuthenticated;
 
@@ -1164,6 +1166,21 @@ function AdminPage() {
       <div><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Internal operations</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Admin console</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">A read-only view for anti-cheat review, challenge operations, settlement history, and support lookups.</p></div>
       <Badge tone="teal">Admin only</Badge>
     </div>
+
+    <section className="mb-8 rounded-xl border border-border bg-card p-5" data-testid="admin-stripe-webhook-health">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-bold">Stripe webhook delivery</h2>
+        <Button variant="secondary" onClick={() => void webhookHealth.refetch()} disabled={webhookHealth.isFetching} data-testid="button-refresh-webhook-health">{webhookHealth.isFetching ? 'Checking…' : 'Refresh evidence'}</Button>
+      </div>
+      {webhookHealth.isLoading ? <p className="mt-3 text-sm text-muted-foreground">Checking the managed endpoint and recent deliveries…</p> : webhookHealth.error ? <p className="mt-3 text-sm text-destructive">Delivery health could not be checked. Refresh to retry; do not assume the endpoint is healthy.</p> : webhookHealth.data ? <>
+        <p className={`mt-3 text-sm font-bold ${['healthy', 'idle'].includes(webhookHealth.data.status) ? 'text-primary' : 'text-destructive'}`}>{webhookHealth.data.status.replaceAll('_', ' ').toUpperCase()}</p>
+        <p className="mt-2 text-sm leading-6">{webhookHealth.data.message}</p>
+        <p className="mt-2 break-all font-mono-app text-xs text-muted-foreground">{webhookHealth.data.endpointId ?? 'No managed endpoint'}{webhookHealth.data.endpointUrl ? ` · ${webhookHealth.data.endpointUrl}` : ''}</p>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">Recent provider events: {webhookHealth.data.providerEventCount} · Confirmed deliveries: {webhookHealth.data.receivedEventCount} · Overdue: {webhookHealth.data.overdueEventCount} · Processing failures: {webhookHealth.data.failedEventCount}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Last confirmed delivery: {webhookHealth.data.lastReceivedAt ? new Date(webhookHealth.data.lastReceivedAt).toLocaleString() : 'None recorded'} · Checked: {new Date(webhookHealth.data.checkedAt).toLocaleString()}{!webhookHealth.data.evidenceComplete ? ' · Evidence incomplete' : ''}</p>
+      </> : null}
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">This is a delivery warning, not a failed-payment report. Review the exact endpoint in Stripe and reconcile affected records before taking action. This check does not change paid-play launch controls.</p>
+    </section>
 
      <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <AdminMetric label="Flagged records" value={flagged.isLoading ? '…' : String(flaggedRecords.length)} detail="Unverified daily totals" />

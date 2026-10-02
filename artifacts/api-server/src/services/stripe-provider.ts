@@ -10,6 +10,11 @@ import {
   setRuntimeStripeWebhookSecret,
 } from "../stripeClient";
 import { recordProviderWebhook } from "./ledger";
+import {
+  initializeStripeWebhookHealthBaseline,
+  processSignedStripeWebhook,
+  setStripeWebhookEndpointIdentity,
+} from "./stripe-webhook-health";
 
 const providerName = "Stripe";
 let providerReady = false;
@@ -152,6 +157,8 @@ export async function initializeStripeProvider(): Promise<void> {
       ],
     },
   );
+  setStripeWebhookEndpointIdentity(webhook.id, webhook.url, isSandboxConnectEndpoint);
+  await initializeStripeWebhookHealthBaseline(webhook.id, webhook.url);
   if (webhook.secret) setRuntimeStripeWebhookSecret(webhook.secret);
   webhookReady = await hasStripeWebhookSecret();
   await stripeSync.syncBackfill();
@@ -414,36 +421,38 @@ export async function processStripeWebhook(payload: Buffer, signature: string) {
   const stripe = await getUncachableStripeClient();
   const webhookSecret = await getStripeWebhookSecret();
   const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-  if (!event.account) {
-    const stripeSync = await getStripeSync();
-    await stripeSync.processWebhook(payload, signature);
-  }
-  if (await applySubscriptionEvent(event)) return { accepted: true, ignored: false };
-  const normalized = await normalizedStripeEvent(event);
-  if (!normalized) return { accepted: true, ignored: true };
-  const recorded = await recordProviderWebhook(normalized);
-  if (normalized.eventType === "payment_succeeded" && normalized.challengeId) {
-    try {
-      const challengeEntryCents = Number(normalized.metadata.stridepool_challenge_entry_cents);
-      const platformFeeCents = Number(normalized.metadata.stridepool_platform_fee_cents);
-      await activateProviderChallengeEntry(
-        normalized.userId,
-        normalized.challengeId,
-        challengeEntryCents,
-        platformFeeCents,
-        normalized.amountCents,
-        normalized.providerEventId,
-      );
-      await qualifyReferralForUser(normalized.userId);
-    } catch (error) {
-      const paymentIntent = event.type === "payment_intent.succeeded" ? event.data.object.id : undefined;
-      if (!paymentIntent) throw error;
-      await stripe.refunds.create(
-        { payment_intent: paymentIntent, reason: "requested_by_customer" },
-        { idempotencyKey: `stridepool-entry-refund-${event.id}` },
-      );
-      return { ...recorded, ignored: false, entryActivated: false, refunded: true };
+  return processSignedStripeWebhook(event, async () => {
+    if (!event.account) {
+      const stripeSync = await getStripeSync();
+      await stripeSync.processWebhook(payload, signature);
     }
-  }
-  return { ...recorded, ignored: false };
+    if (await applySubscriptionEvent(event)) return { accepted: true, ignored: false };
+    const normalized = await normalizedStripeEvent(event);
+    if (!normalized) return { accepted: true, ignored: true };
+    const recorded = await recordProviderWebhook(normalized);
+    if (normalized.eventType === "payment_succeeded" && normalized.challengeId) {
+      try {
+        const challengeEntryCents = Number(normalized.metadata.stridepool_challenge_entry_cents);
+        const platformFeeCents = Number(normalized.metadata.stridepool_platform_fee_cents);
+        await activateProviderChallengeEntry(
+          normalized.userId,
+          normalized.challengeId,
+          challengeEntryCents,
+          platformFeeCents,
+          normalized.amountCents,
+          normalized.providerEventId,
+        );
+        await qualifyReferralForUser(normalized.userId);
+      } catch (error) {
+        const paymentIntent = event.type === "payment_intent.succeeded" ? event.data.object.id : undefined;
+        if (!paymentIntent) throw error;
+        await stripe.refunds.create(
+          { payment_intent: paymentIntent, reason: "requested_by_customer" },
+          { idempotencyKey: `stridepool-entry-refund-${event.id}` },
+        );
+        return { ...recorded, ignored: false, entryActivated: false, refunded: true };
+      }
+    }
+    return { ...recorded, ignored: false };
+  });
 }
