@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import { after, before, describe, it } from "node:test";
@@ -48,25 +49,41 @@ function getFreePort(): Promise<number> {
   });
 }
 
-function stopProcess(processHandle: ChildProcess | undefined): void {
+async function stopProcess(processHandle: ChildProcess | undefined): Promise<void> {
   if (!processHandle || processHandle.exitCode !== null) return;
-  if (processHandle.pid) {
-    try {
-      process.kill(-processHandle.pid, "SIGTERM");
-      return;
-    } catch {
-      // The process group may already have exited.
+  const sendSignal = (signal: NodeJS.Signals) => {
+    if (processHandle.pid && process.platform !== "win32") {
+      try {
+        process.kill(-processHandle.pid, signal);
+        return;
+      } catch {
+        // The process group may already have exited.
+      }
     }
-  }
-  processHandle.kill("SIGTERM");
+    processHandle.kill(signal);
+  };
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      sendSignal("SIGKILL");
+      resolve();
+    }, 5_000);
+    processHandle.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    sendSignal("SIGTERM");
+  });
 }
 
-async function waitForHttp(url: string): Promise<void> {
+async function waitForHttp(url: string, processHandle: ChildProcess): Promise<void> {
   const deadline = Date.now() + 60_000;
   let lastError: unknown;
   while (Date.now() < deadline) {
+    if (processHandle.exitCode !== null || processHandle.signalCode !== null) {
+      throw new Error(`Test server exited before serving ${url} (code ${processHandle.exitCode}, signal ${processHandle.signalCode}).`);
+    }
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
       if (response.ok) return;
       lastError = new Error(`HTTP ${response.status}`);
     } catch (error) {
@@ -90,6 +107,20 @@ async function waitForText(page: Page, testId: string, expected: string): Promis
 
 describe("StridePool browser persistence", () => {
   before(async () => {
+    const executablePath = process.env.CHROMIUM_PATH
+      ?? (existsSync("/repl/tools/bin/chromium") ? "/repl/tools/bin/chromium" : undefined);
+    try {
+      browser = await chromium.launch({
+        executablePath,
+        headless: true,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      });
+    } catch (cause) {
+      throw new Error(
+        "Browser persistence validation requires Chromium. Set CHROMIUM_PATH or run pnpm --filter @workspace/scripts exec playwright install --with-deps chromium.",
+        { cause },
+      );
+    }
     const apiPort = await getFreePort();
     const webPort = await getFreePort();
 
@@ -153,15 +184,15 @@ describe("StridePool browser persistence", () => {
     const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
     apiProcess = spawn(
       "pnpm",
-      ["--filter", "@workspace/api-server", "run", "dev"],
+      ["exec", "tsx", "../artifacts/api-server/src/browser-test-server.ts"],
       {
         cwd: process.cwd(),
         env: { ...process.env, PORT: String(apiPort), NODE_ENV: "test" },
         stdio: "inherit",
-        detached: true,
+        detached: process.platform !== "win32",
       },
     );
-    await waitForHttp(`${apiBaseUrl}/api/healthz`);
+    await waitForHttp(`${apiBaseUrl}/api/healthz`, apiProcess);
 
     webProcess = spawn(
       "pnpm",
@@ -176,17 +207,11 @@ describe("StridePool browser persistence", () => {
           NODE_ENV: "test",
         },
         stdio: "inherit",
-        detached: true,
+        detached: process.platform !== "win32",
       },
     );
     webBaseUrl = `http://127.0.0.1:${webPort}`;
-    await waitForHttp(webBaseUrl);
-
-    browser = await chromium.launch({
-      executablePath: process.env.CHROMIUM_PATH ?? "/repl/tools/bin/chromium",
-      headless: true,
-      args: ["--no-sandbox", "--disable-dev-shm-usage"],
-    });
+    await waitForHttp(webBaseUrl, webProcess);
     context = await browser.newContext();
     await context.addCookies([{
       name: "sid",
@@ -199,16 +224,26 @@ describe("StridePool browser persistence", () => {
   });
 
   after(async () => {
-    await context?.close();
-    await browser?.close();
-    stopProcess(apiProcess);
-    stopProcess(webProcess);
-    await db.delete(sessionsTable).where(eq(sessionsTable.sid, sessionId));
-    await db.delete(challengesTable).where(eq(challengesTable.id, challengeId));
-    await db.delete(usersTable).where(eq(usersTable.id, userId));
-    await db.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, userId));
-    await db.delete(entriesTable).where(eq(entriesTable.userId, userId));
-    await pool.end();
+    try {
+      try {
+        await context?.close();
+      } finally {
+        await browser?.close();
+      }
+    } finally {
+      await Promise.all([stopProcess(apiProcess), stopProcess(webProcess)]);
+      try {
+        await db.transaction(async (tx) => {
+          await tx.delete(sessionsTable).where(eq(sessionsTable.sid, sessionId));
+          await tx.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, userId));
+          await tx.delete(entriesTable).where(eq(entriesTable.userId, userId));
+          await tx.delete(challengesTable).where(eq(challengesTable.id, challengeId));
+          await tx.delete(usersTable).where(eq(usersTable.id, userId));
+        });
+      } finally {
+        await pool.end();
+      }
+    }
   });
 
   it("keeps profile, membership, wallet, steps, and history after a full reload", async () => {

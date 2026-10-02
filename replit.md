@@ -7,7 +7,8 @@ StridePool is a responsive step-challenge web app where people build consistency
 - `pnpm --filter @workspace/api-server run dev` — run the API server
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm test` — paid-play launch-gate regression suite (also registered as the standard `test` validation check)
-- `pnpm run validate` — launch-gate tests followed by the full workspace typecheck; either failure stops validation
+- `pnpm run validate` — launch-gate tests, isolated authenticated browser persistence checks, then the full workspace typecheck; any failure stops validation
+- Browser validation requires a schema-ready `DATABASE_URL` and Chromium. Replit's bundled Chromium is detected automatically; elsewhere run `pnpm --filter @workspace/scripts exec playwright install --with-deps chromium` or set `CHROMIUM_PATH`. The test creates unique fixtures, removes them afterward, and runs its own API/web servers without Stripe initialization or payout jobs.
 - `pnpm --filter @workspace/api-server run test:launch-gate` — run only the API launch-gate suite, without inherited Stripe credentials or a running database
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
