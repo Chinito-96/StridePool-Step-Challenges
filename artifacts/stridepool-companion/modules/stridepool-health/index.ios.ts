@@ -9,6 +9,8 @@ const unavailable: StridePoolHealthModule = {
   async requestPermissions() { throw new Error('HealthKit requires an installed StridePool development or release build; it is unavailable in Expo Go.'); },
   async getPermissionStatus() { throw new Error('HealthKit is unavailable in Expo Go.'); },
   async readStepSamples() { throw new Error('HealthKit is unavailable in Expo Go.'); },
+  async configureBackgroundDelivery() { return false; },
+  async markDeliverySucceeded() {},
 };
 
 export default nativeModule ?? unavailable;

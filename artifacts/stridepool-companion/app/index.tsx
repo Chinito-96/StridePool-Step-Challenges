@@ -12,12 +12,13 @@ type BridgeRequest = {
   channel: 'stridepool-health';
   id: string;
   documentId: string;
-  method: 'requestPermissions' | 'getPermissionStatus' | 'readStepSamples' | 'openSettings';
+  method: 'requestPermissions' | 'getPermissionStatus' | 'readStepSamples' | 'configureBackgroundDelivery' | 'markDeliverySucceeded' | 'openSettings';
   source: HealthSource;
   since?: string;
+  enabled?: boolean;
 };
 
-const methods = new Set<BridgeRequest['method']>(['requestPermissions', 'getPermissionStatus', 'readStepSamples', 'openSettings']);
+const methods = new Set<BridgeRequest['method']>(['requestPermissions', 'getPermissionStatus', 'readStepSamples', 'configureBackgroundDelivery', 'markDeliverySucceeded', 'openSettings']);
 
 function isTrustedUrl(value: string, trustedOrigin: string): boolean {
   try {
@@ -40,7 +41,8 @@ function isBridgeRequest(value: unknown): value is BridgeRequest {
     && typeof request.method === 'string'
     && methods.has(request.method as BridgeRequest['method'])
     && (request.source === 'apple_health' || request.source === 'health_connect')
-    && (request.since === undefined || (typeof request.since === 'string' && Number.isFinite(Date.parse(request.since))));
+    && (request.since === undefined || (typeof request.since === 'string' && Number.isFinite(Date.parse(request.since))))
+    && (request.enabled === undefined || typeof request.enabled === 'boolean');
 }
 
 const bridgeScript = `
@@ -61,6 +63,20 @@ const bridgeScript = `
     requestPermissions: (source) => invoke('requestPermissions', source),
     getPermissionStatus: (source) => invoke('getPermissionStatus', source),
     readStepSamples: (source, since) => invoke('readStepSamples', source, since),
+    configureBackgroundDelivery: (source, enabled) => new Promise((resolve, reject) => {
+      const id = String(Date.now()) + '-' + String(++sequence);
+      pending.set(id, { resolve, reject });
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        channel: 'stridepool-health', id, documentId, method: 'configureBackgroundDelivery', source, enabled
+      }));
+    }),
+    markDeliverySucceeded: (source) => new Promise((resolve, reject) => {
+      const id = String(Date.now()) + '-' + String(++sequence);
+      pending.set(id, { resolve, reject });
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        channel: 'stridepool-health', id, documentId, method: 'markDeliverySucceeded', source
+      }));
+    }),
     openSettings: (source) => invoke('openSettings', source)
   };
   window.addEventListener('stridepool-health-response', (event) => {
@@ -120,6 +136,17 @@ export default function CompanionScreen() {
       if (request.method === 'requestPermissions') result = await StridePoolHealth.requestPermissions(request.source);
       if (request.method === 'getPermissionStatus') result = await StridePoolHealth.getPermissionStatus(request.source);
       if (request.method === 'readStepSamples') result = await StridePoolHealth.readStepSamples(request.source, request.since);
+      if (request.method === 'configureBackgroundDelivery') {
+        result = await StridePoolHealth.configureBackgroundDelivery(
+          request.source,
+          trustedOrigin,
+          request.enabled === true,
+        );
+      }
+      if (request.method === 'markDeliverySucceeded') {
+        await StridePoolHealth.markDeliverySucceeded(request.source);
+        result = undefined;
+      }
       if (request.method === 'openSettings') {
         await Linking.openSettings();
         result = undefined;

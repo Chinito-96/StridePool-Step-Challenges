@@ -9,6 +9,7 @@
 - [Native health bridge](native-health-bridge.md) — web code must call the companion bridge for HealthKit/Health Connect; browsers cannot request those permissions directly.
 - [Health delivery retry boundary](health-delivery-retry.md) — foreground reopen retries reread native samples; delivery health never changes verified totals.
 - [Expo Go native health limits](expo-go-native-health.md) — custom HealthKit and Health Connect modules need an installed native build; keep Expo Go from importing them eagerly.
+- [pnpm local Expo module copies](pnpm-local-expo-module-copies.md) — `file:` native packages may be copied into pnpm’s store; verify freshness after bridge edits.
 - [Managed Stripe webhook rotation](stripe-managed-webhook-rotation.md) — persist and resolve signing secrets from the sync record; runtime docs may expose methods missing from the installed package.
 - [Stripe delivery evidence](stripe-delivery-evidence.md) — compare exact endpoint receipts after a durable monitoring baseline; account-wide pending_webhooks is not delivery proof.
 - [Stripe Connect sandbox prerequisite](stripe-connect-sandbox.md) — test Connect payouts can emit `payout.paid` with a final failed status; verify object status, not only event name.

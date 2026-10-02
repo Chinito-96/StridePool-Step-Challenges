@@ -1,3 +1,4 @@
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { readRecords } from 'react-native-health-connect';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type { HealthSource, NativeStepSample, PermissionState, StridePoolHealthModule } from './types';
@@ -86,6 +87,23 @@ const module: StridePoolHealthModule = {
         dataOrigin: record.metadata?.dataOrigin ?? 'unknown',
       },
     })});
+  },
+  async configureBackgroundDelivery(source, apiOrigin, enabled): Promise<boolean> {
+    if (source !== 'health_connect' || !await available()) return false;
+    const nativeModule = requireOptionalNativeModule<{
+      configureBackgroundDelivery(source: string, apiOrigin: string, enabled: boolean): Promise<boolean>;
+    }>('StridePoolHealth');
+    if (!nativeModule) {
+      throw new Error('Android background sync requires an installed StridePool development or release build.');
+    }
+    return nativeModule.configureBackgroundDelivery(source, apiOrigin, enabled);
+  },
+  async markDeliverySucceeded(source): Promise<void> {
+    if (source !== 'health_connect' || !await available()) return;
+    const nativeModule = requireOptionalNativeModule<{
+      markDeliverySucceeded(source: string): Promise<void>;
+    }>('StridePoolHealth');
+    await nativeModule?.markDeliverySucceeded(source);
   },
 };
 

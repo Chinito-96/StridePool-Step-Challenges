@@ -6,6 +6,8 @@ const unavailable: StridePoolHealthModule = {
   async requestPermissions() { return 'denied'; },
   async getPermissionStatus() { return 'denied'; },
   async readStepSamples() { return []; },
+  async configureBackgroundDelivery() { return false; },
+  async markDeliverySucceeded() {},
 };
 
 export default unavailable;

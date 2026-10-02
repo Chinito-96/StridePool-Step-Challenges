@@ -30,6 +30,7 @@ type AppState = {
   complianceLoading: boolean;
   healthSources: HealthSource[];
   nativeSourceMessages: Partial<Record<'apple_health' | 'health_connect', string>>;
+  backgroundDeliveryMessages: Partial<Record<'apple_health' | 'health_connect', string>>;
   stepReviews: StepReview[];
   freeStreak: FreeStreak;
   pendingInvites: PendingInvite[];
@@ -78,8 +79,10 @@ function AppProvider({ children }: { children: ReactNode }) {
   const freeStreak = bootstrap?.freeStreak ?? { current: 0, best: 0, lastGoalDate: null };
   const pendingInvites = pendingInvitesQuery.data?.invites ?? bootstrap?.pendingInvites ?? [];
   const [nativeSourceMessages, setNativeSourceMessages] = useState<Partial<Record<'apple_health' | 'health_connect', string>>>({});
+  const [backgroundDeliveryMessages, setBackgroundDeliveryMessages] = useState<Partial<Record<'apple_health' | 'health_connect', string>>>({});
   const deliveryInFlight = useRef(false);
   const lastAutoAttempt = useRef(0);
+  const lastBackgroundConfig = useRef<string | null>(null);
   const eligibility: EligibilityProfile = { age: profile.eligibilityAge, state: profile.eligibilityState, identityStatus: profile.identityStatus, acceptedTerms: profile.acceptedTerms };
   const compliance: ComplianceStatus = complianceData ?? { paidPlayEnabled: false, launchControls: [], providerConfigured: false, providerName: 'Stripe', webhookReady: false, sandboxReconciliationPassed: false, counselReviewRequired: true, minAge: 18, approvedStates: [], requirements: ['18 or older', 'Identity verified by the payment provider', 'State eligibility confirmed after counsel review', 'Paid-challenge terms and refund policy accepted'], settlementPolicy: ['Integer cents only', 'Deterministic pool rounding', 'Explicit refund and dispute events', 'Auditable payout retries'] };
   const invalidateBootstrap = () => queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
@@ -170,6 +173,7 @@ function AppProvider({ children }: { children: ReactNode }) {
       }
       // Even an empty read is a successful delivery check, not an absence of activity.
       await deliveryMutation.mutateAsync({ source, data: { outcome: 'success' } });
+      void bridge.markDeliverySucceeded?.(source).catch(() => {});
       if (key) window.localStorage.removeItem(key);
       const acceptedCount = results.reduce((total, result) => total + result.acceptedCount, 0);
       const pendingReviewCount = results.reduce((total, result) => total + result.pendingReviewCount, 0);
@@ -205,6 +209,35 @@ function AppProvider({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(resume, 1000);
     return () => { window.removeEventListener('stridepool-companion-active', resume); window.removeEventListener('online', resume); window.clearTimeout(timer); };
   }, [auth.isAuthenticated, bootstrap?.user?.id, healthSources]);
+  useEffect(() => {
+    const bridge = window.StridePoolHealth;
+    const source = bridge?.supportedSource;
+    if (!source || !bridge.configureBackgroundDelivery || auth.isLoading) return;
+    if (auth.isAuthenticated && !bootstrapQuery.data) return;
+    const sourceStatus = healthSources.find((item) => item.source === source)?.status;
+    const matchesSignedInUser = Boolean(auth.isAuthenticated && auth.user?.id && bootstrap?.user?.id === auth.user.id);
+    const enabled = Boolean(matchesSignedInUser && (sourceStatus === 'connected' || sourceStatus === 'stale'));
+    const configKey = `${auth.isAuthenticated ? auth.user?.id ?? 'unknown-user' : 'signed-out'}:${source}:${enabled}`;
+    if (lastBackgroundConfig.current === configKey) return;
+    lastBackgroundConfig.current = configKey;
+    void bridge.configureBackgroundDelivery(source, enabled).then((scheduled) => {
+      setBackgroundDeliveryMessages((current) => ({
+        ...current,
+        [source]: enabled
+          ? scheduled
+            ? 'Background delivery is scheduled when your device allows it. Open the companion to sync immediately.'
+            : 'Automatic background delivery is unavailable. Open the companion to sync; your device may require background health access.'
+          : '',
+      }));
+    }).catch(() => {
+      if (enabled) {
+        setBackgroundDeliveryMessages((current) => ({
+          ...current,
+          [source]: 'Automatic background delivery could not be scheduled. Open the companion to sync.',
+        }));
+      }
+    });
+  }, [auth.isAuthenticated, bootstrap?.user?.id, bootstrapQuery.isSuccess, healthSources]);
   const updateEligibility = (next: EligibilityProfile) => updateProfile({ eligibilityAge: next.age, eligibilityState: next.state, identityStatus: next.identityStatus, acceptedTerms: next.acceptedTerms });
   const addFunds = () => {
     if (!auth.isAuthenticated) loginIfNeeded();
@@ -214,7 +247,7 @@ function AppProvider({ children }: { children: ReactNode }) {
     profileMutation.mutate({ data: updates }, { onSuccess: invalidateBootstrap });
   };
   const toggleSetting = (key: keyof Pick<ProfileSettings, 'reminders' | 'weeklyDigest' | 'publicProgress' | 'healthConnected'> | 'weekly-digest') => { const actualKey = key === 'weekly-digest' ? 'weeklyDigest' : key; if (actualKey === 'healthConnected') { void syncNativeSource('apple_health'); return; } updateProfile({ [actualKey]: !profile[actualKey] }); };
-  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncNativeSource, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, stepReviews, freeStreak, pendingInvites]);
+  const value = useMemo(() => ({ challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, backgroundDeliveryMessages, stepReviews, freeStreak, pendingInvites, joinChallenge, leaveChallenge, updateEligibility, syncNativeSource, addFunds, toggleSetting, updateProfile, auth }), [auth, challenges, joinedIds, steps, activities, wallet, profile, membership, eligibility, compliance, complianceLoading, healthSources, nativeSourceMessages, backgroundDeliveryMessages, stepReviews, freeStreak, pendingInvites]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
@@ -552,7 +585,7 @@ function HealthSourcesPanel({ sources }: { sources: HealthSource[] }) {
 }
 
 function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
-  const { syncNativeSource, nativeSourceMessages } = useApp();
+  const { syncNativeSource, nativeSourceMessages, backgroundDeliveryMessages } = useApp();
   const [busySource, setBusySource] = useState<string | null>(null);
   const statusLabels: Record<HealthSource['status'], string> = {
     available: 'Permission not requested',
@@ -575,9 +608,11 @@ function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
     stale: 'Sync now',
     revoked: 'Open device settings',
   };
-  return <div className="mt-5 grid gap-3 sm:grid-cols-2">{sources.map((source) => {
+  return <div className="mt-5 space-y-3">
+    <div className="grid gap-3 sm:grid-cols-2">{sources.map((source) => {
     const isBusy = busySource === source.source;
     const message = nativeSourceMessages[source.source as 'apple_health' | 'health_connect'];
+    const backgroundMessage = backgroundDeliveryMessages[source.source as 'apple_health' | 'health_connect'];
     const canSync = source.source === 'apple_health' || source.source === 'health_connect';
     return <div key={source.source} className="rounded-xl border border-border/80 bg-background p-4" data-testid={`card-source-${source.source}`}>
       <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-secondary-foreground"><HeartPulse size={17} /></span><div className="min-w-0"><p className="text-sm font-bold">{source.label}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{statusLabels[source.status]}{source.lastSyncedAt ? ` · last sync ${new Date(source.lastSyncedAt).toLocaleString()}` : ''}</p></div><span className={`ml-auto h-2 w-2 rounded-full ${statusStyles[source.status]}`} aria-label={statusLabels[source.status]} /></div>
@@ -587,15 +622,20 @@ function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
       </div>
       {source.deliveryFailure && <p className="mt-3 rounded-lg bg-accent/30 p-2 text-[11px] leading-5 text-accent-foreground" role="status">
         Delivery failed: {{ offline: 'the companion was offline', native_read: 'the device could not read step records', upload_failed: 'the upload did not complete' }[source.deliveryFailure]}.
-        {source.nextRetryAt ? ` The companion will try again when you open it after ${new Date(source.nextRetryAt).toLocaleString()}.` : ' Open the mobile app to try again.'} Existing verified totals are unchanged.
+        {source.nextRetryAt ? ` Background retries depend on your device and its health permissions; you can also open the companion to retry after ${new Date(source.nextRetryAt).toLocaleString()}.` : ' Open the mobile app to try again.'} Existing verified totals are unchanged.
       </p>}
+      {backgroundMessage && <p className="mt-3 rounded-lg bg-primary/10 p-2 text-[11px] leading-5 text-primary" role="status">{backgroundMessage}</p>}
       {source.status === 'connected' && <p className="mt-3 text-[11px] text-muted-foreground">{source.verifiedSamples} verified samples · {source.pendingReview} pending review</p>}
       {source.status === 'stale' && <p className="mt-3 rounded-lg bg-accent/30 p-2 text-[11px] leading-4 text-accent-foreground">No successful delivery has arrived in more than 36 hours. Open the mobile app to retry. Your existing verified totals remain unchanged.</p>}
       {(source.status === 'denied' || source.status === 'revoked') && <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-[11px] leading-4 text-destructive">{source.status === 'denied' ? 'Permission was denied. Allow step access in device settings before trying again.' : 'Permission was revoked. Re-enable step access in device settings before syncing.'}</p>}
       {message && <p className="mt-3 rounded-lg bg-primary/10 p-2 text-[11px] leading-4 text-primary" role="status">{message}</p>}
       {canSync && <Button variant="secondary" className="mt-3 w-full px-3 py-2 text-xs" disabled={isBusy} onClick={async () => { setBusySource(source.source); await syncNativeSource(source.source as 'apple_health' | 'health_connect'); setBusySource(null); }} data-testid={`button-connect-${source.source}`}>{isBusy ? 'Checking permission…' : actionLabels[source.status]}</Button>}
     </div>;
-  })}</div>;
+    })}</div>
+    <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-[11px] leading-5 text-muted-foreground" data-testid="text-background-scheduling-limits">
+      <span className="font-semibold text-foreground">Background checks are best-effort.</span> iPhone HealthKit may wake the companion at most hourly; Android checks run no more frequently than about every 15 minutes. Your device controls timing and may defer or stop checks because of force-quit, battery, or other OS restrictions. Open the companion to sync immediately.
+    </div>
+  </div>;
 }
 
 function RadioDot() { return <span className="flex items-center gap-2 font-mono-app text-[10px] uppercase tracking-widest text-muted-foreground font-bold"><span className="pulse-dot h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" /> updates live</span>; }

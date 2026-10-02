@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "StridePool Companion",
-    "slug": "stridepool-companion",
+    "name": "StridePool",
+    "slug": "stridepool",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/stridepool-icon.png",
-    "scheme": "stridepool-companion",
+    "icon": "./assets/images/icon.png",
+    "scheme": "stridepool",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.stridepool.companion",
+      "bundleIdentifier": "com.stridepool.app",
       "infoPlist": {
         "NSHealthShareUsageDescription": "StridePool reads your step count so your challenge progress can be verified.",
         "NSHealthUpdateUsageDescription": "StridePool requests Health access only for your challenge activity."
@@ -20,16 +20,19 @@
       }
     },
     "android": {
-      "package": "com.stridepool.companion",
+      "package": "com.stridepool.app",
       "permissions": [
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
       ]
     },
     "web": {
-      "favicon": "./assets/images/stridepool-icon.png"
+      "favicon": "./assets/images/favicon.png"
     },
-    "plugins": ["expo-router", "react-native-health-connect"],
+    "plugins": [
+      "expo-router",
+      "react-native-health-connect"
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

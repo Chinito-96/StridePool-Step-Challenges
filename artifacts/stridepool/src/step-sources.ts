@@ -28,9 +28,12 @@ export type NativeHealthSample = {
 
 export type NativeHealthBridge = {
   supportedSource?: StepSourceId;
+  backgroundDeliveryDescription?: string;
   requestPermissions: (source: "apple_health" | "health_connect") => Promise<NativePermissionStatus>;
   getPermissionStatus?: (source: "apple_health" | "health_connect") => Promise<NativePermissionStatus>;
   readStepSamples: (source: "apple_health" | "health_connect", since?: string) => Promise<NativeHealthSample[]>;
+  configureBackgroundDelivery?: (source: StepSourceId, enabled: boolean) => Promise<boolean>;
+  markDeliverySucceeded?: (source: StepSourceId) => Promise<void>;
   openSettings?: (source: "apple_health" | "health_connect") => Promise<void>;
 };
 

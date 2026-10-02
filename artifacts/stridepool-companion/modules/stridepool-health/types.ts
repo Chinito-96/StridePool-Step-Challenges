@@ -13,4 +13,6 @@ export type StridePoolHealthModule = {
   requestPermissions(source: HealthSource): Promise<PermissionState>;
   getPermissionStatus(source: HealthSource): Promise<PermissionState>;
   readStepSamples(source: HealthSource, since?: string): Promise<NativeStepSample[]>;
+  configureBackgroundDelivery(source: HealthSource, apiOrigin: string, enabled: boolean): Promise<boolean>;
+  markDeliverySucceeded(source: HealthSource): Promise<void>;
 };

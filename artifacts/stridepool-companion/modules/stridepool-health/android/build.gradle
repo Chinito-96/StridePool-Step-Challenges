@@ -1,0 +1,16 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'host.exp.exponent'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.stridepoolhealth'
+}
+
+dependencies {
+  implementation 'androidx.health.connect:connect-client:1.1.0'
+  implementation 'androidx.work:work-runtime-ktx:2.10.0'
+}
