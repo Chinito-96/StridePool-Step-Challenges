@@ -4,8 +4,10 @@ import { after, before, describe, it } from "node:test";
 import app from "../app";
 import { createSession } from "../lib/auth";
 import {
+  challengesTable,
   dailyStepRecordsTable,
   db,
+  entriesTable,
   healthSourceConnectionsTable,
   pool,
   sessionsTable,
@@ -17,6 +19,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 const runId = `source-ingestion-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const userId = `${runId}-user`;
 const secondUserId = `${runId}-second-user`;
+const sharedChallengeId = `${runId}-shared-challenge`;
 const today = new Date().toISOString().slice(0, 10);
 
 type ApiResult = {
@@ -169,6 +172,7 @@ describe("StridePool source sample ingestion", () => {
     await db.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, secondUserId));
     await db.delete(healthSourceConnectionsTable).where(eq(healthSourceConnectionsTable.userId, userId));
     await db.delete(healthSourceConnectionsTable).where(eq(healthSourceConnectionsTable.userId, secondUserId));
+    await db.delete(challengesTable).where(eq(challengesTable.id, sharedChallengeId));
     await db.delete(sessionsTable).where(eq(sessionsTable.sid, session));
     await db.delete(sessionsTable).where(eq(sessionsTable.sid, secondSession));
     await db.delete(usersTable).where(eq(usersTable.id, userId));
@@ -597,6 +601,116 @@ describe("StridePool source sample ingestion", () => {
     ));
     assert.equal(storedSharedSamples.length, 6);
     assert.equal(new Set(storedSharedSamples.map((row) => `${row.userId}:${row.source}:${row.sourceSampleId}`)).size, 6);
+  });
+
+  it("keeps mirrored challenge records and leaderboard progress account-scoped for shared health IDs", async () => {
+    // Use days untouched by the personal-total fixtures, within the same free challenge.
+    const recordDate = dateDaysAgo(2);
+    const pendingOnlyDate = dateDaysAgo(1);
+    await db.insert(challengesTable).values({
+      id: sharedChallengeId,
+      name: "Shared health ID isolation",
+      theme: "Test",
+      level: "Open",
+      startDate: recordDate,
+      endDate: today,
+      days: 3,
+      dailyGoal: 1_000,
+      entryFee: "0",
+      participantCount: 2,
+      color: "#000000",
+      community: true,
+    });
+    // Participants enrolled before this historical challenge started;
+    // the public join endpoint correctly rejects late enrollment.
+    await db.insert(entriesTable).values([userId, secondUserId].map((id) => ({
+      userId: id,
+      challengeId: sharedChallengeId,
+      entryFee: "0",
+      status: "active",
+      joinedAt: new Date(`${dateDaysAgo(3)}T00:00:00.000Z`),
+    })));
+
+    async function assertProgress(userASteps: number, userBSteps: number) {
+      const records = await db.select({
+        userId: dailyStepRecordsTable.userId,
+        recordDate: dailyStepRecordsTable.recordDate,
+        steps: dailyStepRecordsTable.steps,
+        verified: dailyStepRecordsTable.verified,
+      }).from(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.challengeId, sharedChallengeId));
+      const expected = [userId, secondUserId].flatMap((id, index) => {
+        const steps = index === 0 ? userASteps : userBSteps;
+        return steps ? [{ userId: id, recordDate, steps, verified: true }] : [];
+      });
+      assert.deepEqual(
+        records.filter((row) => row.recordDate === recordDate).sort((a, b) => a.userId.localeCompare(b.userId)),
+        expected.sort((a, b) => a.userId.localeCompare(b.userId)),
+      );
+      for (const row of records.filter((row) => row.recordDate === pendingOnlyDate)) {
+        assert.equal(row.steps, 0);
+        assert.equal(row.verified, false);
+      }
+      for (const [sessionId, currentUserId] of [[session, userId], [secondSession, secondUserId]]) {
+        const result = await request(`/stridepool/challenges/${sharedChallengeId}/leaderboard`, {}, sessionId);
+        assert.equal(result.status, 200);
+        const { leaderboard } = result.body as {
+          leaderboard: Array<{ userId: string; steps: number; completedDays: number; isCurrentUser: boolean }>;
+        };
+        assert.equal(leaderboard.length, 2);
+        for (const [id, steps] of [[userId, userASteps], [secondUserId, userBSteps]] as const) {
+          const participant = leaderboard.find((row) => row.userId === id);
+          assert.ok(participant);
+          assert.equal(participant.steps, steps);
+          assert.equal(participant.completedDays, steps >= 1_000 ? 1 : 0);
+          assert.equal(participant.isCurrentUser, id === currentUserId);
+        }
+      }
+    }
+
+    await assertProgress(0, 0);
+    const sharedId = "shared-challenge-source-id";
+    const uploads = [
+      { source: "apple_health", sessionId: session, steps: 1_200, totals: [1_200, 0] },
+      { source: "apple_health", sessionId: secondSession, steps: 2_400, totals: [1_200, 2_400] },
+      { source: "health_connect", sessionId: session, steps: 600, totals: [1_800, 2_400] },
+      { source: "health_connect", sessionId: secondSession, steps: 900, totals: [1_800, 3_300] },
+    ] as const;
+    for (const upload of uploads) {
+      const response = await ingest(upload.source, [sample(sharedId, {
+        recordDate,
+        steps: upload.steps,
+      })], upload.sessionId);
+      assert.equal(response.acceptedCount, 1);
+      assert.equal(response.pendingReviewCount, 0);
+      assert.equal(response.samples[0]?.verificationStatus, "verified");
+      await assertProgress(upload.totals[0], upload.totals[1]);
+    }
+
+    // Held samples on a verified day and a pending-only day must never advance either participant.
+    for (const source of ["apple_health", "health_connect"] as const) {
+      for (const sessionId of [session, secondSession]) {
+        const response = await ingest(source, [recordDate, pendingOnlyDate].map((date) => sample(
+          `shared-challenge-pending-${date}`,
+          {
+            recordDate: date,
+            steps: 1_600,
+            startTime: `${date}T12:00:00.000Z`,
+            endTime: `${date}T12:04:00.000Z`,
+            recordedAt: `${date}T12:05:00.000Z`,
+          },
+        )), sessionId);
+        assert.equal(response.acceptedCount, 2);
+        assert.equal(response.pendingReviewCount, 2);
+        assert.ok(response.samples.every((row) => row.verificationStatus === "pending_review"));
+        await assertProgress(1_800, 3_300);
+      }
+    }
+
+    for (const upload of uploads) {
+      const retry = await ingest(upload.source, [sample(sharedId, { recordDate, steps: 9_999 })], upload.sessionId);
+      assert.equal(retry.acceptedCount, 0);
+      await assertProgress(1_800, 3_300);
+    }
   });
 
   it("records denied, stale, and revoked native permission states", async () => {
