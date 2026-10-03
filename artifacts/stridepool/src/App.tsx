@@ -127,9 +127,19 @@ function AppProvider({ children }: { children: ReactNode }) {
         if (pending) {
           try {
             const report = JSON.parse(pending) as { reason: 'offline' | 'native_read' | 'upload_failed'; attemptedAt: string };
-            await deliveryMutation.mutateAsync({ source, data: { outcome: 'failure', ...report } });
+            const reported = await deliveryMutation.mutateAsync({ source, data: { outcome: 'failure', ...report } });
             window.localStorage.removeItem(key);
             invalidateBootstrap();
+            const nextRetryAt = reported.nextRetryAt ? new Date(reported.nextRetryAt).getTime() : null;
+            if (nextRetryAt !== null && nextRetryAt > Date.now()) {
+              if (!background) {
+                setNativeSourceMessages((current) => ({
+                  ...current,
+                  [source]: `The missed delivery was recorded. Reopen the companion after ${new Date(nextRetryAt).toLocaleTimeString()} to retry.`,
+                }));
+              }
+              return;
+            }
           } catch { /* Try reporting again on the next resume. */ }
         }
       }

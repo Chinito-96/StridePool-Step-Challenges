@@ -287,6 +287,84 @@ describe("StridePool source sample ingestion", () => {
     assert.equal((delayed.body as { deliveryFailure: null }).deliveryFailure, null);
   });
 
+  it("honors the retry time, clears an account's failure after an empty successful check, and keeps it private", async () => {
+    const userBBefore = (await request("/stridepool/sources", {}, secondSession)).body as {
+      sources: Array<{
+        source: string;
+        lastAttemptedAt: string | null;
+        lastSyncedAt: string | null;
+        deliveryFailure: string | null;
+        nextRetryAt: string | null;
+      }>;
+    };
+    const beforeSteps = ((await request("/stridepool/bootstrap")).body as { steps: number }).steps;
+    const beforeSamples = await db.select({ id: stepSourceSamplesTable.id })
+      .from(stepSourceSamplesTable)
+      .where(and(
+        eq(stepSourceSamplesTable.userId, userId),
+        eq(stepSourceSamplesTable.source, "apple_health"),
+      ));
+
+    const failed = await request("/stridepool/sources/apple_health/delivery", {
+      method: "POST",
+      body: JSON.stringify({ outcome: "failure", reason: "offline" }),
+    });
+    assert.equal(failed.status, 200);
+    const failedSource = failed.body as {
+      lastAttemptedAt: string;
+      lastSyncedAt: string | null;
+      deliveryFailure: string | null;
+      nextRetryAt: string | null;
+    };
+    assert.equal(failedSource.deliveryFailure, "offline");
+    assert.ok(failedSource.lastAttemptedAt);
+    assert.ok(failedSource.nextRetryAt);
+    assert.equal(
+      new Date(failedSource.nextRetryAt).getTime() - new Date(failedSource.lastAttemptedAt).getTime(),
+      5 * 60_000,
+    );
+
+    const userBAfterFailure = (await request("/stridepool/sources", {}, secondSession)).body as typeof userBBefore;
+    assert.deepEqual(
+      userBAfterFailure.sources.find(({ source }) => source === "apple_health"),
+      userBBefore.sources.find(({ source }) => source === "apple_health"),
+      "a different account must not see this account's failed delivery",
+    );
+
+    // Empty native reads send no sample batches; the successful delivery event still advances the cursor.
+    const recovered = await request("/stridepool/sources/apple_health/delivery", {
+      method: "POST",
+      body: JSON.stringify({ outcome: "success" }),
+    });
+    assert.equal(recovered.status, 200);
+    const recoveredSource = recovered.body as {
+      lastAttemptedAt: string;
+      lastSyncedAt: string | null;
+      deliveryFailure: string | null;
+      nextRetryAt: string | null;
+    };
+    assert.equal(recoveredSource.deliveryFailure, null);
+    assert.equal(recoveredSource.nextRetryAt, null);
+    assert.ok(recoveredSource.lastSyncedAt);
+    assert.ok(recoveredSource.lastAttemptedAt);
+
+    const afterSamples = await db.select({ id: stepSourceSamplesTable.id })
+      .from(stepSourceSamplesTable)
+      .where(and(
+        eq(stepSourceSamplesTable.userId, userId),
+        eq(stepSourceSamplesTable.source, "apple_health"),
+      ));
+    assert.equal(afterSamples.length, beforeSamples.length);
+    assert.equal(((await request("/stridepool/bootstrap")).body as { steps: number }).steps, beforeSteps);
+
+    const userBAfterRecovery = (await request("/stridepool/sources", {}, secondSession)).body as typeof userBBefore;
+    assert.deepEqual(
+      userBAfterRecovery.sources.find(({ source }) => source === "apple_health"),
+      userBBefore.sources.find(({ source }) => source === "apple_health"),
+      "recovering the first account must not change another account's delivery state",
+    );
+  });
+
   it("retries a partial multi-day delivery without advancing the successful cursor", async () => {
     const source = "health_connect";
     const first = sample("multi-day-first", { recordDate: dateDaysAgo(20), steps: 320 });
