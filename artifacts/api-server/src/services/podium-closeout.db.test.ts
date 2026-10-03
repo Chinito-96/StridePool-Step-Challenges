@@ -17,6 +17,7 @@ import { closeFinishedPodiumChallenges } from "./podium-closeout";
 const runId = `podium-closeout-${randomUUID()}`;
 const userIds: string[] = [];
 const challengeIds: string[] = [];
+const isolatedSchema = process.env.PODIUM_CLOSEOUT_TEST_SCHEMA;
 const now = new Date("2020-01-03T12:00:00.000Z");
 const beforeStart = new Date("2019-12-31T12:00:00.000Z");
 
@@ -97,6 +98,15 @@ after(async () => {
 });
 
 describe("automatic podium closeout with the database", () => {
+  it("uses a disposable schema without the public schema on its search path", async () => {
+    assert.ok(isolatedSchema, "Run this test through the isolated closeout test runner.");
+    const { rows } = await pool.query(
+      "SELECT current_schema() AS schema, 'public' = ANY(current_schemas(false)) AS public_on_search_path",
+    );
+    assert.equal(rows[0]?.schema, isolatedSchema);
+    assert.equal(rows[0]?.public_on_search_path, false);
+  });
+
   it("finds only ended open rankings and credits their podium once across concurrent and repeated passes", async () => {
     const endedRanking = await addChallenge("ranking", "2020-01-02");
     const excluded = [
