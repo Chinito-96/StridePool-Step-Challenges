@@ -22,3 +22,4 @@
 - [Automatic payout test isolation](automatic-payout-test-isolation.md) — global closeout discovery needs a historical test clock to avoid touching ordinary challenges in shared databases.
 - [Closeout alert race boundary](closeout-alert-race-boundary.md) — failure tracking must not revive an alert after a concurrent settlement succeeds.
 - [Challenge grace boundary](challenge-grace-boundary.md) — no per-challenge allowance; injury/support review and Stripe delivery grace stay separate.
+- [Dependency installation evidence](dependency-installation-evidence.md) — a successful managed install can update the lockfile without replacing local packages.
