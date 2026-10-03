@@ -15,6 +15,7 @@ describe("podium challenge closeout", () => {
       },
       settle: async (challengeId, settledAt) => {
         settled.push({ challengeId, now: settledAt });
+        return { alreadySettled: false };
       },
       recordFailure: async () => {},
     });
@@ -36,6 +37,7 @@ describe("podium challenge closeout", () => {
       settle: async (challengeId) => {
         attempted.push(challengeId);
         if (challengeId === "fails-once") throw new Error("temporary failure");
+        return { alreadySettled: false };
       },
       recordFailure: async (challengeId, now, today) => {
         failures.push({ challengeId, now, today });
@@ -45,5 +47,43 @@ describe("podium challenge closeout", () => {
     assert.deepEqual(attempted, ["fails-once", "still-closes"]);
     assert.deepEqual(failures, [{ challengeId: "fails-once", now: new Date("2026-09-16T12:00:00Z"), today: "2026-09-16" }]);
     assert.deepEqual(result, { found: 2, settled: 1, failed: 1 });
+  });
+
+  it("counts only one new settlement when closeout passes discover the same challenge", async () => {
+    let settlementAttempts = 0;
+    let releaseSettlements!: () => void;
+    let resolveBothAttempts!: () => void;
+    const settlementBarrier = new Promise<void>((resolve) => {
+      releaseSettlements = resolve;
+    });
+    const bothAttemptsStarted = new Promise<void>((resolve) => {
+      resolveBothAttempts = resolve;
+    });
+    const payoutLedgerEntries: string[] = [];
+    const dependencies = {
+      findChallengeIds: async () => ["shared-ranking"],
+      settle: async () => {
+        const attempt = ++settlementAttempts;
+        if (attempt === 2) resolveBothAttempts();
+        await settlementBarrier;
+        if (attempt === 1) {
+          payoutLedgerEntries.push("shared-ranking-payout");
+          return { alreadySettled: false };
+        }
+        return { alreadySettled: true };
+      },
+      recordFailure: async () => {},
+    };
+
+    const firstPass = closeFinishedPodiumChallenges(new Date("2026-09-16T12:00:00Z"), dependencies);
+    const secondPass = closeFinishedPodiumChallenges(new Date("2026-09-16T12:00:00Z"), dependencies);
+    await bothAttemptsStarted;
+    releaseSettlements();
+    const results = await Promise.all([firstPass, secondPass]);
+
+    assert.equal(settlementAttempts, 2);
+    assert.deepEqual(results.map((result) => result.settled).sort(), [0, 1]);
+    assert.deepEqual(results.map((result) => result.failed), [0, 0]);
+    assert.deepEqual(payoutLedgerEntries, ["shared-ranking-payout"]);
   });
 });

@@ -1,4 +1,4 @@
-import { challengesTable, db, settleChallenge } from "@workspace/db";
+import { challengesTable, db, settleChallenge, type SettlementResult } from "@workspace/db";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
@@ -6,7 +6,7 @@ const DEFAULT_CLOSEOUT_INTERVAL_MS = 60_000;
 
 type CloseoutDependencies = {
   findChallengeIds: (today: string) => Promise<string[]>;
-  settle: (challengeId: string, now: Date) => Promise<unknown>;
+  settle: (challengeId: string, now: Date) => Promise<Pick<SettlementResult, "alreadySettled">>;
   recordFailure: (challengeId: string, now: Date, today: string) => Promise<void>;
 };
 
@@ -54,8 +54,8 @@ export async function closeFinishedPodiumChallenges(
 
   for (const challengeId of challengeIds) {
     try {
-      await dependencies.settle(challengeId, now);
-      settled += 1;
+      const result = await dependencies.settle(challengeId, now);
+      if (!result.alreadySettled) settled += 1;
     } catch (err) {
       failed += 1;
       logger.error({ err, challengeId }, "Podium challenge closeout failed");
