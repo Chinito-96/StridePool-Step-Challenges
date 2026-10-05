@@ -7,7 +7,7 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "test:launch-gate": "env -i PATH=\"$PATH\" HOME=\"$HOME\" DATABASE_URL=postgresql://localhost/stridepool_launch_gate pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/ledger-recovery.test.ts",
+    "test:launch-gate": "env -i PATH=\"$PATH\" HOME=\"$HOME\" pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/ledger-recovery.test.ts",
     "test:status": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/stridepool-status.test.ts",
     "test:podium-closeout": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/podium-closeout.test.ts",
     "test:stripe-webhook-health": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/stripe-webhook-health.test.ts",

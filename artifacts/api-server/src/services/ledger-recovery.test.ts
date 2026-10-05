@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkEligibility, getComplianceStatus, isPaidPlayLaunchEnabled } from "./ledger";
+import { checkEligibility, getComplianceStatus, isPaidPlayLaunchEnabled } from "./ledger-launch-policy";
 import {
   payoutBalanceMovements,
   isSandboxReconciliationPassed,
@@ -135,6 +135,7 @@ test("compliance never serializes credentials, signing secrets, or raw provider 
   const marker = "synthetic-sensitive-value-do-not-return";
   const provider = {
     ...readyProvider,
+    providerName: marker,
     providerReady: false,
     error: marker,
     secretKey: marker,
