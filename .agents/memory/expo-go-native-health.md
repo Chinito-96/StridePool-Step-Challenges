@@ -14,3 +14,9 @@ Do not assume Replit's managed native publishing route can build the existing cu
 **Why:** Official Replit documentation consulted on 2026-10-04 says custom native modules and EAS CLI/EAS Build are unsupported on Replit. The companion depends on a local custom HealthKit/Health Connect module.
 
 **How to apply:** Recheck official platform documentation when choosing a distribution route. Until support changes, arrange an external native build setup for installed-device verification; JavaScript exports and Expo Go previews are not substitutes.
+
+A clean Expo Doctor result does not establish portability to an external native-build host.
+
+**Why:** SDK diagnostics passed on Linux while shared workspace exclusions still prevented macOS/Windows native tooling binaries from being installed. Different optional-binary families also use different package naming conventions.
+
+**How to apply:** Include the whole workspace's platform dependency policy in native-build handoffs. Test preparation against the actual config with independently defined expected exclusions, preserve security protections, and still require a real build on the target host.

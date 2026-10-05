@@ -2,6 +2,8 @@
 
 StridePool Companion uses a local Expo native module for HealthKit and the native `react-native-health-connect` module on Android. These APIs are not available in Expo Go; test permission prompts and background access in an installed development or release build.
 
+See [NATIVE_TEST_HANDOFF.md](NATIVE_TEST_HANDOFF.md) for external build setup, installed-device checks, and the evidence required before mobile launch.
+
 ## iOS
 
 `app.json` enables the HealthKit and HealthKit background-delivery entitlements and declares:

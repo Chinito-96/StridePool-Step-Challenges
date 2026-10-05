@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "rLM5WbVA_RCHYogOXMzmd"
+uri = "file://artifacts/stridepool-companion/NATIVE_TEST_HANDOFF.md"
+type = "text"
+title = "Native build and device-test guide"
+description = "Local iPhone and Android build instructions, Release-build checks, and the launch evidence checklist."
+logical_id = "35251363-bf54-43ce-853b-3ac6e1ccb57f"
+content_hash = "sha256:da3057e5ff134164ada5e1a41680fb2a9a4de44ed451da4ae387cfbcc9c44ebf"
+size = 7345
+mtime_ms = 1791165500337
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:4664460e-9e22-4c5f-8d9a-13a93eb34445/35251363-bf54-43ce-853b-3ac6e1ccb57f/d5b636dd-a006-4b81-ac2f-5bd4b300aa23"
+storage_version_token = "1791165554642634"
+content_type = "text/markdown"
