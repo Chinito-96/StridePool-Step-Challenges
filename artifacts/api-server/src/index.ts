@@ -4,7 +4,7 @@ import { startPodiumCloseoutScheduler } from "./services/podium-closeout";
 import { startStripeWebhookHealthScheduler } from "./services/stripe-webhook-health-monitor";
 import { initializeStripeProvider } from "./services/stripe-provider";
 import { pool } from "@workspace/db";
-import { assertWebhookHealthSchemaReady } from "./services/schema-preflight";
+import { assertWebhookHealthDatabaseSchemaReady } from "./services/schema-preflight";
 
 const rawPort = process.env["PORT"];
 
@@ -20,13 +20,9 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-await assertWebhookHealthSchemaReady(async (tables) => {
-  const result = await pool.query<{ table_name: string }>(
-    "SELECT table_name FROM unnest($1::text[]) AS required(table_name) WHERE to_regclass(table_name) IS NULL",
-    [tables],
-  );
-  return result.rows.map((row) => row.table_name);
-});
+await assertWebhookHealthDatabaseSchemaReady((query, values) =>
+  pool.query<{ table_name: string }>(query, values)
+);
 await initializeStripeProvider();
 
 app.listen(port, (err) => {
