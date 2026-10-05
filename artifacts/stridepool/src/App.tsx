@@ -1277,6 +1277,9 @@ function AdminPage() {
   const alertRows = closeoutAlerts.data?.alerts ?? [];
   const searchUsers = users.data?.users ?? [];
   const selected = user.data;
+  const webhookHealthIsStale = webhookHealth.data
+    ? Date.now() - new Date(webhookHealth.data.checkedAt).getTime() > 2 * 60_000
+    : false;
 
   return <div className="mx-auto max-w-[1380px]">
     <div className="mb-8 flex flex-col gap-4 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
@@ -1289,13 +1292,14 @@ function AdminPage() {
         <h2 className="font-display text-lg font-bold">Stripe webhook delivery</h2>
         <Button variant="secondary" onClick={() => void webhookHealth.refetch()} disabled={webhookHealth.isFetching} data-testid="button-refresh-webhook-health">{webhookHealth.isFetching ? 'Checking…' : 'Refresh evidence'}</Button>
       </div>
-      {webhookHealth.isLoading ? <p className="mt-3 text-sm text-muted-foreground">Checking the managed endpoint and recent deliveries…</p> : webhookHealth.error ? <p className="mt-3 text-sm text-destructive">Delivery health could not be checked. Refresh to retry; do not assume the endpoint is healthy.</p> : webhookHealth.data ? <>
+      {webhookHealth.isLoading ? <p className="mt-3 text-sm text-muted-foreground">Checking the managed endpoint and recent deliveries…</p> : webhookHealth.data ? <>
+        {webhookHealth.isError ? <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">The latest refresh failed. This is the previous report from {new Date(webhookHealth.data.checkedAt).toLocaleString()}; do not treat it as current.</p> : webhookHealthIsStale ? <p className="mt-3 rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm text-accent-foreground" role="status">This report is more than two minutes old. Refresh the evidence before relying on it.</p> : webhookHealth.isFetching ? <p className="mt-3 text-xs text-muted-foreground" role="status">Refreshing evidence; the report below is from {new Date(webhookHealth.data.checkedAt).toLocaleString()}.</p> : null}
         <p className={`mt-3 text-sm font-bold ${['healthy', 'idle'].includes(webhookHealth.data.status) ? 'text-primary' : 'text-destructive'}`}>{webhookHealth.data.status.replaceAll('_', ' ').toUpperCase()}</p>
         <p className="mt-2 text-sm leading-6">{webhookHealth.data.message}</p>
         <p className="mt-2 break-all font-mono-app text-xs text-muted-foreground">{webhookHealth.data.endpointId ?? 'No managed endpoint'}{webhookHealth.data.endpointUrl ? ` · ${webhookHealth.data.endpointUrl}` : ''}</p>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">Recent provider events: {webhookHealth.data.providerEventCount} · Confirmed deliveries: {webhookHealth.data.receivedEventCount} · Overdue: {webhookHealth.data.overdueEventCount} · Processing failures: {webhookHealth.data.failedEventCount}</p>
         <p className="mt-1 text-xs text-muted-foreground">Last confirmed delivery: {webhookHealth.data.lastReceivedAt ? new Date(webhookHealth.data.lastReceivedAt).toLocaleString() : 'None recorded'} · Checked: {new Date(webhookHealth.data.checkedAt).toLocaleString()}{!webhookHealth.data.evidenceComplete ? ' · Evidence incomplete' : ''}</p>
-      </> : null}
+      </> : webhookHealth.error ? <p className="mt-3 text-sm text-destructive" role="alert">Delivery health could not be checked. Refresh to retry; do not assume the endpoint is healthy.</p> : null}
       <p className="mt-3 text-xs leading-5 text-muted-foreground">This is a delivery warning, not a failed-payment report. Review the exact endpoint in Stripe and reconcile affected records before taking action. This check does not change paid-play launch controls.</p>
     </section>
 

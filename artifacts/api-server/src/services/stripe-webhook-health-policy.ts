@@ -10,6 +10,37 @@ export type StripeWebhookHealthStatus =
 export const STRIPE_WEBHOOK_ALERT_PERSISTENCE_CHECKS = 3;
 export const STRIPE_WEBHOOK_ALERT_MINIMUM_DURATION_MS = 2 * 60_000;
 
+const stripeWebhookHealthReviewsInFlight = new Map<string, Promise<unknown>>();
+
+export function stripeWebhookHealthReviewKey(input: {
+  endpointId: string;
+  endpointUrl: string;
+  connectEndpoint: boolean;
+}): string {
+  return JSON.stringify([input.endpointId, input.endpointUrl, input.connectEndpoint]);
+}
+
+/**
+ * Share only active review work. Completed reports are never retained, so a
+ * later review always rechecks endpoint status and provider evidence.
+ */
+export function runStripeWebhookHealthSingleFlight<T>(
+  key: string,
+  review: () => Promise<T>,
+): Promise<T> {
+  const existing = stripeWebhookHealthReviewsInFlight.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const reviewPromise = Promise.resolve().then(review);
+  const sharedPromise = reviewPromise.finally(() => {
+    if (stripeWebhookHealthReviewsInFlight.get(key) === sharedPromise) {
+      stripeWebhookHealthReviewsInFlight.delete(key);
+    }
+  });
+  stripeWebhookHealthReviewsInFlight.set(key, sharedPromise);
+  return sharedPromise;
+}
+
 export function isStripeWebhookHealthAlertable(
   status: StripeWebhookHealthStatus,
 ): status is "missing" | "disabled" | "delivery_delayed" | "repeated_failure" {

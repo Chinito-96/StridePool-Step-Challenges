@@ -12,6 +12,8 @@ import {
   evaluateStripeWebhookHealth,
   processWebhookWithReceipt,
   resolveExactManagedWebhook,
+  runStripeWebhookHealthSingleFlight,
+  stripeWebhookHealthReviewKey,
   stripeWebhookReceiptKey,
   type StripeWebhookHealthStatus,
 } from "./stripe-webhook-health-policy";
@@ -213,11 +215,12 @@ async function healthWithKnownFailures(
   };
 }
 
-export async function getStripeWebhookHealth(): Promise<StripeWebhookHealth> {
+async function reviewStripeWebhookHealth(
+  endpointUrl: string | null,
+): Promise<StripeWebhookHealth> {
   const checkedAtDate = new Date();
   const checkedAt = checkedAtDate.toISOString();
   const nowEpochSeconds = Math.floor(checkedAtDate.getTime() / 1_000);
-  const endpointUrl = expectedWebhookUrl();
   if (!endpointUrl) {
     return unknownHealth(
       checkedAt,
@@ -460,4 +463,18 @@ export async function getStripeWebhookHealth(): Promise<StripeWebhookHealth> {
     lastReceivedAt,
     evidenceComplete,
   };
+}
+
+export async function getStripeWebhookHealth(): Promise<StripeWebhookHealth> {
+  const endpointUrl = expectedWebhookUrl();
+  const identity = runtimeEndpointIdentity;
+  if (!endpointUrl || identity?.endpointUrl !== endpointUrl) {
+    return reviewStripeWebhookHealth(endpointUrl);
+  }
+
+  const key = stripeWebhookHealthReviewKey(identity);
+  return runStripeWebhookHealthSingleFlight(
+    key,
+    () => reviewStripeWebhookHealth(endpointUrl),
+  );
 }

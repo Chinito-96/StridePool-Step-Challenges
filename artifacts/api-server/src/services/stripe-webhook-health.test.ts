@@ -10,11 +10,98 @@ import {
   isStripeWebhookHealthRecovery,
   processWebhookWithReceipt,
   resolveExactManagedWebhook,
+  runStripeWebhookHealthSingleFlight,
+  stripeWebhookHealthReviewKey,
   stripeWebhookReceiptKey,
   type StripeHealthEvent,
 } from "./stripe-webhook-health-policy";
 
 const expectedUrl = "https://stridepool.example/api/stripe/webhook";
+
+test("concurrent reviews share exact-scope work but never reuse completed or incomplete evidence", async () => {
+  const scope = stripeWebhookHealthReviewKey({
+    endpointId: "we_support_test",
+    endpointUrl: expectedUrl,
+    connectEndpoint: true,
+  });
+  const otherScope = stripeWebhookHealthReviewKey({
+    endpointId: "we_support_test",
+    endpointUrl: expectedUrl,
+    connectEndpoint: false,
+  });
+  assert.notEqual(scope, otherScope);
+  assert.notEqual(scope, stripeWebhookHealthReviewKey({
+    endpointId: "we_another_endpoint",
+    endpointUrl: expectedUrl,
+    connectEndpoint: true,
+  }));
+  assert.notEqual(scope, stripeWebhookHealthReviewKey({
+    endpointId: "we_support_test",
+    endpointUrl: "https://another.example/api/stripe/webhook",
+    connectEndpoint: true,
+  }));
+
+  let calls = 0;
+  let releaseFirstReview!: (value: {
+    status: "unknown";
+    checkedAt: string;
+    evidenceComplete: boolean;
+  }) => void;
+  const incompleteReview = {
+    status: "unknown" as const,
+    checkedAt: "2026-10-05T12:00:00.000Z",
+    evidenceComplete: false,
+  };
+  const review = () => {
+    calls += 1;
+    return new Promise<typeof incompleteReview>((resolve) => {
+      releaseFirstReview = resolve;
+    });
+  };
+  const first = runStripeWebhookHealthSingleFlight(scope, review);
+  const concurrent = runStripeWebhookHealthSingleFlight(scope, review);
+  await Promise.resolve();
+  assert.equal(calls, 1, "concurrent same-scope requests should perform one review");
+
+  releaseFirstReview(incompleteReview);
+  const [firstResult, concurrentResult] = await Promise.all([first, concurrent]);
+  assert.strictEqual(concurrentResult, firstResult);
+  assert.equal(firstResult.checkedAt, incompleteReview.checkedAt);
+  assert.equal(firstResult.evidenceComplete, false);
+  assert.equal(isStripeWebhookHealthRecovery(firstResult.status, firstResult.evidenceComplete), false);
+
+  const recoveredReview = {
+    status: "healthy" as const,
+    checkedAt: "2026-10-05T12:00:01.000Z",
+    evidenceComplete: true,
+  };
+  const recoveredResult = await runStripeWebhookHealthSingleFlight(scope, async () => {
+    calls += 1;
+    return recoveredReview;
+  });
+  assert.deepEqual(recoveredResult, recoveredReview);
+  assert.equal(isStripeWebhookHealthRecovery(recoveredResult.status, recoveredResult.evidenceComplete), true);
+  assert.equal(calls, 2, "a completed partial report must not be retained over a later recovery review");
+
+  const disabledResult = await runStripeWebhookHealthSingleFlight(scope, async () => {
+    calls += 1;
+    return {
+      status: "disabled" as const,
+      checkedAt: "2026-10-05T12:00:02.000Z",
+      evidenceComplete: false,
+    };
+  });
+  assert.equal(disabledResult.status, "disabled");
+  assert.equal(disabledResult.checkedAt, "2026-10-05T12:00:02.000Z");
+  assert.equal(calls, 3, "a subsequent review must be able to detect a newly disabled endpoint");
+
+  let otherScopeCalls = 0;
+  await runStripeWebhookHealthSingleFlight(otherScope, async () => {
+    otherScopeCalls += 1;
+    return recoveredReview;
+  });
+  assert.equal(otherScopeCalls, 1, "different Connect scopes must not share a review");
+});
 
 test("health policy distinguishes idle, delayed, repeated failures, and unknown evidence", () => {
   assert.equal(evaluateStripeWebhookHealth({
