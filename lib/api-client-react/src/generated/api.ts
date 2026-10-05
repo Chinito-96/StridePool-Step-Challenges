@@ -1776,7 +1776,9 @@ export const getCreateStridePoolGroupChallengeUrl = () => {
 }
 
 /**
- * @summary Create a private free group challenge
+ * Free challenge creation is no longer available. This endpoint always returns 403 and never creates a group or challenge.
+ * @deprecated
+ * @summary Legacy free group challenge creation (disabled)
  */
 export const createStridePoolGroupChallenge = async (groupChallengeInput: GroupChallengeInput, options?: Parameters<typeof customFetch>[1]): Promise<GroupChallengeResponse> => {
 
@@ -1825,7 +1827,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateStridePoolGroupChallengeMutationError = ErrorType<ErrorResponse | void>
 
     /**
- * @summary Create a private free group challenge
+ * @deprecated
+ * @summary Legacy free group challenge creation (disabled)
  */
 export const useCreateStridePoolGroupChallenge = <TError = ErrorType<ErrorResponse | void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStridePoolGroupChallenge>>, TError,{data: BodyType<GroupChallengeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

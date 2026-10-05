@@ -566,7 +566,9 @@ export const CreateStridePoolChallengeResponse = zod.object({
 
 
 /**
- * @summary Create a private free group challenge
+ * Free challenge creation is no longer available. This endpoint always returns 403 and never creates a group or challenge.
+ * @deprecated
+ * @summary Legacy free group challenge creation (disabled)
  */
 export const CreateStridePoolGroupChallengeHeader = zod.object({
   "Authorization": zod.string().optional()

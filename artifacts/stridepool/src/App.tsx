@@ -734,86 +734,6 @@ function ChallengeCard({ challenge, index, onJoin }: { challenge: Challenge; ind
 }
 function EmptyChallenges({ clear }: { clear: () => void }) { return <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShoelaceMascot size={58} mood="calm" label="Shoelace mascot for an empty challenge list" /></div><h2 className="mt-4 font-display text-xl font-bold">No matching pools</h2><p className="mt-2 text-sm text-muted-foreground">Try a different pace, level, or search term.</p><Button variant="secondary" className="mt-5" onClick={clear} data-testid="button-clear-challenge-filters">Clear filters</Button></div>; }
 
-function PrivateGroupChallengeCreator() {
-  const { auth } = useApp();
-  const [groupName, setGroupName] = useState('');
-  const [challengeName, setChallengeName] = useState('');
-  const [theme, setTheme] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(() => new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10));
-  const [dailyGoal, setDailyGoal] = useState('7500');
-  const [challengeType, setChallengeType] = useState<'goal' | 'elimination'>('goal');
-  const [userQuery, setUserQuery] = useState('');
-  const [selectedMembers, setSelectedMembers] = useState<UserSearchResult[]>([]);
-  const [message, setMessage] = useState('');
-  const searchParams = useMemo(() => ({ q: userQuery.trim() }), [userQuery]);
-  const userSearch = useSearchStridePoolUsers(searchParams, { query: { queryKey: getSearchStridePoolUsersQueryKey(searchParams), enabled: auth.isAuthenticated && userQuery.trim().length >= 2, staleTime: 30_000 } });
-  const createGroupChallenge = useCreateStridePoolGroupChallenge();
-
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!auth.isAuthenticated) {
-      auth.login();
-      return;
-    }
-    if (!groupName.trim() || !challengeName.trim() || !theme.trim() || selectedMembers.length === 0) {
-      setMessage('Add a circle name, challenge details, and at least one member.');
-      return;
-    }
-    createGroupChallenge.mutate({
-      data: {
-        groupName: groupName.trim(),
-        memberUserIds: selectedMembers.map((member) => member.id),
-        name: challengeName.trim(),
-        theme: theme.trim(),
-        startDate,
-        endDate,
-        dailyGoal: Number(dailyGoal),
-        challengeType,
-        goalType: 'fixed',
-        color: '#7f9f56',
-      },
-    }, {
-      onSuccess: () => {
-        setMessage('Private circle created. Your members can now find it in the free lane.');
-        setGroupName('');
-        setChallengeName('');
-        setTheme('');
-        setSelectedMembers([]);
-        queryClient.invalidateQueries({ queryKey: getGetStridePoolBootstrapQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetStridePoolCommunityChallengesQueryKey() });
-      },
-      onError: () => setMessage('We could not create that private circle. Check the dates and try again.'),
-    });
-  };
-  const addMember = (member: UserSearchResult) => {
-    if (!selectedMembers.some((item) => item.id === member.id) && selectedMembers.length < 20) {
-      setSelectedMembers((items) => [...items, member]);
-    }
-    setUserQuery('');
-  };
-
-  return <section className="mb-8 rounded-[22px] border border-primary/25 bg-primary/5 p-5 sm:p-7" data-testid="panel-create-group-challenge">
-    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-      <div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-primary">Private lane</p><h2 className="mt-1 font-display text-2xl font-bold tracking-[-.04em]">Make a circle for your people.</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">Create a free challenge that only invited members can discover. Members still choose when to join; no public search or wallet is involved.</p></div>
-      <UsersRound className="hidden shrink-0 text-primary sm:block" size={23} />
-    </div>
-    {!auth.isAuthenticated ? <div className="mt-5 flex flex-col items-start justify-between gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-muted-foreground">Log in to search for walkers and start an invite-only group.</p><Button variant="secondary" className="shrink-0 text-xs" onClick={auth.login} data-testid="button-login-create-group">Log in to create a group</Button></div>
-      : <form className="mt-5 grid gap-4 lg:grid-cols-2" onSubmit={submit}>
-        <label className="block text-xs font-bold">Group name<input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={80} placeholder="e.g. Sunday walkers" className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-group-name" /></label>
-        <label className="block text-xs font-bold">Challenge name<input value={challengeName} onChange={(event) => setChallengeName(event.target.value)} maxLength={120} placeholder="e.g. Seven steady days" className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-group-challenge-name" /></label>
-        <label className="block text-xs font-bold lg:col-span-2">Shared theme<input value={theme} onChange={(event) => setTheme(event.target.value)} maxLength={240} placeholder="A gentle reason to keep showing up" className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-group-theme" /></label>
-        <div className="grid grid-cols-2 gap-3"><label className="block text-xs font-bold">Starts<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-xs outline-none focus:border-primary" data-testid="input-group-start-date" /></label><label className="block text-xs font-bold">Ends<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-xs outline-none focus:border-primary" data-testid="input-group-end-date" /></label></div>
-        <label className="block text-xs font-bold">Daily goal<input type="number" min="1" max="100000" value={dailyGoal} onChange={(event) => setDailyGoal(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-group-daily-goal" /></label>
-        <label className="block text-xs font-bold">Format<select value={challengeType} onChange={(event) => setChallengeType(event.target.value as 'goal' | 'elimination')} className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="select-group-challenge-type"><option value="goal">Keep the goal</option><option value="elimination">Step or step out</option></select></label>
-        <div className="relative"><label className="block text-xs font-bold">Invite members<input value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search by display name" className="mt-2 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary" data-testid="input-group-member-search" /></label>{userSearch.data?.users?.length ? <div className="absolute left-0 right-0 top-[4.25rem] z-10 overflow-hidden rounded-xl border border-border bg-card shadow-xl">{userSearch.data.users.filter((member) => !selectedMembers.some((selected) => selected.id === member.id)).map((member) => <button type="button" onClick={() => addMember(member)} className="flex w-full items-center gap-3 border-b border-border/70 px-3 py-2.5 text-left last:border-0 hover:bg-muted" key={member.id}><span className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">{member.displayName.slice(0, 2).toUpperCase()}</span><span className="min-w-0"><span className="block truncate text-xs font-bold">{member.displayName}</span><span className="block truncate text-[10px] text-muted-foreground">StridePool walker</span></span><UserPlus className="ml-auto text-primary" size={14} /></button>)}</div> : null}</div>
-        <div className="flex flex-wrap gap-2 lg:col-span-2">{selectedMembers.length ? selectedMembers.map((member) => <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-[11px] font-bold text-secondary-foreground" key={member.id}>{member.displayName}<button type="button" onClick={() => setSelectedMembers((items) => items.filter((item) => item.id !== member.id))} aria-label={`Remove ${member.displayName}`} className="rounded-full hover:bg-secondary-foreground/10"><X size={13} /></button></span>) : <p className="text-[11px] text-muted-foreground">Add at least one member. You will be included automatically.</p>}</div>
-        <div className="flex flex-col justify-between gap-3 border-t border-border/70 pt-4 lg:col-span-2 sm:flex-row sm:items-center"><p className="max-w-xl text-[11px] leading-5 text-muted-foreground">Private challenges never appear in public discovery. Only members of this group can open the challenge or leaderboard.</p><Button type="submit" disabled={createGroupChallenge.isPending} className="shrink-0" data-testid="button-create-group-challenge"><UsersRound size={16} /> {createGroupChallenge.isPending ? 'Creating…' : 'Create private circle'}</Button></div>
-        {message && <p className="text-[11px] font-semibold text-primary lg:col-span-2" role="status" data-testid="status-create-group-challenge">{message}</p>}
-      </form>}
-  </section>;
-}
-
 function CommunityPage() {
   const [query, setQuery] = useState('');
   const params = useMemo(() => query.trim() ? { q: query.trim() } : undefined, [query]);
@@ -825,7 +745,6 @@ function CommunityPage() {
       <div><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Community lane</p><h1 className="font-display text-[clamp(2.35rem,5vw,4.3rem)] font-bold leading-[.95] tracking-[-.07em]">Walk with a wider circle.</h1><p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">Open challenges for the days you want a little more company. Paid challenges use the creator-set entry plus the applicable Free or Pro platform fee; free community challenges stay free.</p></div>
       <div className="rounded-2xl border border-secondary/70 bg-secondary/35 p-5"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><UsersRound size={19} /></span><div><p className="text-sm font-bold text-secondary-foreground">A good kind of public</p><p className="mt-1 text-xs leading-5 text-secondary-foreground/75">See who is keeping pace, invite a friend, and keep your exact route private.</p></div></div></div>
     </div>
-     <PrivateGroupChallengeCreator />
     <label className="relative mb-7 block max-w-2xl"><Search className="absolute left-3.5 top-3.5 text-muted-foreground" size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search community challenges" aria-label="Search community challenges" className="h-12 w-full rounded-xl border border-border bg-card pl-10 pr-4 text-sm outline-none transition focus:border-primary" data-testid="input-search-community" /></label>
     {community.isLoading ? <CommunitySkeleton /> : community.isError ? <CommunityError retry={() => community.refetch()} /> : challenges.length === 0 ? <CommunityEmpty query={query} clear={() => setQuery('')} /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{challenges.map((challenge, index) => <CommunityCard challenge={challenge} index={index} key={challenge.id} />)}</div>}
     <LifetimeLeaderboard leaderboard={lifetime.data?.leaderboard ?? []} loading={lifetime.isLoading} />

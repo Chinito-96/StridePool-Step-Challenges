@@ -4,8 +4,6 @@ import {
   GetStridePoolChallengeLeaderboardResponse,
   GetStridePoolCommunityChallengesResponse,
   GetStridePoolLifetimeLeaderboardResponse,
-  CreateStridePoolGroupChallengeBody,
-  CreateStridePoolGroupChallengeResponse,
   CreateStridePoolChallengeBody,
   CreateStridePoolChallengeResponse,
   CreateStridePoolChallengeInviteResponse,
@@ -57,7 +55,6 @@ import {
   walletLedgerEntriesTable,
   type Challenge,
   groupMembersTable,
-  groupsTable,
   notificationsTable,
   getReferralPreview,
   getReferralSummary,
@@ -661,80 +658,8 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
   res.status(201).json(CreateStridePoolChallengeResponse.parse(challengeFor(challenge, new Set(), membership.challengeJoinPrice, userId)));
 });
 
-router.post("/stridepool/groups/challenges", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const body = CreateStridePoolGroupChallengeBody.safeParse(req.body ?? {});
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-  const membership = await getMembershipSummary(userId);
-  if (membership.plan !== "pro") {
-    res.status(409).json({ error: "Creating a private challenge requires StridePool Pro." });
-    return;
-  }
-  if (membership.activeCreatedChallengeCount >= membership.challengeCreationLimit) {
-    res.status(409).json({ error: "Pro includes one active challenge you create at a time." });
-    return;
-  }
-  if (membership.activeChallengeCount >= membership.activeChallengeLimit) {
-    res.status(409).json({ error: "You already have five active challenges. Finish or leave one before creating another." });
-    return;
-  }
-  const start = body.data.startDate;
-  const end = body.data.endDate;
-  const startDate = start.toISOString().slice(0, 10);
-  const endDate = end.toISOString().slice(0, 10);
-  const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
-  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || days < 1 || days > 90) {
-    res.status(400).json({ error: "Choose a challenge window between one and 90 days." });
-    return;
-  }
-  const memberIds = [...new Set([userId, ...body.data.memberUserIds])];
-  const members = await db.select().from(usersTable).where(inArray(usersTable.id, memberIds));
-  if (members.length !== memberIds.length) {
-    res.status(404).json({ error: "One or more invited walkers could not be found." });
-    return;
-  }
-  const groupId = `group_${randomBytes(12).toString("hex")}`;
-  const challengeId = `group_challenge_${randomBytes(12).toString("hex")}`;
-  const [group, challenge] = await db.transaction(async (tx) => {
-    const [createdGroup] = await tx.insert(groupsTable).values({
-      id: groupId,
-      name: body.data.groupName,
-      ownerUserId: userId,
-    }).returning();
-    await tx.insert(groupMembersTable).values(memberIds.map((memberId) => ({ groupId, userId: memberId })));
-    const challengeValues: typeof challengesTable.$inferInsert = {
-      id: challengeId,
-      name: body.data.name,
-      theme: body.data.theme,
-      level: "community",
-      startDate,
-      endDate,
-      days,
-      dailyGoal: body.data.dailyGoal,
-      entryFee: "0",
-      prizePool: "0",
-      participantCount: 0,
-      finishers: 0,
-      settlementStatus: "open",
-      color: body.data.color,
-      challengeType: body.data.challengeType,
-      goalType: body.data.goalType,
-      community: true,
-      groupId,
-      creatorUserId: userId,
-    };
-    const [createdChallenge] = await tx.insert(challengesTable).values(challengeValues).returning();
-    return [createdGroup, createdChallenge] as const;
-  });
-  res.status(201).json(CreateStridePoolGroupChallengeResponse.parse({
-    group: { id: group.id, name: group.name, ownerUserId: group.ownerUserId, memberCount: memberIds.length },
-    challenge: challengeFor(challenge, new Set(), membership.challengeJoinPrice, userId),
-    members: members.map(publicUser),
-  }));
+router.post("/stridepool/groups/challenges", (_req, res): void => {
+  res.status(403).json({ error: "Free challenge creation is no longer available." });
 });
 
 router.get("/stridepool/users/search", async (req, res): Promise<void> => {

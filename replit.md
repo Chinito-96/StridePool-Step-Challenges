@@ -58,6 +58,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 ## User preferences
 
 - For the initial public release, complete the full paid-play and native-mobile launch checks before publishing, rather than releasing a limited web beta. Continue building and improving after MVP launch. Prioritize security, reliability, and working core flows over optional enhancements.
+- Users cannot create free challenges. Existing free challenges and participation remain available; do not delete them when changing creation controls.
 
 ## Gotchas
 

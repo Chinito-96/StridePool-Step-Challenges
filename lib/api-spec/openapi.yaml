@@ -445,7 +445,9 @@ paths:
     post:
       tags: [stridepool]
       operationId: createStridePoolGroupChallenge
-      summary: Create a private free group challenge
+      summary: Legacy free group challenge creation (disabled)
+      deprecated: true
+      description: Free challenge creation is no longer available. This endpoint always returns 403 and never creates a group or challenge.
       parameters:
         - $ref: "#/components/parameters/AuthorizationSessionHeader"
         - $ref: "#/components/parameters/SessionCookie"
@@ -457,7 +459,7 @@ paths:
               $ref: "#/components/schemas/GroupChallengeInput"
       responses:
         "201":
-          description: Private group and challenge created.
+          description: Legacy response retained for client compatibility; no longer returned.
           content:
             application/json:
               schema:
@@ -470,6 +472,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Login required.
+        "403":
+          description: Free challenge creation is disabled for all users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: One or more invited walkers could not be found.
   /stridepool/users/search:
