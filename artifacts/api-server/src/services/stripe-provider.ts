@@ -9,8 +9,12 @@ import {
   hasStripeWebhookSecret,
   setRuntimeStripeWebhookSecret,
 } from "../stripeClient";
-import { recordProviderWebhook } from "./ledger";
+import { recordProviderWebhook, refreshProviderReconciliationGate } from "./ledger";
 import { openBillingPortal } from "./billing-portal";
+import {
+  isSandboxReconciliationPassed,
+  type StripePayoutBalanceTransaction,
+} from "./ledger-policy";
 import {
   initializeStripeWebhookHealthBaseline,
   processSignedStripeWebhook,
@@ -114,8 +118,9 @@ export function getStripeProviderStatus() {
     providerReady,
     webhookReady,
     backfillReady,
-    sandboxReconciliationPassed:
+    sandboxReconciliationPassed: isSandboxReconciliationPassed(
       process.env.STRIPE_SANDBOX_RECONCILIATION_PASSED === "true",
+    ),
   };
 }
 
@@ -124,6 +129,7 @@ export async function initializeStripeProvider(): Promise<void> {
   if (!databaseUrl) throw new Error("DATABASE_URL is required for Stripe.");
 
   await runMigrations({ databaseUrl });
+  await refreshProviderReconciliationGate();
   const stripe = await getUncachableStripeClient();
   const stripeAccount = await stripe.accounts.retrieve(null);
   if (process.env.NODE_ENV === "development" && process.env.STRIPE_SANDBOX_SECRET_KEY) {
@@ -338,6 +344,43 @@ async function metadataFromPaymentIntent(
   )).metadata;
 }
 
+function expandableStripeId(value: string | { id: string } | null | undefined): string | undefined {
+  return typeof value === "string" ? value : value?.id;
+}
+
+async function getPayoutBalanceTransactions(
+  stripe: Stripe,
+  payout: Stripe.Payout,
+  connectedAccountId: string,
+): Promise<StripePayoutBalanceTransaction[]> {
+  const transactionIds = [
+    expandableStripeId(payout.balance_transaction),
+    expandableStripeId(payout.failure_balance_transaction),
+  ].filter((id): id is string => Boolean(id));
+  const uniqueTransactionIds = [...new Set(transactionIds)];
+  const transactions = await Promise.all(uniqueTransactionIds.map((id) =>
+    stripe.balanceTransactions.retrieve(id, {}, { stripeAccount: connectedAccountId }),
+  ));
+  return transactions.map((transaction) => {
+    const source = expandableStripeId(transaction.source);
+    if (!source) throw new Error("Stripe payout balance transaction is missing its source.");
+    return {
+      id: transaction.id,
+      accountId: connectedAccountId,
+      payoutId: payout.id,
+      type: transaction.type,
+      amountCents: transaction.amount,
+      feeCents: transaction.fee,
+      netCents: transaction.net,
+      currency: transaction.currency,
+      source,
+      createdAtSeconds: transaction.created,
+      status: transaction.status,
+      reportingCategory: transaction.reporting_category,
+    };
+  });
+}
+
 async function normalizedStripeEvent(
   event: Stripe.Event,
 ): Promise<Parameters<typeof recordProviderWebhook>[0] | null> {
@@ -397,11 +440,18 @@ async function normalizedStripeEvent(
     userId = user?.id;
     amountCents = payout.amount;
     currency = payout.currency;
+    const balanceTransactions = await getPayoutBalanceTransactions(
+      stripe,
+      payout,
+      connectedAccountId,
+    );
     metadata = {
-       stripe_payout_id: payout.id,
+      stripe_payout_id: payout.id,
       stripe_connect_account_id: connectedAccountId,
       stripe_payout_status: payout.status,
       ...(payout.failure_code ? { stripe_failure_code: payout.failure_code } : {}),
+      stripe_balance_transactions: JSON.stringify(balanceTransactions),
+      stripe_balance_transaction_ids: balanceTransactions.map(({ id }) => id).join(","),
     };
     eventType = event.type === "payout.paid" ? "payout_succeeded" : "payout_failed";
   }

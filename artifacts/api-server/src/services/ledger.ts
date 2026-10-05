@@ -23,8 +23,15 @@ import {
   usersTable,
   walletLedgerEntriesTable,
 } from "@workspace/db";
-import { and, desc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
-import { projectPayoutEvent, signedLedgerAmountCents } from "./ledger-policy";
+import { and, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import {
+  payoutBalanceMovements,
+  payoutBalanceTransactionKey,
+  projectPayoutEvent,
+  setProviderReconciliationMismatch,
+  signedLedgerAmountCents,
+  type StripePayoutBalanceTransaction,
+} from "./ledger-policy";
 import {
   createStripeCheckout,
   createStripePayoutOnboarding,
@@ -517,9 +524,83 @@ export async function recordProviderWebhook(input: ProviderWebhookInput) {
         ...(retryCount === undefined ? {} : { retryCount }),
       },
     }).returning();
+
+    const rawBalanceTransactions = input.metadata.stripe_balance_transactions;
+    if (rawBalanceTransactions !== undefined) {
+      let parsedBalanceTransactions: unknown = rawBalanceTransactions;
+      if (typeof rawBalanceTransactions === "string") {
+        try {
+          parsedBalanceTransactions = JSON.parse(rawBalanceTransactions) as unknown;
+        } catch {
+          throw new Error("Stripe payout balance transaction data is invalid.");
+        }
+      }
+      if (!Array.isArray(parsedBalanceTransactions)) {
+        throw new Error("Stripe payout balance transaction data is invalid.");
+      }
+      const movements = payoutBalanceMovements(
+        parsedBalanceTransactions as StripePayoutBalanceTransaction[],
+      );
+      if (movements.length) {
+        await tx.insert(walletLedgerEntriesTable).values(movements.map((movement) => ({
+          id: `ledger_${randomUUID()}`,
+          userId: input.userId,
+          eventType: movement.eventType,
+          status: "recorded",
+          amountCents: movement.amountCents,
+          currency: movement.transaction.currency,
+          providerEventId: null,
+          idempotencyKey: movement.idempotencyKey,
+          challengeId: null,
+          metadata: {
+            stripe_balance_transaction_id: movement.transaction.id,
+            stripe_balance_transaction_type: movement.transaction.type,
+            stripe_payout_id: movement.transaction.payoutId,
+            stripe_connect_account_id: movement.transaction.accountId,
+            stripe_balance_transaction_amount_cents: movement.transaction.amountCents,
+            stripe_balance_transaction_fee_cents: movement.transaction.feeCents,
+            stripe_balance_transaction_net_cents: movement.transaction.netCents,
+            stripe_balance_transaction_created: movement.transaction.createdAtSeconds,
+            stripe_balance_transaction_reporting_category: movement.transaction.reportingCategory,
+            settlementPolicy: "stripe_balance_transaction",
+          },
+        }))).onConflictDoNothing();
+      }
+    }
+
     return { accepted: true, duplicate: false, ledgerEntryId: entry.id };
   });
 }
+
+export async function refreshProviderReconciliationGate(provider = providerName): Promise<void> {
+  const runs = await db.select({
+    id: moneyReconciliationRunsTable.id,
+    status: moneyReconciliationRunsTable.status,
+    periodStart: moneyReconciliationRunsTable.periodStart,
+    periodEnd: moneyReconciliationRunsTable.periodEnd,
+    createdAt: moneyReconciliationRunsTable.createdAt,
+  })
+    .from(moneyReconciliationRunsTable)
+    .where(eq(moneyReconciliationRunsTable.provider, provider))
+    .orderBy(desc(moneyReconciliationRunsTable.createdAt), desc(moneyReconciliationRunsTable.id));
+  const hasUnresolvedMismatch = runs.some((mismatch) =>
+    mismatch.status === "mismatch"
+    && !runs.some((match) =>
+      match.status === "matched"
+      && match.id !== mismatch.id
+      && match.periodStart.getTime() === mismatch.periodStart.getTime()
+      && match.periodEnd.getTime() === mismatch.periodEnd.getTime()
+      && match.createdAt.getTime() >= mismatch.createdAt.getTime(),
+    ),
+  );
+  setProviderReconciliationMismatch(hasUnresolvedMismatch);
+}
+
+export type ProviderBalanceTransactionReportItem = {
+  id: string;
+  accountId: string;
+  netCents: number;
+};
 
 export type ProviderReportInput = {
   provider?: string;
@@ -528,20 +609,43 @@ export type ProviderReportInput = {
   periodEnd: Date;
   totalCents: number;
   eventCount?: number;
+  balanceTransactions?: ProviderBalanceTransactionReportItem[];
   reportMetadata?: Record<string, unknown>;
 };
 
 export async function reconcileProviderReport(input: ProviderReportInput) {
-  if (!Number.isInteger(input.totalCents) || input.totalCents < 0) {
-    throw new Error("Provider report totals must be non-negative integer cents.");
+  const balanceTransactions = input.balanceTransactions;
+  if (!Number.isInteger(input.totalCents)
+    || (!balanceTransactions && input.totalCents < 0)) {
+    throw new Error("Provider report totals must be integer cents.");
   }
   if (!Number.isInteger(input.eventCount ?? 0) || (input.eventCount ?? 0) < 0) {
     throw new Error("Provider report event counts must be non-negative integers.");
   }
   if (input.periodEnd <= input.periodStart) throw new Error("Provider report period must have a positive duration.");
+  if (balanceTransactions) {
+    const identities = balanceTransactions.map(({ accountId, id }) =>
+      payoutBalanceTransactionKey(accountId, id),
+    );
+    if (!balanceTransactions.length || new Set(identities).size !== identities.length) {
+      throw new Error("Provider balance transaction reports must contain unique transaction ids.");
+    }
+    if (balanceTransactions.some(({ netCents }) => !Number.isInteger(netCents))) {
+      throw new Error("Provider balance transaction report amounts must be whole cents.");
+    }
+    const reportedTotal = balanceTransactions.reduce((sum, transaction) =>
+      sum + transaction.netCents, 0,
+    );
+    if (reportedTotal !== input.totalCents) {
+      throw new Error("Provider report total does not equal its balance transaction rows.");
+    }
+    if (input.eventCount !== undefined && input.eventCount !== balanceTransactions.length) {
+      throw new Error("Provider report count does not match its balance transaction rows.");
+    }
+  }
 
   const provider = input.provider ?? providerName;
-  return db.transaction(async (tx) => {
+  const run = await db.transaction(async (tx) => {
     const [existing] = await tx.select().from(moneyReconciliationRunsTable).where(and(
       eq(moneyReconciliationRunsTable.provider, provider),
       eq(moneyReconciliationRunsTable.providerReportId, input.providerReportId),
@@ -551,22 +655,42 @@ export async function reconcileProviderReport(input: ProviderReportInput) {
     const entries = await tx.select({
       eventType: walletLedgerEntriesTable.eventType,
       amountCents: walletLedgerEntriesTable.amountCents,
+      metadata: walletLedgerEntriesTable.metadata,
     }).from(walletLedgerEntriesTable).where(and(
       eq(walletLedgerEntriesTable.currency, "usd"),
-      isNotNull(walletLedgerEntriesTable.providerEventId),
-      gte(walletLedgerEntriesTable.createdAt, input.periodStart),
-      lt(walletLedgerEntriesTable.createdAt, input.periodEnd),
+      ...(balanceTransactions
+        ? [inArray(
+          walletLedgerEntriesTable.idempotencyKey,
+          balanceTransactions.map(({ accountId, id }) => payoutBalanceTransactionKey(accountId, id)),
+        )]
+        : [
+          isNotNull(walletLedgerEntriesTable.providerEventId),
+          gte(walletLedgerEntriesTable.createdAt, input.periodStart),
+          lt(walletLedgerEntriesTable.createdAt, input.periodEnd),
+        ]),
     ));
     const ledgerTotalCents = entries.reduce(
-      (total, entry) => total + signedLedgerAmountCents(entry.eventType, entry.amountCents),
+      (total, entry) => total + signedLedgerAmountCents(
+        entry.eventType,
+        entry.amountCents,
+        entry.metadata,
+      ),
       0,
     );
     const ledgerEventCount = entries.length;
     const discrepancyCents = input.totalCents - ledgerTotalCents;
     const status = discrepancyCents === 0
-      && (input.eventCount === undefined || input.eventCount === ledgerEventCount)
+      && ((input.eventCount ?? balanceTransactions?.length) === undefined
+        || (input.eventCount ?? balanceTransactions?.length) === ledgerEventCount)
       ? "matched"
       : "mismatch";
+    const reportMetadata = {
+      ...(input.reportMetadata ?? {}),
+      ...(balanceTransactions ? {
+        reconciliationBasis: "stripe_balance_transactions",
+        stripeBalanceTransactionIds: balanceTransactions.map(({ id }) => id),
+      } : {}),
+    };
     const [run] = await tx.insert(moneyReconciliationRunsTable).values({
       id: `reconciliation_${randomUUID()}`,
       provider,
@@ -576,10 +700,10 @@ export async function reconcileProviderReport(input: ProviderReportInput) {
       providerTotalCents: input.totalCents,
       ledgerTotalCents,
       discrepancyCents,
-      providerEventCount: input.eventCount ?? null,
+      providerEventCount: input.eventCount ?? balanceTransactions?.length ?? null,
       ledgerEventCount,
       status,
-      reportMetadata: input.reportMetadata ?? {},
+      reportMetadata,
     }).onConflictDoNothing().returning();
     if (run) return { ...run, duplicate: false };
     const [conflict] = await tx.select().from(moneyReconciliationRunsTable).where(and(
@@ -589,6 +713,8 @@ export async function reconcileProviderReport(input: ProviderReportInput) {
     if (!conflict) throw new Error("Reconciliation idempotency conflict could not be recovered.");
     return { ...conflict, duplicate: true };
   });
+  await refreshProviderReconciliationGate(provider);
+  return run;
 }
 
 export async function getLedger(userId: string): Promise<LedgerEntry[]> {

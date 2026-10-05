@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { checkEligibility, getComplianceStatus, isPaidPlayLaunchEnabled } from "./ledger";
-import { projectPayoutEvent, signedLedgerAmountCents } from "./ledger-policy";
+import {
+  payoutBalanceMovements,
+  isSandboxReconciliationPassed,
+  projectPayoutEvent,
+  setProviderReconciliationMismatch,
+  signedLedgerAmountCents,
+  type StripePayoutBalanceTransaction,
+} from "./ledger-policy";
 
 const readyProvider = {
   providerName: "Stripe",
@@ -271,4 +278,83 @@ test("provider report totals use signed money events", () => {
   assert.equal(signedLedgerAmountCents("dispute_opened", 300), -300);
   assert.equal(signedLedgerAmountCents("payout_succeeded", 500), -500);
   assert.equal(signedLedgerAmountCents("payout_failed", 500), 0);
+});
+
+test("failed payout events are receipts while balance transactions carry the debit and reversal", () => {
+  const failedPayoutMetadata = {
+    stripe_payout_status: "failed",
+    stripe_balance_transactions: [
+      { id: "txn_debit", type: "payout", netCents: -500 },
+      { id: "txn_reversal", type: "payout_failure", netCents: 500 },
+    ],
+  };
+  assert.equal(signedLedgerAmountCents("payout_succeeded", 500, failedPayoutMetadata), 0);
+  assert.equal(signedLedgerAmountCents("payout_failed", 500, failedPayoutMetadata), 0);
+  assert.equal(
+    signedLedgerAmountCents("payout_succeeded", 500, {
+      stripe_payout_status: "paid",
+      stripe_balance_transaction_ids: "txn_debit",
+    }),
+    0,
+  );
+});
+
+test("payout balance movements are netted, ordered, and idempotent across duplicate events", () => {
+  const debit: StripePayoutBalanceTransaction = {
+    id: "txn_payout_debit",
+    accountId: "acct_test",
+    payoutId: "po_failed",
+    type: "payout",
+    amountCents: -500,
+    feeCents: 0,
+    netCents: -500,
+    currency: "usd",
+    source: "po_failed",
+    createdAtSeconds: 100,
+    status: "available",
+    reportingCategory: "payout",
+  };
+  const reversal: StripePayoutBalanceTransaction = {
+    ...debit,
+    id: "txn_payout_reversal",
+    type: "payout_failure",
+    amountCents: 500,
+    netCents: 500,
+    createdAtSeconds: 101,
+    reportingCategory: "payout_reversal",
+  };
+
+  const movements = payoutBalanceMovements([reversal, debit, debit]);
+  assert.deepEqual(movements.map((movement) => movement.eventType), [
+    "payout_balance_debit",
+    "payout_balance_reversal",
+  ]);
+  assert.deepEqual(movements.map((movement) => movement.amountCents), [500, 500]);
+  assert.equal(movements[0].idempotencyKey, "stripe:balance_transaction:acct_test:txn_payout_debit");
+  assert.equal(
+    movements.reduce(
+      (total, movement) => total + signedLedgerAmountCents(movement.eventType, movement.amountCents),
+      0,
+    ),
+    0,
+  );
+});
+
+test("a payout balance mismatch blocks the sandbox reconciliation launch control", () => {
+  try {
+    setProviderReconciliationMismatch(true);
+    const blockedProvider = { ...readyProvider, sandboxReconciliationPassed: isSandboxReconciliationPassed(true) };
+    assert.equal(blockedProvider.sandboxReconciliationPassed, false);
+    assert.equal(
+      isPaidPlayLaunchEnabled({
+        enabled: true,
+        counselApproved: true,
+        approvedStates: ["CA"],
+        ...blockedProvider,
+      }),
+      false,
+    );
+  } finally {
+    setProviderReconciliationMismatch(false);
+  }
 });

@@ -82,7 +82,7 @@ Counsel must approve the final copy, placement, and acknowledgement/recording me
 
 The Safety screen collects age, state, provider identity status, and terms consent, then sends them to the server-side eligibility decision. A successful form response is not sufficient by itself: provider onboarding, signed events, counsel approval, `PAID_PLAY_ENABLED=true`, and `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` are all required.
 
-The reconciliation flag is deliberately manual. Set it only after Stripe test-mode evidence confirms signed capture, duplicate/out-of-order recovery, and a matched persisted reconciliation run for `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`, `payout.paid`, and `payout.failed`. Connecting Stripe alone never enables paid play.
+The reconciliation flag is deliberately manual. Set it only after Stripe test-mode evidence confirms signed capture, duplicate/out-of-order recovery, and a matched persisted reconciliation run for `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `charge.dispute.created`, and `charge.dispute.closed`. Payouts also require reconciliation against their Stripe balance transactions; payout event names alone are not financial evidence. An unresolved provider/ledger mismatch overrides the manual flag and blocks paid play. Connecting Stripe alone never enables paid play.
 
 ### Provider-backed sandbox reconciliation — 2026-10-01
 
@@ -90,7 +90,14 @@ The reconciliation flag is deliberately manual. Set it only after Stripe test-mo
 - For a controlled out-of-order delivery, the newer failure event `evt_3ULaDNH12DTsS9se1SuDHeS8` was delivered before the older success event `evt_3ULaDLH12DTsS9se1nvdXB1D`; persisted receipt timestamps confirm that order. Duplicate resends left exactly one provider receipt and one wallet ledger row for each of the 11 unique Stripe event IDs.
 - An independent Stripe test-mode Events API report for `2026-10-01 02:48–03:01 UTC` recorded 11 events and 10,200 cents. Persisted run `reconciliation_6739426f-9629-4e1f-952b-4c1bb82d8f04` (`stripe-sandbox-events-20261001-024800-030100-v1`) is `matched`: provider and ledger totals are both 10,200 cents, discrepancy is zero, and both event counts are 11. The local fixture run was not used.
 - `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` is set in the **development environment only**, after the matched run was persisted. `PAID_PLAY_ENABLED` and counsel approval remain unset; no production settings or live Stripe account were changed.
-- **Payout follow-up before paid play:** event `evt_1ULa9XH12DTsS9seEAKJlNDG` was named `payout.paid`, but its payout object had `status=failed` and `failure_code=no_account`. The app records payout ledger type from the event name, so the failed payout's projection currently reads `paid`. This does not change the raw event-count reconciliation, but the payout-state behavior must be corrected and retested before enabling paid play.
+
+### Failed payout balance-transaction reconciliation — 2026-10-05
+
+- Stripe Events API snapshots for payout `po_1ULa9WH12DTsS9seo9JdXr6P` show final `status=failed` and `failure_code=no_account` in both the `payout.paid` event `evt_1ULa9XH12DTsS9seEAKJlNDG` and `payout.failed` event `evt_1ULa9XH12DTsS9sewZ5wMiqO`.
+- Direct Stripe Balance Transactions API reads found the payout debit `txn_1ULa9WH12DTsS9se5NT7pFqy` (`payout`, net −500 cents) and returned-funds transaction `txn_1ULa9WH12DTsS9sef3t23yY7` (`payout_failure`, net +500 cents). The independent provider total is zero.
+- The immutable wallet ledger records one movement per account-scoped balance-transaction ID. Replaying the two event snapshots out of order and then duplicating them left exactly two movement rows; their signed total is zero. The payout projection remains `retry_pending`, not paid.
+- Persisted run `reconciliation_33d75399-9e83-4cd9-a12e-6c1f4aa6ded9` (`stripe-balance-transactions-po_1ULa9WH12DTsS9seo9JdXr6P-v1`) is `matched`: provider and ledger totals are both 0 cents, discrepancy is zero, and both transaction counts are 2. Its report metadata identifies the Stripe Balance Transactions API as the independent source.
+- These payout records and the reconciliation run are development-only test evidence. The Stripe event objects were retrieved from Stripe and passed through the idempotent ledger handler; this exercise did not claim to validate signed HTTP webhook delivery. The separate signed-webhook readiness control remains required.
 
 The final production launch requires all of these controls together:
 
@@ -117,7 +124,7 @@ evidence remains behind admin authorization.
 | `stripe_provider` | Stripe provider initialization is complete |
 | `managed_webhook` | Managed webhook signature-verification configuration is ready |
 | `provider_backfill` | Stripe sync backfill has completed |
-| `sandbox_reconciliation` | Manual sandbox reconciliation approval is exactly `true` |
+| `sandbox_reconciliation` | Manual sandbox approval is `true` and no persisted provider/ledger mismatch remains unresolved |
 
 `paidPlayEnabled` is true only when all seven controls are ready. Controls are
 evaluated independently so operators can see every blocker at once, including
