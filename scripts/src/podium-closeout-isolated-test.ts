@@ -5,6 +5,7 @@ import { pool } from "@workspace/db";
 const closeoutTestPath = "../artifacts/api-server/src/services/podium-closeout.db.test.ts";
 const sourceTables = [
   "users",
+  "sessions",
   "challenges",
   "entries",
   "daily_step_records",

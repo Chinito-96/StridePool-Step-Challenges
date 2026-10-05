@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import type { Server } from "node:http";
 import { after, describe, it } from "node:test";
+import app from "../app";
+import { createSession } from "../lib/auth";
 import {
   challengesTable,
   dailyStepRecordsTable,
@@ -8,6 +11,7 @@ import {
   entriesTable,
   joinChallenge,
   pool,
+  sessionsTable,
   usersTable,
   walletLedgerEntriesTable,
 } from "@workspace/db";
@@ -17,23 +21,59 @@ import { closeFinishedPodiumChallenges } from "./podium-closeout";
 const runId = `podium-closeout-${randomUUID()}`;
 const userIds: string[] = [];
 const challengeIds: string[] = [];
+const sessionIds: string[] = [];
 const isolatedSchema = process.env.PODIUM_CLOSEOUT_TEST_SCHEMA;
 const now = new Date("2020-01-03T12:00:00.000Z");
 const beforeStart = new Date("2019-12-31T12:00:00.000Z");
+let server: Server | undefined;
+let baseUrl = "";
 
-async function addUser() {
+async function addUser(role: "user" | "admin" = "user") {
   const id = `${runId}-user-${randomUUID()}`;
   await db.insert(usersTable).values({
     id,
     email: `${id}@example.test`,
     firstName: "Test",
     lastName: "Walker",
+    role,
     walletBalance: "100.00",
     walletPending: "0.00",
     totalEarned: "0.00",
   });
   userIds.push(id);
   return id;
+}
+
+async function requestCloseoutAlerts(sessionId?: string) {
+  const response = await fetch(`${baseUrl}/api/admin/closeout-alerts`, {
+    headers: sessionId ? { cookie: `sid=${sessionId}` } : undefined,
+  });
+  return {
+    status: response.status,
+    body: await response.json() as {
+      alerts: Array<{
+        challengeId: string;
+        challengeName: string;
+        endDate: string;
+        failureCount: number;
+        lastFailedAt: string;
+      }>;
+    },
+  };
+}
+
+async function startAdminApi() {
+  const listeningServer = app.listen(0);
+  server = listeningServer;
+  await new Promise<void>((resolve, reject) => {
+    listeningServer.once("listening", resolve);
+    listeningServer.once("error", reject);
+  });
+  const address = listeningServer.address();
+  if (!address || typeof address === "string") {
+    throw new Error("The closeout-alert test server did not expose a TCP address.");
+  }
+  baseUrl = `http://127.0.0.1:${address.port}`;
 }
 
 async function addChallenge(
@@ -86,6 +126,12 @@ async function settlementEvents(challengeId: string) {
 
 after(async () => {
   try {
+    if (server?.listening) {
+      await new Promise<void>((resolve, reject) => {
+        server?.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+    if (sessionIds.length) await db.delete(sessionsTable).where(inArray(sessionsTable.sid, sessionIds));
     if (challengeIds.length) {
       await db.delete(walletLedgerEntriesTable).where(inArray(walletLedgerEntriesTable.challengeId, challengeIds));
       await db.delete(dailyStepRecordsTable).where(inArray(dailyStepRecordsTable.challengeId, challengeIds));
@@ -136,7 +182,8 @@ describe("automatic podium closeout with the database", () => {
       closeFinishedPodiumChallenges(now),
     ]);
     assert.deepEqual(passes.map((pass) => pass.failed), [0, 0]);
-    assert.ok(passes.every((pass) => pass.found <= 1 && pass.settled === pass.found));
+    assert.ok(passes.every((pass) => pass.found <= 1 && pass.settled <= pass.found));
+    assert.equal(passes.reduce((total, pass) => total + pass.settled, 0), 1);
     assert.ok(passes.some((pass) => pass.found === 1));
     assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 0, settled: 0, failed: 0 });
 
@@ -219,6 +266,49 @@ describe("automatic podium closeout with the database", () => {
     assert.deepEqual(afterFailure, { walletBalance: "90.00", walletPending: "10.00", totalEarned: "0.00" });
     assert.deepEqual(await settlementEvents(challengeId), []);
 
+    const settledChallenge = await addChallenge("ranking", "2020-01-02", "settled");
+    const otherChallenge = await addChallenge("goal", "2020-01-02");
+    const activeChallenge = await addChallenge("ranking", new Date().toISOString().slice(0, 10));
+    await db.update(challengesTable).set({
+      closeoutFailureCount: 3,
+      closeoutLastFailedAt: now,
+    }).where(inArray(challengesTable.id, [settledChallenge, otherChallenge, activeChallenge]));
+
+    const ordinaryUserId = await addUser();
+    const adminUserId = await addUser("admin");
+    const makeSession = (id: string) => createSession({
+      user: {
+        id,
+        email: `${id}@example.test`,
+        firstName: "Test",
+        lastName: "Walker",
+        profileImageUrl: null,
+      },
+      access_token: "podium-closeout-test-token",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    });
+    const [ordinarySession, adminSession] = await Promise.all([
+      makeSession(ordinaryUserId),
+      makeSession(adminUserId),
+    ]);
+    sessionIds.push(ordinarySession, adminSession);
+    await startAdminApi();
+
+    const anonymousResponse = await requestCloseoutAlerts();
+    assert.equal(anonymousResponse.status, 401);
+    const ordinaryResponse = await requestCloseoutAlerts(ordinarySession);
+    assert.equal(ordinaryResponse.status, 403);
+
+    const adminResponse = await requestCloseoutAlerts(adminSession);
+    assert.equal(adminResponse.status, 200);
+    assert.deepEqual(adminResponse.body.alerts, [{
+      challengeId,
+      challengeName: "Closeout integration fixture",
+      endDate: "2020-01-02T00:00:00.000Z",
+      failureCount: 3,
+      lastFailedAt: now.toISOString(),
+    }]);
+
     // Further retries do not send a duplicate alert for the same blocked incident.
     await closeFinishedPodiumChallenges(now, dependencies);
     assert.equal(supportAlerts.length, 1);
@@ -226,6 +316,9 @@ describe("automatic podium closeout with the database", () => {
     await db.delete(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.id, blockerId));
     assert.deepEqual(await closeFinishedPodiumChallenges(now, dependencies), { found: 1, settled: 1, failed: 0 });
     assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 0, settled: 0, failed: 0 });
+    const afterSuccessfulRetry = await requestCloseoutAlerts(adminSession);
+    assert.equal(afterSuccessfulRetry.status, 200);
+    assert.deepEqual(afterSuccessfulRetry.body.alerts, []);
     assert.equal((await status(challengeId)).settlementStatus, "settled");
     const [cleared] = await db.select({
       count: challengesTable.closeoutFailureCount,
