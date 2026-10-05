@@ -5,7 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { ProfileUpdateIdentityStatus } from './profileUpdateIdentityStatus';
 
 export interface ProfileUpdate {
   /**
@@ -21,6 +20,5 @@ export interface ProfileUpdate {
   eligibilityAge?: number;
   /** @maxLength 2 */
   eligibilityState?: string;
-  identityStatus?: ProfileUpdateIdentityStatus;
   acceptedTerms?: boolean;
 }

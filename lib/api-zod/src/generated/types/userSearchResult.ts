@@ -9,5 +9,4 @@
 export interface UserSearchResult {
   id: string;
   displayName: string;
-  email: string;
 }

@@ -11,6 +11,8 @@
     "test:status": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/stridepool-status.test.ts",
     "test:podium-closeout": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/podium-closeout.test.ts",
     "test:stripe-webhook-health": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/stripe-webhook-health.test.ts",
+    "test:security": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/request-security.test.ts ../artifacts/api-server/src/services/schema-preflight.test.ts",
+    "test:security:api": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/routes/user-search-security.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

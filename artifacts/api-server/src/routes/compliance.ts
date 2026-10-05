@@ -16,7 +16,8 @@ router.post("/compliance/eligibility", (req, res) => {
     res.status(400).json({ error: "Enter a valid age, two-letter state, identity status, and terms decision." });
     return;
   }
-  res.json(checkEligibility(parsed.data));
+  // No provider-backed identity evidence is wired yet. Never authorize a client claim.
+  res.json(checkEligibility({ ...parsed.data, identityStatus: "not_started" }));
 });
 
 export default router;

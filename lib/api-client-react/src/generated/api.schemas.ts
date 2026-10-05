@@ -134,15 +134,6 @@ export interface ProfileSettings {
   acceptedTerms: boolean;
 }
 
-export type ProfileUpdateIdentityStatus = typeof ProfileUpdateIdentityStatus[keyof typeof ProfileUpdateIdentityStatus];
-
-
-export const ProfileUpdateIdentityStatus = {
-  not_started: 'not_started',
-  pending: 'pending',
-  verified: 'verified',
-} as const;
-
 export interface ProfileUpdate {
   /**
      * @minLength 1
@@ -157,7 +148,6 @@ export interface ProfileUpdate {
   eligibilityAge?: number;
   /** @maxLength 2 */
   eligibilityState?: string;
-  identityStatus?: ProfileUpdateIdentityStatus;
   acceptedTerms?: boolean;
 }
 
@@ -309,7 +299,6 @@ export interface FreeStreak {
 export interface UserSearchResult {
   id: string;
   displayName: string;
-  email: string;
 }
 
 export interface PendingInvite {

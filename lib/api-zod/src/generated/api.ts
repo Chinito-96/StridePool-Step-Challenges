@@ -392,8 +392,7 @@ export const GetStridePoolBootstrapResponse = zod.object({
 }),
   "inviter": zod.object({
   "id": zod.string(),
-  "displayName": zod.string(),
-  "email": zod.string()
+  "displayName": zod.string()
 }),
   "createdAt": zod.coerce.date()
 }))
@@ -633,8 +632,7 @@ export const CreateStridePoolGroupChallengeResponse = zod.object({
 }),
   "members": zod.array(zod.object({
   "id": zod.string(),
-  "displayName": zod.string(),
-  "email": zod.string()
+  "displayName": zod.string()
 }))
 })
 
@@ -658,8 +656,7 @@ export const SearchStridePoolUsersHeader = zod.object({
 export const SearchStridePoolUsersResponse = zod.object({
   "users": zod.array(zod.object({
   "id": zod.string(),
-  "displayName": zod.string(),
-  "email": zod.string()
+  "displayName": zod.string()
 }))
 })
 
@@ -773,8 +770,7 @@ export const GetStridePoolPendingInvitesResponse = zod.object({
 }),
   "inviter": zod.object({
   "id": zod.string(),
-  "displayName": zod.string(),
-  "email": zod.string()
+  "displayName": zod.string()
 }),
   "createdAt": zod.coerce.date()
 }))
@@ -869,8 +865,7 @@ export const GetStridePoolInviteResponse = zod.object({
 }),
   "inviter": zod.object({
   "id": zod.string(),
-  "displayName": zod.string(),
-  "email": zod.string()
+  "displayName": zod.string()
 })
 })
 
@@ -1190,7 +1185,6 @@ export const UpdateStridePoolProfileBody = zod.object({
   "healthConnected": zod.boolean().optional(),
   "eligibilityAge": zod.int().min(updateStridePoolProfileBodyEligibilityAgeMin).optional(),
   "eligibilityState": zod.string().max(updateStridePoolProfileBodyEligibilityStateMax).optional(),
-  "identityStatus": zod.enum(['not_started', 'pending', 'verified']).optional(),
   "acceptedTerms": zod.boolean().optional()
 })
 

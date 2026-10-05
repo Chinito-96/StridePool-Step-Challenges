@@ -8,6 +8,7 @@ import { db, usersTable } from "@workspace/db";
 import { Router, type IRouter, type Request, type Response } from "express";
 import * as oidc from "openid-client";
 import { clearSession, createSession, deleteSession, getOidcConfig, getSessionId, ISSUER_URL, SESSION_COOKIE, SESSION_TTL, type SessionData } from "../lib/auth";
+import { getSafeReturnTo } from "../lib/request-security";
 
 const router: IRouter = Router();
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
@@ -22,9 +23,6 @@ function setSessionCookie(res: Response, sid: string) {
 }
 function setOidcCookie(res: Response, name: string, value: string) {
   res.cookie(name, value, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: OIDC_COOKIE_TTL });
-}
-function getSafeReturnTo(value: unknown): string {
-  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : "/";
 }
 async function upsertUser(claims: Record<string, unknown>) {
   const userData = {

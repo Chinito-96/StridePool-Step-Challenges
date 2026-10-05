@@ -6,6 +6,7 @@ import { logger } from "./lib/logger";
 import cookieParser from "cookie-parser";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { processStripeWebhook } from "./services/stripe-provider";
+import { getTrustedCorsOrigins, isTrustedCorsOrigin } from "./lib/request-security";
 
 const app: Express = express();
 
@@ -28,7 +29,13 @@ app.use(
     },
   }),
 );
-app.use(cors({ credentials: true, origin: true }));
+const trustedCorsOrigins = getTrustedCorsOrigins();
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    callback(null, isTrustedCorsOrigin(origin, trustedCorsOrigins));
+  },
+}));
 app.use(cookieParser());
 app.post(
   "/api/stripe/webhook",

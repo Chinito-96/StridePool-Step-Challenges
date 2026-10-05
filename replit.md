@@ -57,7 +57,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 
 ## User preferences
 
-- Use this build as a starting point and differentiate it further before any finalization or publication.
+- Launch publicly as an MVP and continue building and improving after launch. Prioritize security, reliability, and working core flows over optional enhancements.
 
 ## Gotchas
 

@@ -124,7 +124,6 @@ export * from './pendingInvitesResponse';
 export * from './profileSettings';
 export * from './profileSettingsIdentityStatus';
 export * from './profileUpdate';
-export * from './profileUpdateIdentityStatus';
 export * from './providerWebhookInput';
 export * from './providerWebhookInputCurrency';
 export * from './providerWebhookInputEventType';

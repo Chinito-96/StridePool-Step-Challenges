@@ -1368,7 +1368,6 @@ components:
         healthConnected: { type: boolean }
         eligibilityAge: { type: integer, minimum: 0 }
         eligibilityState: { type: string, maxLength: 2 }
-        identityStatus: { type: string, enum: [not_started, pending, verified] }
         acceptedTerms: { type: boolean }
     StridePoolBootstrap:
       type: object
@@ -1514,11 +1513,10 @@ components:
           items: { $ref: "#/components/schemas/UserSearchResult" }
     UserSearchResult:
       type: object
-      required: [id, displayName, email]
+      required: [id, displayName]
       properties:
         id: { type: string }
         displayName: { type: string }
-        email: { type: string }
     ChallengeLeaderboardResponse:
       type: object
       required: [challengeId, dailyGoal, days, prizePool, eligibleParticipantCount, disqualifiedCount, leaderboard]

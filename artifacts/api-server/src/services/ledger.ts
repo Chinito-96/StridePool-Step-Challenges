@@ -220,7 +220,9 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
   const eligibility = checkEligibility({
     age: user.eligibilityAge,
     state: user.eligibilityState,
-    identityStatus: user.eligibilityIdentityStatus as EligibilityInput["identityStatus"],
+    // Client-editable legacy profile values cannot authorize real-money play.
+    // Keep this closed until server-verified provider identity evidence is integrated.
+    identityStatus: "not_started",
     acceptedTerms: user.eligibilityAcceptedTerms,
   });
   if (!eligibility.eligible) {

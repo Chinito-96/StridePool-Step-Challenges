@@ -71,6 +71,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { buildLifetimeLeaderboard, calculateProjectedPayouts, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
 import { buildGroupMemberJoinedCandidate, buildParticipantNotificationCandidates } from "../services/stridepool-notifications";
 import { checkEligibility, getComplianceStatus } from "../services/ledger";
+import { publicUser } from "../lib/public-user";
 
 const router: IRouter = Router();
 const ANONYMOUS_WALKER_COOKIE = "stridepool_anon";
@@ -130,7 +131,8 @@ function profileFor(user: typeof usersTable.$inferSelect) {
     goalBaseline: numberValue(user.goalBaseline),
     eligibilityAge: user.eligibilityAge,
     eligibilityState: user.eligibilityState,
-    identityStatus: user.eligibilityIdentityStatus,
+    // Legacy profile claims are not provider verification evidence.
+    identityStatus: "not_started" as const,
     acceptedTerms: user.eligibilityAcceptedTerms,
   };
 }
@@ -348,13 +350,6 @@ function isOpenFreeCommunityChallenge(challenge: Challenge, today = new Date().t
   return challenge.community && numberValue(challenge.entryFee) === 0 && challenge.settlementStatus === "open" && challenge.endDate >= today;
 }
 
-function publicUser(user: typeof usersTable.$inferSelect) {
-  return {
-    id: user.id,
-    displayName: user.displayName || [user.firstName, user.lastName].filter(Boolean).join(" ") || "StridePool walker",
-    email: user.email ?? "",
-  };
-}
 
 async function getFreeStreak(userId: string) {
   const rows = await db.select({
@@ -581,8 +576,9 @@ router.get("/stridepool/community-challenges", async (req, res): Promise<void> =
     isOpenFreeCommunityChallenge(challenge) &&
     (!query || `${challenge.name} ${challenge.theme} ${challenge.level}`.toLowerCase().includes(query)),
   );
-  const joinedIds = req.isAuthenticated()
-    ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, req.user.id), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
+  const membershipUserId = req.isAuthenticated() ? req.user.id : anonymousWalkerId(req);
+  const joinedIds = membershipUserId
+    ? new Set((await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable).where(and(eq(entriesTable.userId, membershipUserId), eq(entriesTable.status, "active")))).map((entry) => entry.challengeId))
     : new Set<string>();
   const membership = req.isAuthenticated() ? await getMembershipSummary(req.user.id) : DEFAULT_MEMBERSHIP;
   res.json(GetStridePoolCommunityChallengesResponse.parse({ challenges: openChallenges.map((challenge) => challengeFor(challenge, joinedIds, membership.challengeJoinPrice, req.isAuthenticated() ? req.user.id : null)) }));
@@ -631,7 +627,7 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
   const eligibility = user ? checkEligibility({
     age: user.eligibilityAge,
     state: user.eligibilityState,
-    identityStatus: user.eligibilityIdentityStatus === "verified" || user.eligibilityIdentityStatus === "pending" ? user.eligibilityIdentityStatus : "not_started",
+    identityStatus: "not_started",
     acceptedTerms: user.eligibilityAcceptedTerms,
   }) : null;
   if (!compliance.paidPlayEnabled || !eligibility?.eligible) {
@@ -749,9 +745,16 @@ router.get("/stridepool/users/search", async (req, res): Promise<void> => {
     res.json(SearchStridePoolUsersResponse.parse({ users: [] }));
     return;
   }
-  const users = await db.select().from(usersTable).where(and(
+  const displayName = sql<string>`coalesce(nullif(${usersTable.displayName}, ''), nullif(trim(concat_ws(' ', ${usersTable.firstName}, ${usersTable.lastName})), ''), 'StridePool walker')`;
+  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const users = await db.select({
+    id: usersTable.id,
+    displayName: usersTable.displayName,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+  }).from(usersTable).where(and(
     sql`${usersTable.id} <> ${userId}`,
-    or(ilike(usersTable.displayName, `%${query}%`), ilike(usersTable.email, `%${query}%`), ilike(usersTable.firstName, `%${query}%`), ilike(usersTable.lastName, `%${query}%`)),
+    ilike(displayName, pattern),
   )).orderBy(asc(usersTable.displayName)).limit(10);
   res.json(SearchStridePoolUsersResponse.parse({ users: users.map(publicUser) }));
 });
@@ -1396,6 +1399,10 @@ router.post("/stridepool/wallet/demo-funds", async (req, res): Promise<void> => 
 router.patch("/stridepool/profile", async (req, res): Promise<void> => {
   const userId = requireUser(req, res);
   if (!userId) return;
+  if (req.body && typeof req.body === "object" && "identityStatus" in req.body) {
+    res.status(400).json({ error: "Identity verification is provider-managed and cannot be set through profile updates." });
+    return;
+  }
   const parsed = UpdateStridePoolProfileBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -1409,7 +1416,6 @@ router.patch("/stridepool/profile", async (req, res): Promise<void> => {
     healthConnected: parsed.data.healthConnected,
     eligibilityAge: parsed.data.eligibilityAge,
     eligibilityState: parsed.data.eligibilityState,
-    eligibilityIdentityStatus: parsed.data.identityStatus,
     eligibilityAcceptedTerms: parsed.data.acceptedTerms,
     updatedAt: new Date(),
   }).where(eq(usersTable.id, userId)).returning();

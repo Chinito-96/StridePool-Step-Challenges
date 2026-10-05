@@ -190,7 +190,6 @@ describe("StridePool authenticated persistence across sessions", () => {
         healthConnected: false,
         eligibilityAge: 34,
         eligibilityState: "NY",
-        identityStatus: "verified",
         acceptedTerms: true,
       }),
     });
@@ -204,7 +203,7 @@ describe("StridePool authenticated persistence across sessions", () => {
       goalBaseline: 8000,
       eligibilityAge: 34,
       eligibilityState: "NY",
-      identityStatus: "verified",
+      identityStatus: "not_started",
       acceptedTerms: true,
     });
 
