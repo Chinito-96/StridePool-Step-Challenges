@@ -329,6 +329,28 @@ describe("StridePool browser persistence", () => {
     assert.equal(identity.httpOnly, true);
     assert.ok(!cookies.some((cookie) => cookie.name === "sid"));
 
+    const discoveryResponse = await anonymousContext.request.get(`${webBaseUrl}/api/stridepool/community-challenges`);
+    assert.equal(discoveryResponse.status(), 200);
+    const discoveryBody = await discoveryResponse.json();
+    assert.deepEqual(Object.keys(discoveryBody), ["challenges"]);
+    const discoveredChallenge = discoveryBody.challenges.find(
+      (challenge: { id: string }) => challenge.id === anonymousChallengeId,
+    );
+    assert.equal(discoveredChallenge?.joined, true);
+    assert.ok(!("user" in discoveryBody));
+    assert.ok(!("wallet" in discoveryBody));
+    assert.ok(!("activities" in discoveryBody));
+
+    await page.getByTestId("link-back-challenges").click();
+    await page.getByTestId(`badge-community-joined-${anonymousChallengeId}`).waitFor();
+    await page.getByTestId(`button-community-view-joined-${anonymousChallengeId}`).waitFor();
+    assert.equal(await page.getByTestId(`button-community-join-${anonymousChallengeId}`).count(), 0);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByTestId(`badge-community-joined-${anonymousChallengeId}`).waitFor();
+    await page.getByTestId(`button-community-view-joined-${anonymousChallengeId}`).waitFor();
+    await page.getByTestId(`link-community-title-${anonymousChallengeId}`).click();
+    await page.getByText("You are in this pool", { exact: true }).waitFor();
+
     const readBootstrap = async () => {
       const response = await anonymousContext!.request.get(`${webBaseUrl}/api/stridepool/bootstrap`);
       assert.equal(response.status(), 200);
