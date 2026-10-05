@@ -1,4 +1,4 @@
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo';
 import type { HealthSource, NativeStepSample, PermissionState, StridePoolHealthModule } from './types';
 
 export type { HealthSource, NativeStepSample, PermissionState } from './types';

@@ -5,7 +5,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import StridePoolHealth, { type HealthSource } from 'stridepool-health';
+import StridePoolHealth, { type HealthSource } from '../modules/stridepool-health';
 import { useColors } from '@/hooks/useColors';
 
 type BridgeRequest = {

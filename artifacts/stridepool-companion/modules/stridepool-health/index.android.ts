@@ -1,4 +1,4 @@
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo';
 import type { readRecords } from 'react-native-health-connect';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type { HealthSource, NativeStepSample, PermissionState, StridePoolHealthModule } from './types';

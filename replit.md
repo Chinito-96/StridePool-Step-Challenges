@@ -57,7 +57,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 
 ## User preferences
 
-- Launch publicly as an MVP and continue building and improving after launch. Prioritize security, reliability, and working core flows over optional enhancements.
+- For the initial public release, complete the full paid-play and native-mobile launch checks before publishing, rather than releasing a limited web beta. Continue building and improving after MVP launch. Prioritize security, reliability, and working core flows over optional enhancements.
 
 ## Gotchas
 
