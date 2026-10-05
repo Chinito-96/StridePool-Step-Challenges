@@ -464,8 +464,20 @@ export async function recordProviderWebhook(input: ProviderWebhookInput) {
     let retryCount: number | undefined;
     if (input.eventType === "payout_failed" || input.eventType === "payout_succeeded") {
       const payoutId = String(input.metadata.stripe_payout_id ?? input.providerEventId);
-      const isSuccess = input.eventType === "payout_succeeded";
-      const initialProjection = projectPayoutEvent(undefined, input.eventType, input.providerEventId);
+      const providerStatus = typeof input.metadata.stripe_payout_status === "string"
+        ? input.metadata.stripe_payout_status
+        : undefined;
+      const initialProjection = projectPayoutEvent(
+        undefined,
+        input.eventType,
+        input.providerEventId,
+        providerStatus,
+      );
+      const isSuccess = initialProjection.status === "paid";
+      const alreadyPaidAuthoritatively = sql`(
+        ${payoutStatesTable.status} = 'paid'
+        and ${payoutStatesTable.metadata}->>'stripe_payout_status' is distinct from 'failed'
+      )`;
       const [payoutState] = await tx.insert(payoutStatesTable).values({
         providerPayoutId: payoutId,
         provider: providerName,
@@ -479,9 +491,10 @@ export async function recordProviderWebhook(input: ProviderWebhookInput) {
       }).onConflictDoUpdate({
         target: payoutStatesTable.providerPayoutId,
         set: {
-          status: sql`case when ${payoutStatesTable.status} = 'paid' then 'paid' when ${isSuccess} then 'paid' else 'retry_pending' end`,
-          retryCount: sql`case when ${payoutStatesTable.status} = 'paid' then ${payoutStatesTable.retryCount} when ${isSuccess} then ${payoutStatesTable.retryCount} else ${payoutStatesTable.retryCount} + 1 end`,
-          lastProviderEventId: sql`case when ${payoutStatesTable.status} = 'paid' then ${payoutStatesTable.lastProviderEventId} else ${input.providerEventId} end`,
+          status: sql`case when ${alreadyPaidAuthoritatively} then 'paid' when ${isSuccess} then 'paid' else 'retry_pending' end`,
+          retryCount: sql`case when ${alreadyPaidAuthoritatively} then ${payoutStatesTable.retryCount} when ${isSuccess} then ${payoutStatesTable.retryCount} else ${payoutStatesTable.retryCount} + 1 end`,
+          lastProviderEventId: sql`case when ${alreadyPaidAuthoritatively} then ${payoutStatesTable.lastProviderEventId} else ${input.providerEventId} end`,
+          metadata: sql`case when ${alreadyPaidAuthoritatively} then ${payoutStatesTable.metadata} else ${payoutStatesTable.metadata} || ${JSON.stringify(input.metadata)}::jsonb end`,
           updatedAt: new Date(),
         },
       }).returning();

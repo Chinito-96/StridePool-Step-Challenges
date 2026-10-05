@@ -213,18 +213,55 @@ test("eligibility stays closed until Stripe provider and reconciliation readines
   assert.equal(noApprovedStates.eligible, false);
 });
 
-test("late payout failure cannot regress a payout already marked paid", () => {
-  const failed = projectPayoutEvent(undefined, "payout_failed", "evt_failed");
-  const paid = projectPayoutEvent(failed, "payout_succeeded", "evt_paid");
-  const lateFailure = projectPayoutEvent(paid, "payout_failed", "evt_late_failed");
+test("a final failed payout stays pending across both webhook orders and duplicate events", () => {
+  const deliveries = [
+    { eventType: "payout_succeeded" as const, id: "evt_paid", status: "failed" },
+    { eventType: "payout_failed" as const, id: "evt_failed", status: "failed" },
+  ];
 
-  assert.deepEqual(failed, {
+  for (const order of [deliveries, [...deliveries].reverse()]) {
+    let projection: ReturnType<typeof projectPayoutEvent> | undefined;
+    for (const event of [...order, ...order]) {
+      projection = projectPayoutEvent(
+        projection,
+        event.eventType,
+        event.id,
+        event.status,
+      );
+      assert.equal(projection.status, "retry_pending");
+    }
+    assert.ok(projection);
+    assert.equal(projection.lastProviderEventId, order[1].id);
+  }
+
+  // A paid event with a failed payout snapshot keeps its raw event identity;
+  // only the materialized payout status is projected from the snapshot.
+  const failedSnapshot = projectPayoutEvent(undefined, "payout_succeeded", "evt_paid", "failed");
+  assert.deepEqual(failedSnapshot, {
     status: "retry_pending",
     retryCount: 1,
-    lastProviderEventId: "evt_failed",
+    lastProviderEventId: "evt_paid",
+    providerStatus: "failed",
   });
+
+  const previouslyMisprojected = {
+    status: "paid" as const,
+    retryCount: 0,
+    lastProviderEventId: "evt_paid",
+    providerStatus: "failed",
+  };
+  assert.equal(
+    projectPayoutEvent(previouslyMisprojected, "payout_failed", "evt_failed", "failed").status,
+    "retry_pending",
+  );
+});
+
+test("a genuinely paid payout remains paid after a late failure notification", () => {
+  const paid = projectPayoutEvent(undefined, "payout_succeeded", "evt_paid", "paid");
+  const lateFailure = projectPayoutEvent(paid, "payout_failed", "evt_late_failed", "failed");
+
   assert.equal(paid.status, "paid");
-  assert.equal(paid.retryCount, 1);
+  assert.equal(paid.retryCount, 0);
   assert.deepEqual(lateFailure, paid);
 });
 

@@ -13,4 +13,4 @@ Stripe test payouts can emit both `payout.paid` and `payout.failed` for one payo
 
 **Why:** Event type and the payout object's current status can disagree in sandbox delivery. Counting one append-only ledger row per event can still pass while the user-facing payout projection is wrong.
 
-**How to apply:** For payout tests, inspect both the raw event type and `data.object.status`/`failure_code`, then verify the persisted payout state separately from event receipt counts. Do not treat reconciliation success alone as permission to enable paid play.
+**How to apply:** Preserve each raw event type and ID in the append-only receipt, but derive the payout-state projection from `data.object.status` when it is `paid` or `failed`. Verify persisted payout state separately from event receipt counts, including both delivery orders and duplicate IDs. Do not treat reconciliation success alone as permission to enable paid play.
