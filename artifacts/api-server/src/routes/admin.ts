@@ -32,6 +32,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { getParticipantStatus, type ParticipantStatus } from "../services/stridepool-status";
 import { rebuildVerifiedDailyTotal } from "./stridepool";
 import { getStripeWebhookHealth } from "../services/stripe-webhook-health";
+import { PODIUM_CLOSEOUT_ALERT_FAILURE_THRESHOLD } from "../services/podium-closeout";
 
 const router: IRouter = Router();
 
@@ -403,7 +404,7 @@ router.get("/admin/closeout-alerts", async (req, res): Promise<void> => {
     eq(challengesTable.challengeType, "ranking"),
     eq(challengesTable.settlementStatus, "open"),
     lt(challengesTable.endDate, today),
-    gte(challengesTable.closeoutFailureCount, 3),
+    gte(challengesTable.closeoutFailureCount, PODIUM_CLOSEOUT_ALERT_FAILURE_THRESHOLD),
   )).orderBy(desc(challengesTable.closeoutLastFailedAt));
   res.json(GetAdminCloseoutAlertsResponse.parse({
     alerts: challenges.map((challenge) => ({

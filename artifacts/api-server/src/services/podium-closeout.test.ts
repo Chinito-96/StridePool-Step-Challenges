@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { closeFinishedPodiumChallenges } from "./podium-closeout";
+import { closeFinishedPodiumChallenges, PODIUM_CLOSEOUT_ALERT_FAILURE_THRESHOLD } from "./podium-closeout";
 
 describe("podium challenge closeout", () => {
   it("uses the UTC date and settles every discovered challenge", async () => {
@@ -17,7 +17,7 @@ describe("podium challenge closeout", () => {
         settled.push({ challengeId, now: settledAt });
         return { alreadySettled: false };
       },
-      recordFailure: async () => {},
+      recordFailure: async () => null,
     });
 
     assert.equal(receivedToday, "2026-09-16");
@@ -41,6 +41,7 @@ describe("podium challenge closeout", () => {
       },
       recordFailure: async (challengeId, now, today) => {
         failures.push({ challengeId, now, today });
+        return null;
       },
     });
 
@@ -72,7 +73,7 @@ describe("podium challenge closeout", () => {
         }
         return { alreadySettled: true };
       },
-      recordFailure: async () => {},
+      recordFailure: async () => null,
     };
 
     const firstPass = closeFinishedPodiumChallenges(new Date("2026-09-16T12:00:00Z"), dependencies);
@@ -85,5 +86,53 @@ describe("podium challenge closeout", () => {
     assert.deepEqual(results.map((result) => result.settled).sort(), [0, 1]);
     assert.deepEqual(results.map((result) => result.failed), [0, 0]);
     assert.deepEqual(payoutLedgerEntries, ["shared-ranking-payout"]);
+  });
+
+  it("emails support once when a closeout failure reaches the alert threshold", async () => {
+    const now = new Date("2026-09-16T12:00:00.000Z");
+    const sent: Array<{ challengeId: string; failureCount: number; lastFailedAt: Date }> = [];
+    let failureCount = 0;
+    let notificationSent = false;
+    const dependencies = {
+      findChallengeIds: async () => ["blocked-ranking"],
+      settle: async () => {
+        throw new Error("payout closeout unavailable");
+      },
+      recordFailure: async (challengeId: string) => ({
+        challengeId,
+        failureCount: ++failureCount,
+      }),
+      claimAlert: async (challengeId: string, at: Date) => notificationSent ? null : ({
+        challengeId,
+        challengeName: "Weekend ranking",
+        failureCount,
+        lastFailedAt: at,
+        claimId: `claim-${failureCount}`,
+      }),
+      sendAlert: async (alert: { challengeId: string; failureCount: number; lastFailedAt: Date }) => {
+        sent.push({
+          challengeId: alert.challengeId,
+          failureCount: alert.failureCount,
+          lastFailedAt: alert.lastFailedAt,
+        });
+      },
+      markAlertSent: async () => {
+        notificationSent = true;
+      },
+      releaseAlertClaim: async () => {},
+    };
+
+    for (let attempt = 1; attempt <= PODIUM_CLOSEOUT_ALERT_FAILURE_THRESHOLD - 1; attempt += 1) {
+      await closeFinishedPodiumChallenges(now, dependencies);
+    }
+    assert.deepEqual(sent, []);
+
+    await closeFinishedPodiumChallenges(now, dependencies);
+    await closeFinishedPodiumChallenges(now, dependencies);
+    assert.deepEqual(sent, [{
+      challengeId: "blocked-ranking",
+      failureCount: PODIUM_CLOSEOUT_ALERT_FAILURE_THRESHOLD,
+      lastFailedAt: now,
+    }]);
   });
 });

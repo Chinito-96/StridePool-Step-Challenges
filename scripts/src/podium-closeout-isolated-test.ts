@@ -25,6 +25,13 @@ async function createIsolatedSchema(schemaName: string) {
     );
   }
 
+  await pool.query(
+    `ALTER TABLE ${schema}.challenges
+       ADD COLUMN IF NOT EXISTS closeout_alert_claim_id varchar,
+       ADD COLUMN IF NOT EXISTS closeout_alert_claimed_at timestamptz,
+       ADD COLUMN IF NOT EXISTS closeout_alert_sent_at timestamptz`,
+  );
+
   const serialColumns = await pool.query<{
     table_name: (typeof sourceTables)[number];
     column_name: string;

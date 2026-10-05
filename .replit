@@ -93,3 +93,6 @@ packages = ["stripe-cli"]
 [userenv.development]
 STRIPE_SANDBOX_ACCOUNT_ID = "acct_1ULZZUH12DVa3iB6"
 STRIPE_SANDBOX_RECONCILIATION_PASSED = "true"
+
+[userenv.shared]
+RESEND_FROM_EMAIL = "alerts@stridepool.com"

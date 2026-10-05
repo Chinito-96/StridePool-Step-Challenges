@@ -68,6 +68,7 @@ async function status(challengeId: string) {
   const [challenge] = await db.select({
     settlementStatus: challengesTable.settlementStatus,
     settledAt: challengesTable.settledAt,
+    closeoutAlertSentAt: challengesTable.closeoutAlertSentAt,
   }).from(challengesTable).where(eq(challengesTable.id, challengeId));
   return challenge;
 }
@@ -169,6 +170,12 @@ describe("automatic podium closeout with the database", () => {
     await joinChallenge(userId, challengeId, beforeStart);
     const [entry] = await db.select().from(entriesTable).where(eq(entriesTable.challengeId, challengeId));
     const blockerId = `ledger_settlement_${entry.id}`;
+    const supportAlerts: Array<{ challengeId: string; challengeName: string; failureCount: number; lastFailedAt: Date }> = [];
+    const dependencies = {
+      sendAlert: async (alert: { challengeId: string; challengeName: string; failureCount: number; lastFailedAt: Date }) => {
+        supportAlerts.push(alert);
+      },
+    };
     // Force the real settlement transaction to roll back at its ledger insert.
     await db.insert(walletLedgerEntriesTable).values({
       id: blockerId,
@@ -180,7 +187,7 @@ describe("automatic podium closeout with the database", () => {
     });
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 1, settled: 0, failed: 1 });
+      assert.deepEqual(await closeFinishedPodiumChallenges(now, dependencies), { found: 1, settled: 0, failed: 1 });
       const [failedChallenge] = await db.select({
         count: challengesTable.closeoutFailureCount,
         lastFailedAt: challengesTable.closeoutLastFailedAt,
@@ -188,7 +195,22 @@ describe("automatic podium closeout with the database", () => {
       assert.equal(failedChallenge.count, attempt);
       assert.deepEqual(failedChallenge.lastFailedAt, now);
     }
-    assert.deepEqual(await status(challengeId), { settlementStatus: "open", settledAt: null });
+    assert.deepEqual(supportAlerts.map(({ challengeId: alertChallengeId, challengeName, failureCount: alertFailureCount, lastFailedAt }) => ({
+      challengeId: alertChallengeId,
+      challengeName,
+      failureCount: alertFailureCount,
+      lastFailedAt,
+    })), [{
+      challengeId,
+      challengeName: "Closeout integration fixture",
+      failureCount: 3,
+      lastFailedAt: now,
+    }]);
+    assert.deepEqual(await status(challengeId), {
+      settlementStatus: "open",
+      settledAt: null,
+      closeoutAlertSentAt: now,
+    });
     const [afterFailure] = await db.select({
       walletBalance: usersTable.walletBalance,
       walletPending: usersTable.walletPending,
@@ -197,15 +219,28 @@ describe("automatic podium closeout with the database", () => {
     assert.deepEqual(afterFailure, { walletBalance: "90.00", walletPending: "10.00", totalEarned: "0.00" });
     assert.deepEqual(await settlementEvents(challengeId), []);
 
+    // Further retries do not send a duplicate alert for the same blocked incident.
+    await closeFinishedPodiumChallenges(now, dependencies);
+    assert.equal(supportAlerts.length, 1);
+
     await db.delete(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.id, blockerId));
-    assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 1, settled: 1, failed: 0 });
+    assert.deepEqual(await closeFinishedPodiumChallenges(now, dependencies), { found: 1, settled: 1, failed: 0 });
     assert.deepEqual(await closeFinishedPodiumChallenges(now), { found: 0, settled: 0, failed: 0 });
     assert.equal((await status(challengeId)).settlementStatus, "settled");
     const [cleared] = await db.select({
       count: challengesTable.closeoutFailureCount,
       lastFailedAt: challengesTable.closeoutLastFailedAt,
+      alertClaimId: challengesTable.closeoutAlertClaimId,
+      alertClaimedAt: challengesTable.closeoutAlertClaimedAt,
+      alertSentAt: challengesTable.closeoutAlertSentAt,
     }).from(challengesTable).where(eq(challengesTable.id, challengeId));
-    assert.deepEqual(cleared, { count: 0, lastFailedAt: null });
+    assert.deepEqual(cleared, {
+      count: 0,
+      lastFailedAt: null,
+      alertClaimId: null,
+      alertClaimedAt: null,
+      alertSentAt: null,
+    });
     assert.deepEqual(await settlementEvents(challengeId), [
       { userId, eventType: "settlement_earned", amountCents: 1000 },
     ]);
