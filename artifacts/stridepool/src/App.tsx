@@ -645,7 +645,7 @@ function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
     </div>;
     })}</div>
     <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-[11px] leading-5 text-muted-foreground" data-testid="text-background-scheduling-limits">
-      <span className="font-semibold text-foreground">Background checks are best-effort.</span> iPhone HealthKit may wake the companion at most hourly; Android checks run no more frequently than about every 15 minutes. Your device controls timing and may defer or stop checks because of force-quit, battery, or other OS restrictions. Open the companion to sync immediately.
+      <span className="font-semibold text-foreground">Background checks are best-effort.</span> iPhone HealthKit may wake the companion at most hourly; Android’s background check interval has a roughly 15-minute minimum, but Android may run checks later or defer them because of network, battery, force-stop, or other OS restrictions. Open the companion to sync immediately.
     </div>
   </div>;
 }

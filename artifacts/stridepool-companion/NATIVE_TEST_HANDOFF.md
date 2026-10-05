@@ -103,6 +103,19 @@ Use signed-in test accounts and free challenges while paid play is blocked. Do n
 | Android restart | Restart the phone after enabling background delivery. Check whether uploads resume without reopening the app, then separately test foreground recovery. |
 | Sign out | Sign out, then record activity. Confirm it does not get delivered using the previous account session. |
 
+### Android background and reboot procedure
+
+Run these checks on an installed **Release** build with step-read and background-read access granted. Keep ordinary app backgrounding, reboot, and Android force-stop as separate runs; force-stop is not evidence of ordinary background delivery.
+
+1. Sign in to a test account, enable both Health Connect permissions, and confirm StridePool reports background delivery as scheduled. Record the phone model, Android version, app build, tested revision, and network state.
+2. For the closed-app run, background StridePool without force-stopping it. Record new steps through normal activity. Keep the companion and its WebView unopened; use a separate signed-in browser to check whether the new sample arrived.
+3. For the reboot run, first confirm background delivery is enabled, then restart the phone. Unlock it, leave StridePool unopened, record new steps, and check the account from a separate browser before launching StridePool. Record the observation window and actual result; do not treat the 15-minute minimum interval as a deadline.
+4. For the network-constraint run, repeat after restarting with network unavailable, then restore connectivity without opening StridePool. Check whether delivery resumes after Android runs eligible work. Do not count time without network as a worker failure.
+5. After recording each pre-open result, launch StridePool and sync. Confirm the same Health Connect records do not increase verified totals a second time.
+6. Test Android force-stop separately and record it as such. If uploads resume only after launching StridePool, report that as foreground recovery, not closed-app background delivery.
+
+The worker rereads records from Health Connect on each run and keeps only a failed-attempt timestamp and reason in app preferences. This storage boundary is verified from source; it is not a substitute for the installed-device delivery checks above.
+
 ### iPhone suspended-app evidence
 
 For the iPhone background check, use an installed **Release** build with the HealthKit and HealthKit background-delivery entitlements in `app.json`. Sign in to a test account, grant step access in iOS Health settings, and confirm the companion reports background delivery as scheduled. The app's message says delivery is scheduled when the device allows it; it is not a timing guarantee.
