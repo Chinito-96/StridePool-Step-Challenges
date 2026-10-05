@@ -5,6 +5,9 @@ import {
   countOverdueStripeEvents,
   countUnresolvedStripeWebhookFailures,
   evaluateStripeWebhookHealth,
+  hasPersistentStripeWebhookHealthIssue,
+  isStripeWebhookHealthAlertable,
+  isStripeWebhookHealthRecovery,
   processWebhookWithReceipt,
   resolveExactManagedWebhook,
   stripeWebhookReceiptKey,
@@ -120,6 +123,43 @@ test("health policy distinguishes idle, delayed, repeated failures, and unknown 
     overdueEventCount: 0,
     failedEventCount: 0,
   }).status, "unknown");
+});
+
+test("support alerts require repeated, sustained known failures and complete evidence for recovery", () => {
+  const startedAt = new Date("2026-10-05T12:00:00.000Z");
+  assert.equal(isStripeWebhookHealthAlertable("missing"), true);
+  assert.equal(isStripeWebhookHealthAlertable("disabled"), true);
+  assert.equal(isStripeWebhookHealthAlertable("delivery_delayed"), true);
+  assert.equal(isStripeWebhookHealthAlertable("repeated_failure"), true);
+  assert.equal(isStripeWebhookHealthAlertable("unknown"), false);
+  assert.equal(hasPersistentStripeWebhookHealthIssue(
+    "delivery_delayed",
+    2,
+    startedAt,
+    new Date("2026-10-05T12:05:00.000Z"),
+  ), false);
+  assert.equal(hasPersistentStripeWebhookHealthIssue(
+    "delivery_delayed",
+    3,
+    startedAt,
+    new Date("2026-10-05T12:01:59.999Z"),
+  ), false);
+  assert.equal(hasPersistentStripeWebhookHealthIssue(
+    "delivery_delayed",
+    3,
+    startedAt,
+    new Date("2026-10-05T12:02:00.000Z"),
+  ), true);
+  assert.equal(hasPersistentStripeWebhookHealthIssue(
+    "unknown",
+    10,
+    startedAt,
+    new Date("2026-10-05T12:10:00.000Z"),
+  ), false);
+  assert.equal(isStripeWebhookHealthRecovery("healthy", true), true);
+  assert.equal(isStripeWebhookHealthRecovery("idle", true), true);
+  assert.equal(isStripeWebhookHealthRecovery("healthy", false), false);
+  assert.equal(isStripeWebhookHealthRecovery("unknown", false), false);
 });
 
 test("managed endpoint resolution requires one exact persisted URL and a matching live retrieve", async () => {

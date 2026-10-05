@@ -7,6 +7,37 @@ export type StripeWebhookHealthStatus =
   | "repeated_failure"
   | "unknown";
 
+export const STRIPE_WEBHOOK_ALERT_PERSISTENCE_CHECKS = 3;
+export const STRIPE_WEBHOOK_ALERT_MINIMUM_DURATION_MS = 2 * 60_000;
+
+export function isStripeWebhookHealthAlertable(
+  status: StripeWebhookHealthStatus,
+): status is "missing" | "disabled" | "delivery_delayed" | "repeated_failure" {
+  return status === "missing"
+    || status === "disabled"
+    || status === "delivery_delayed"
+    || status === "repeated_failure";
+}
+
+export function hasPersistentStripeWebhookHealthIssue(
+  status: StripeWebhookHealthStatus,
+  consecutiveChecks: number,
+  observedSince: Date | null,
+  now: Date,
+): boolean {
+  return isStripeWebhookHealthAlertable(status)
+    && consecutiveChecks >= STRIPE_WEBHOOK_ALERT_PERSISTENCE_CHECKS
+    && observedSince !== null
+    && now.getTime() - observedSince.getTime() >= STRIPE_WEBHOOK_ALERT_MINIMUM_DURATION_MS;
+}
+
+export function isStripeWebhookHealthRecovery(
+  status: StripeWebhookHealthStatus,
+  evidenceComplete: boolean,
+): boolean {
+  return evidenceComplete && (status === "healthy" || status === "idle");
+}
+
 export function stripeWebhookReceiptKey(
   endpointId: string | null,
   endpointUrl: string | null,

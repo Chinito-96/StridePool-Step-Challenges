@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startPodiumCloseoutScheduler } from "./services/podium-closeout";
+import { startStripeWebhookHealthScheduler } from "./services/stripe-webhook-health-monitor";
 import { initializeStripeProvider } from "./services/stripe-provider";
 import { pool } from "@workspace/db";
 import { assertWebhookHealthSchemaReady } from "./services/schema-preflight";
@@ -36,4 +37,5 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startPodiumCloseoutScheduler();
+  startStripeWebhookHealthScheduler();
 });

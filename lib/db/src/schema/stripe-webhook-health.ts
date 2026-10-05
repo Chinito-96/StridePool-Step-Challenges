@@ -71,3 +71,35 @@ export const insertStripeWebhookHealthReceiptSchema =
   createInsertSchema(stripeWebhookHealthReceiptsTable);
 export type InsertStripeWebhookHealthReceipt =
   z.infer<typeof insertStripeWebhookHealthReceiptSchema>;
+
+/**
+ * Durable support-alert state for the exact expected webhook URL. This stores
+ * incident metadata only; it never changes provider readiness or endpoint
+ * configuration.
+ */
+export const stripeWebhookHealthAlertStatesTable = pgTable(
+  "stripe_webhook_health_alert_states",
+  {
+    endpointUrl: varchar("endpoint_url").primaryKey(),
+    endpointId: varchar("endpoint_id"),
+    observedStatus: varchar("observed_status").notNull().default("unknown"),
+    consecutiveChecks: integer("consecutive_checks").notNull().default(0),
+    observedSince: timestamp("observed_since", { withTimezone: true }),
+    candidateIncidentId: varchar("candidate_incident_id"),
+    activeStatus: varchar("active_status"),
+    activeIncidentId: varchar("active_incident_id"),
+    notificationClaimId: varchar("notification_claim_id"),
+    notificationClaimType: varchar("notification_claim_type"),
+    notificationClaimStatus: varchar("notification_claim_status"),
+    notificationClaimIncidentId: varchar("notification_claim_incident_id"),
+    notificationClaimedAt: timestamp("notification_claimed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export type StripeWebhookHealthAlertState =
+  typeof stripeWebhookHealthAlertStatesTable.$inferSelect;
+export const insertStripeWebhookHealthAlertStateSchema =
+  createInsertSchema(stripeWebhookHealthAlertStatesTable);
+export type InsertStripeWebhookHealthAlertState =
+  z.infer<typeof insertStripeWebhookHealthAlertStateSchema>;

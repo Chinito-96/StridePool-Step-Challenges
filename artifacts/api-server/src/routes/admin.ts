@@ -31,14 +31,14 @@ import { and, asc, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getParticipantStatus, type ParticipantStatus } from "../services/stridepool-status";
 import { rebuildVerifiedDailyTotal } from "./stridepool";
-import { getStripeWebhookHealth } from "../services/stripe-webhook-health";
+import { reviewStripeWebhookHealth } from "../services/stripe-webhook-health-monitor";
 import { PODIUM_CLOSEOUT_ALERT_FAILURE_THRESHOLD } from "../services/podium-closeout";
 
 const router: IRouter = Router();
 
 router.get("/admin/stripe-webhook-health", async (req, res) => {
   if (!await requireAdmin(req, res)) return;
-  res.json(GetAdminStripeWebhookHealthResponse.parse(await getStripeWebhookHealth()));
+  res.json(GetAdminStripeWebhookHealthResponse.parse(await reviewStripeWebhookHealth()));
 });
 
 function numberValue(value: string | number | null | undefined): number {

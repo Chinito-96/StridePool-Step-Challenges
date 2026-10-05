@@ -1,6 +1,7 @@
 export const REQUIRED_WEBHOOK_HEALTH_TABLES = [
   "public.stripe_webhook_health_baselines",
   "public.stripe_webhook_health_receipts",
+  "public.stripe_webhook_health_alert_states",
 ];
 
 /** Read-only preflight. Schema changes belong to development setup and the Publish flow. */

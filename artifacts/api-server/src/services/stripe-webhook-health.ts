@@ -27,7 +27,7 @@ let runtimeEndpointIdentity: {
 } | undefined;
 
 export type StripeWebhookHealth = {
-  status: StripeWebhookHealthStatus | string;
+  status: StripeWebhookHealthStatus;
   message: string;
   checkedAt: string;
   endpointId: string | null;
