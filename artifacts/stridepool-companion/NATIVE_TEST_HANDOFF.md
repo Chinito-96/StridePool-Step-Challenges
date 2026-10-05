@@ -63,6 +63,30 @@ Configure any required local Release signing in Xcode/Gradle. These commands are
 
 ## 4. Device checks
 
+### Alternative: EAS cloud builds from your external checkout
+
+The checked-in `eas.json` has a **preview-only** profile: installable Android APKs and signed physical-iPhone builds for internal testing. These builds do not need Metro. No store-submission profile or automatic publication is configured.
+
+Run the external-workspace preparation in section 1 before uploading an iPhone build. Use the current EAS CLI locally, not inside Replit:
+
+```sh
+npm install -g eas-cli
+eas login
+cd artifacts/stridepool-companion
+eas init
+eas env:set --name EXPO_PUBLIC_DOMAIN --value YOUR_STRIDEPOOL_WEB_PREVIEW_HOST --environment preview --visibility plaintext
+eas device:create
+eas build --profile preview --platform all
+```
+
+Use `eas init` to link this checkout to your own Expo project; do not invent a project ID. `eas device:create` registers the physical iPhone for internal distribution. iPhone builds require a suitable Apple Developer account and provisioning; configure these through Expo's local prompts and never share credentials in chat. Android-only testing can start with `--platform android` if iPhone provisioning is not ready.
+
+The pre-install hook refuses missing/malformed backend hostnames, Expo/Metro hostnames, and iPhone uploads that still exclude macOS tooling binaries. It does not enable paid play or prove native compilation. Download and install the resulting test builds, then complete the checklist below.
+
+The default Git/EAS ignore rules exclude local environment files, common native signing credentials, and generated app native projects. The checked-in health-module native source remains included so EAS Prebuild can link it. Never deliberately override these exclusions to upload credentials. Supply signing configuration through Expo's credential prompts instead.
+
+For configuration and hooks, see the official [EAS profile guide](https://docs.expo.dev/build/eas-json), [environment-variable guide](https://docs.expo.dev/build-reference/variables/), and [build-hook guide](https://docs.expo.dev/build-reference/npm-hooks/).
+
 Use signed-in test accounts and free challenges while paid play is blocked. Do not use real entry payments to test native health delivery.
 
 | Check | Required observation |

@@ -47,3 +47,25 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local environment files and native signing credentials must not enter source
+# control or the default EAS upload archive.
+.env
+.env.*
+!.env.example
+!.env.sample
+credentials.json
+*.p12
+*.p8
+*.pem
+*.key
+*.mobileprovision
+*.keystore
+*.jks
+service-account*.json
+google-service-account*.json
+
+# Generate app native projects from app.json and the local modules on EAS.
+# Do not ignore modules/stridepool-health/{ios,android}: those are source.
+/artifacts/stridepool-companion/ios/
+/artifacts/stridepool-companion/android/
