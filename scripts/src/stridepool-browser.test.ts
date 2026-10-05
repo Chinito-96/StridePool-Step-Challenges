@@ -27,6 +27,10 @@ const runId = `browser-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const userId = `${runId}-user`;
 const challengeId = `${runId}-challenge`;
 const anonymousChallengeId = `${runId}-anonymous-challenge`;
+const isolatedBrowserChallengeIds = [
+  `${runId}-isolated-browser-first`,
+  `${runId}-isolated-browser-second`,
+] as const;
 const today = new Date().toISOString().slice(0, 10);
 const displayName = "Reload Walker";
 const syncedSteps = 4321;
@@ -44,6 +48,8 @@ let browser: Browser | undefined;
 let context: BrowserContext | undefined;
 let anonymousContext: BrowserContext | undefined;
 let anonymousUserId = "";
+let isolatedBrowserContexts: BrowserContext[] = [];
+const isolatedBrowserUserIds = new Set<string>();
 let cleanupStack: CleanupStack | undefined;
 
 function getFreePort(): Promise<number> {
@@ -76,10 +82,14 @@ async function cleanupFixtureRows(): Promise<void> {
   await db.transaction(async (tx) => {
     // Discover the identity through our unique challenge too, so cleanup
     // still works if an assertion fails before the cookie is captured.
-    const anonymousEntries = await tx.select({ userId: entriesTable.userId })
-      .from(entriesTable).where(eq(entriesTable.challengeId, anonymousChallengeId));
-    const ownedAnonymousIds = new Set(anonymousEntries.map((entry) => entry.userId));
+    const ownedAnonymousIds = new Set<string>();
+    for (const fixtureId of [anonymousChallengeId, ...isolatedBrowserChallengeIds]) {
+      const anonymousEntries = await tx.select({ userId: entriesTable.userId })
+        .from(entriesTable).where(eq(entriesTable.challengeId, fixtureId));
+      for (const entry of anonymousEntries) ownedAnonymousIds.add(entry.userId);
+    }
     if (anonymousUserId) ownedAnonymousIds.add(anonymousUserId);
+    for (const id of isolatedBrowserUserIds) ownedAnonymousIds.add(id);
     for (const id of ownedAnonymousIds) {
       assert.match(id, /^anon_[a-f0-9]{32}$/);
       await tx.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, id));
@@ -87,6 +97,8 @@ async function cleanupFixtureRows(): Promise<void> {
       await tx.delete(usersTable).where(eq(usersTable.id, id));
     }
     await tx.delete(challengesTable).where(eq(challengesTable.id, anonymousChallengeId));
+    await tx.delete(challengesTable).where(eq(challengesTable.id, isolatedBrowserChallengeIds[0]));
+    await tx.delete(challengesTable).where(eq(challengesTable.id, isolatedBrowserChallengeIds[1]));
     await tx.delete(sessionsTable).where(eq(sessionsTable.sid, sessionId));
     await tx.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, userId));
     await tx.delete(entriesTable).where(eq(entriesTable.userId, userId));
@@ -113,9 +125,13 @@ describe("StridePool browser persistence", () => {
       cleanup.defer(async () => {
         try {
           // Capture even a failed join's new identity before closing its browser.
-          if (anonymousContext && !anonymousUserId) {
-            anonymousUserId = (await anonymousContext.cookies())
-              .find((cookie) => cookie.name === "stridepool_anon")?.value ?? "";
+          for (const browserContext of [anonymousContext, ...isolatedBrowserContexts]) {
+            if (!browserContext) continue;
+            const identity = (await browserContext.cookies())
+              .find((cookie) => cookie.name === "stridepool_anon")?.value;
+            if (!identity) continue;
+            if (browserContext === anonymousContext) anonymousUserId = identity;
+            else isolatedBrowserUserIds.add(identity);
           }
         } finally {
           try {
@@ -124,7 +140,11 @@ describe("StridePool browser persistence", () => {
             try {
               await anonymousContext?.close();
             } finally {
-              await browser?.close();
+              try {
+                for (const isolatedContext of isolatedBrowserContexts) await isolatedContext.close();
+              } finally {
+                await browser?.close();
+              }
             }
           }
         }
@@ -190,6 +210,25 @@ describe("StridePool browser persistence", () => {
         goalType: "fixed",
         community: true,
       });
+      await db.insert(challengesTable).values(isolatedBrowserChallengeIds.map((id, index) => ({
+        id,
+        name: `Isolated Browser Check ${index + 1}`,
+        theme: `An isolated free challenge for browser ${index + 1}`,
+        level: "Open",
+        startDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        endDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10),
+        days: 5,
+        dailyGoal: 8000,
+        entryFee: "0.00",
+        prizePool: "0.00",
+        participantCount: 0,
+        finishers: 0,
+        settlementStatus: "open",
+        color: "#7f9f56",
+        challengeType: "goal" as const,
+        goalType: "fixed" as const,
+        community: true,
+      })));
 
       sessionId = crypto.randomBytes(32).toString("hex");
       await db.insert(sessionsTable).values({
@@ -408,5 +447,101 @@ describe("StridePool browser persistence", () => {
       .where(eq(entriesTable.userId, anonymousUserId));
     assert.equal(savedEntries.length, 1, "Reload must not create another membership.");
     assert.equal(savedEntries[0].challengeId, anonymousChallengeId);
+  });
+
+  it("keeps anonymous memberships isolated between fresh browser contexts", async () => {
+    assert.ok(browser);
+    const firstContext = await browser.newContext();
+    const secondContext = await browser.newContext();
+    isolatedBrowserContexts.push(firstContext, secondContext);
+    const firstPage = await firstContext.newPage();
+    const secondPage = await secondContext.newPage();
+    const [firstChallengeId, secondChallengeId] = isolatedBrowserChallengeIds;
+
+    await Promise.all([
+      firstPage.goto(`${webBaseUrl}/community`, { waitUntil: "domcontentloaded" }),
+      secondPage.goto(`${webBaseUrl}/community`, { waitUntil: "domcontentloaded" }),
+    ]);
+    const firstInitialBootstrap = await (await firstContext.request.get(`${webBaseUrl}/api/stridepool/bootstrap`)).json();
+    const secondInitialBootstrap = await (await secondContext.request.get(`${webBaseUrl}/api/stridepool/bootstrap`)).json();
+    assert.deepEqual(firstInitialBootstrap.joinedIds, []);
+    assert.deepEqual(secondInitialBootstrap.joinedIds, []);
+    assert.deepEqual(await firstContext.cookies(), []);
+    assert.deepEqual(await secondContext.cookies(), []);
+
+    const joinChallenge = async (page: Page, fixtureId: string): Promise<void> => {
+      await page.getByTestId(`button-community-join-${fixtureId}`).click();
+      await page.getByTestId(`button-open-join-${fixtureId}`).click();
+      const joinResponse = page.waitForResponse((response) =>
+        response.url().endsWith(`/api/stridepool/challenges/${fixtureId}/join`)
+        && response.request().method() === "POST",
+      );
+      await page.getByTestId("button-confirm-join").click();
+      const response = await joinResponse;
+      assert.equal(response.status(), 200, await response.text());
+    };
+
+    await joinChallenge(firstPage, firstChallengeId);
+    const firstIdentity = (await firstContext.cookies())
+      .find((cookie) => cookie.name === "stridepool_anon");
+    assert.ok(firstIdentity, "The first free join must create a browser identity.");
+    isolatedBrowserUserIds.add(firstIdentity.value);
+    assert.match(firstIdentity.value, /^anon_[a-f0-9]{32}$/);
+    assert.equal(firstIdentity.httpOnly, true);
+
+    const secondBeforeJoin = await (
+      await secondContext.request.get(`${webBaseUrl}/api/stridepool/bootstrap`)
+    ).json();
+    assert.equal(secondBeforeJoin.user, null);
+    assert.deepEqual(secondBeforeJoin.joinedIds, []);
+    assert.deepEqual(await secondContext.cookies(), [], "The first browser's identity must not reach the second browser.");
+
+    await joinChallenge(secondPage, secondChallengeId);
+    const secondIdentity = (await secondContext.cookies())
+      .find((cookie) => cookie.name === "stridepool_anon");
+    assert.ok(secondIdentity, "The second free join must create its own browser identity.");
+    isolatedBrowserUserIds.add(secondIdentity.value);
+    assert.match(secondIdentity.value, /^anon_[a-f0-9]{32}$/);
+    assert.equal(secondIdentity.httpOnly, true);
+    assert.notEqual(firstIdentity.value, secondIdentity.value);
+
+    const readJoinedIds = async (browserContext: BrowserContext) => {
+      const response = await browserContext.request.get(`${webBaseUrl}/api/stridepool/bootstrap`);
+      assert.equal(response.status(), 200);
+      return (await response.json()).joinedIds as string[];
+    };
+    assert.deepEqual((await readJoinedIds(firstContext)).sort(), [firstChallengeId]);
+    assert.deepEqual((await readJoinedIds(secondContext)).sort(), [secondChallengeId]);
+
+    // Successful joins open each challenge detail page. Return to the
+    // community list before reloading so the assertions cover its persisted
+    // joined and unjoined card states in each browser.
+    await Promise.all([
+      firstPage.goto(`${webBaseUrl}/community`, { waitUntil: "domcontentloaded" }),
+      secondPage.goto(`${webBaseUrl}/community`, { waitUntil: "domcontentloaded" }),
+    ]);
+    await Promise.all([
+      firstPage.reload({ waitUntil: "domcontentloaded" }),
+      secondPage.reload({ waitUntil: "domcontentloaded" }),
+    ]);
+    await firstPage.getByTestId(`badge-community-joined-${firstChallengeId}`).waitFor();
+    await firstPage.getByTestId(`button-community-join-${secondChallengeId}`).waitFor();
+    await secondPage.getByTestId(`badge-community-joined-${secondChallengeId}`).waitFor();
+    await secondPage.getByTestId(`button-community-join-${firstChallengeId}`).waitFor();
+
+    const firstEntries = await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable)
+      .where(eq(entriesTable.userId, firstIdentity.value));
+    const secondEntries = await db.select({ challengeId: entriesTable.challengeId }).from(entriesTable)
+      .where(eq(entriesTable.userId, secondIdentity.value));
+    assert.deepEqual(firstEntries.map((entry) => entry.challengeId), [firstChallengeId]);
+    assert.deepEqual(secondEntries.map((entry) => entry.challengeId), [secondChallengeId]);
+    assert.equal(
+      (await firstContext.cookies()).find((cookie) => cookie.name === "stridepool_anon")?.value,
+      firstIdentity.value,
+    );
+    assert.equal(
+      (await secondContext.cookies()).find((cookie) => cookie.name === "stridepool_anon")?.value,
+      secondIdentity.value,
+    );
   });
 });
