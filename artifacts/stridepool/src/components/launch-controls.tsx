@@ -30,9 +30,9 @@ export function LaunchControls() {
           <p>Readiness is unavailable. This does not authorize paid play.</p>
           <button className="mt-2 font-bold text-primary underline" onClick={() => void status.refetch()}>Try again</button>
         </div>
-      ) : (
+      ) : status.data?.launchControls.length ? (
         <ul className="mt-4 space-y-3">
-          {status.data?.launchControls.map((control) => (
+          {status.data.launchControls.map((control) => (
             <li className="rounded-xl border border-border p-3" key={control.id} data-testid={`launch-control-${control.id}`}>
               <div className="flex items-start justify-between gap-3">
                 <p className="text-xs font-bold">{labels[control.id]}</p>
@@ -42,6 +42,8 @@ export function LaunchControls() {
             </li>
           ))}
         </ul>
+      ) : (
+        <p className="mt-4 text-xs text-muted-foreground" role="status">No launch controls were returned to display.</p>
       )}
     </section>
   );
