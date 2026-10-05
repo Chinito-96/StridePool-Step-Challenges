@@ -103,16 +103,28 @@ Use signed-in test accounts and free challenges while paid play is blocked. Do n
 | Android restart | Restart the phone after enabling background delivery. Check whether uploads resume without reopening the app, then separately test foreground recovery. |
 | Sign out | Sign out, then record activity. Confirm it does not get delivered using the previous account session. |
 
-On iOS, HealthKit intentionally hides read-authorization choices. A completed prompt is not proof that reading was allowed, and an empty query is not proof of denial. Inspect the phone's Health settings and use newly recorded samples to assess actual reads. Background scheduling is controlled by the OS; record real outcomes rather than assuming immediate delivery or promising behavior after force-quit.
+### iPhone suspended-app evidence
+
+For the iPhone background check, use an installed **Release** build with the HealthKit and HealthKit background-delivery entitlements in `app.json`. Sign in to a test account, grant step access in iOS Health settings, and confirm the companion reports background delivery as scheduled. The app's message says delivery is scheduled when the device allows it; it is not a timing guarantee.
+
+1. Record the iPhone model, iOS version/build, app build and tested code revision, test date, backend reachability, and the Health settings shown for StridePool.
+2. Record the account's current Apple Health `lastSyncedAt`, verified sample count, and step total.
+3. Put the app in the background or lock the phone without force-quitting it. Keep the WebView unopened. Record actual steps through normal activity while the app is suspended; do not use manually entered or imported records.
+4. From a separate signed-in browser, check the account before reopening the companion. Record the observation start/end times, whether the app stayed unopened, and whether the new sample and updated delivery state appeared. Report elapsed time as an observation, not as a pass/fail latency threshold.
+5. Only after that observation, reopen the companion and repeat the sync. Confirm the same source sample is not inserted twice and the verified step total does not increase a second time.
+6. Test force-quit separately and label it separately; it must not be counted as a suspended-app result. If delivery is not observed before the companion is reopened, record that run as a failure or incomplete observation, not as a successful background delivery.
+
+On iOS, HealthKit intentionally hides read-authorization choices. A completed prompt is not proof that reading was allowed, and an empty query is not proof of denial. Inspect the phone's Health settings and use newly recorded samples to assess actual reads. Background scheduling is controlled by the OS; report real outcomes without asserting an exact wake-up time or promising behavior after force-quit.
 
 ## 5. Return evidence
 
 For each platform, provide:
 
 - OS version, test date, and tested code revision.
+- Device model, app build type/version, Health settings, network condition, and whether the app was suspended, force-quit, or reopened.
 - Debug and Release build success/failure, including signing errors if any.
 - Each checklist result: `PASS`, `FAIL`, or `NOT TESTED`.
-- Background observation windows and whether the app was opened before records arrived.
+- Background observation start/end times and whether records arrived before the companion was reopened; elapsed time is evidence, not a delivery-time guarantee.
 - Redacted error messages/build logs for failures.
 
 Do not share credentials, session cookies, bearer tokens, provisioning secrets, raw health records, device serial numbers, or unrelated account data. Keep detailed health samples on the device/in the test account.

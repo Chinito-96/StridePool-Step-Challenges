@@ -9,6 +9,12 @@ Expo Go cannot contain the companion's local HealthKit module or the Health Conn
 
 **How to apply:** Test the preview as an unavailable-native state, and test real permission prompts only in a newly installed development or release build. Rebuild the binary after adding or changing native modules; updating JavaScript alone cannot add native code to an existing installation.
 
+Keep ordinary screen and navigation testing accessible in Expo Go; restrict health operations instead of blocking the entire companion.
+
+**Why:** An app-wide installed-build gate prevents iPhone users from testing features that do not need HealthKit, even though Expo Go can run the WebView.
+
+**How to apply:** Show an explicit preview limitation notice, reject native-health bridge requests in Expo Go, and never count preview navigation as installed-device health evidence.
+
 Do not assume Replit's managed native publishing route can build the existing custom health bridge.
 
 **Why:** Official Replit documentation consulted on 2026-10-04 says custom native modules and EAS CLI/EAS Build are unsupported on Replit. The companion depends on a local custom HealthKit/Health Connect module.

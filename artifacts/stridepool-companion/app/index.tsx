@@ -97,6 +97,7 @@ export default function CompanionScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
   const uri = domain ? `https://${domain}/` : null;
   const trustedOrigin = domain ? `https://${domain}` : null;
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -131,6 +132,14 @@ export default function CompanionScreen() {
     } catch {
       return;
     }
+    if (isExpoGo) {
+      if (request.method === 'configureBackgroundDelivery') {
+        respond(request.id, request.documentId, true, false);
+      } else {
+        respond(request.id, request.documentId, false, undefined, 'Health connections require an installed StridePool development or release build. Expo Go supports screen testing only.');
+      }
+      return;
+    }
     try {
       let result: unknown;
       if (request.method === 'requestPermissions') result = await StridePoolHealth.requestPermissions(request.source);
@@ -155,14 +164,14 @@ export default function CompanionScreen() {
     } catch (caught) {
       respond(request.id, request.documentId, false, undefined, caught instanceof Error ? caught.message : 'Native health request failed.');
     }
-  }, [respond, trustedOrigin]);
+  }, [isExpoGo, respond, trustedOrigin]);
 
-  if (Platform.OS === 'web' || Constants.executionEnvironment === ExecutionEnvironment.StoreClient || !uri) {
+  if (Platform.OS === 'web' || !uri) {
     return (
       <View style={[styles.fallback, { paddingTop: Platform.OS === 'web' ? 67 : insets.top, paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom }]}>
         <View style={styles.mark}><Ionicons name="footsteps" size={36} color={colors.primaryForeground} /></View>
         <Text style={styles.title}>StridePool Companion</Text>
-        <Text style={styles.body}>{Constants.executionEnvironment === ExecutionEnvironment.StoreClient ? 'Expo Go cannot load the native health modules. Install a StridePool development or release build to connect Apple Health or Health Connect.' : 'Open this app on an iPhone or Android device to connect Apple Health or Health Connect.'}</Text>
+        <Text style={styles.body}>{!uri ? 'The StridePool backend address is missing. Configure EXPO_PUBLIC_DOMAIN before starting the companion.' : 'Open this app on an iPhone or Android device to connect Apple Health or Health Connect.'}</Text>
         <View style={styles.note}><Ionicons name="shield-checkmark" size={20} color={colors.foreground} /><Text style={styles.noteText}>Health permissions stay under device control. Step records are sent only after you sign in.</Text></View>
       </View>
     );
@@ -171,6 +180,9 @@ export default function CompanionScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar style="auto" />
+      {isExpoGo && <View style={styles.previewNotice} testID="notice-expo-go-preview">
+        <Text style={styles.previewNoticeText}>Expo Go preview: browse and test the app. Apple Health, Health Connect, and background step uploads require an installed StridePool build.</Text>
+      </View>}
       {loading && <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Opening StridePool</Text></View>}
       {error && (
         <View style={styles.error}>
@@ -213,6 +225,8 @@ function createStyles(colors: ReturnType<typeof useColors>) {
     body: { color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 16, lineHeight: 24, textAlign: 'center' },
     note: { marginTop: 12, flexDirection: 'row', gap: 12, padding: 16, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
     noteText: { flex: 1, color: colors.foreground, fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20 },
+    previewNotice: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border },
+    previewNoticeText: { color: colors.foreground, fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18 },
     button: { marginTop: 8, paddingHorizontal: 22, paddingVertical: 13, borderRadius: colors.radius, backgroundColor: colors.primary },
     pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
     buttonText: { color: colors.primaryForeground, fontFamily: 'Inter_700Bold', fontSize: 15 },
