@@ -20,3 +20,9 @@ Anonymous browser regressions should check membership and challenge-scoped leade
 **Why:** Anonymous free participation and account-bound health/history deliberately have different permissions. Persistence coverage must not weaken that product boundary.
 
 **How to apply:** Join through the real browser, then apply verified updates only to isolated fixture records and confirm the visible community totals after reload.
+
+Nested `node --test` subprocesses launched from a test worker must not inherit `NODE_TEST_CONTEXT`; otherwise Node can skip the child test files. Stop detached process groups even when the package-manager wrapper already exited, since its server child may remain alive.
+
+**Why:** Failure-path checks need the child test runner's real nonzero status, and package-manager wrappers can outlive or exit before server processes in the same group.
+
+**How to apply:** Remove `NODE_TEST_CONTEXT` from test-child environments and verify process-group cleanup for both live wrappers and wrappers with surviving children.

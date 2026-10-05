@@ -15,6 +15,13 @@ import {
   usersTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import {
+  initializeWithCleanup,
+  launchRequiredChromium,
+  stopProcess,
+  waitForHttp,
+  type CleanupStack,
+} from "./stridepool-browser-harness";
 
 const runId = `browser-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const userId = `${runId}-user`;
@@ -37,6 +44,7 @@ let browser: Browser | undefined;
 let context: BrowserContext | undefined;
 let anonymousContext: BrowserContext | undefined;
 let anonymousUserId = "";
+let cleanupStack: CleanupStack | undefined;
 
 function getFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -53,51 +61,6 @@ function getFreePort(): Promise<number> {
   });
 }
 
-async function stopProcess(processHandle: ChildProcess | undefined): Promise<void> {
-  if (!processHandle || processHandle.exitCode !== null) return;
-  const sendSignal = (signal: NodeJS.Signals) => {
-    if (processHandle.pid && process.platform !== "win32") {
-      try {
-        process.kill(-processHandle.pid, signal);
-        return;
-      } catch {
-        // The process group may already have exited.
-      }
-    }
-    processHandle.kill(signal);
-  };
-  await new Promise<void>((resolve) => {
-    const timer = setTimeout(() => {
-      sendSignal("SIGKILL");
-      resolve();
-    }, 5_000);
-    processHandle.once("exit", () => {
-      clearTimeout(timer);
-      resolve();
-    });
-    sendSignal("SIGTERM");
-  });
-}
-
-async function waitForHttp(url: string, processHandle: ChildProcess): Promise<void> {
-  const deadline = Date.now() + 60_000;
-  let lastError: unknown;
-  while (Date.now() < deadline) {
-    if (processHandle.exitCode !== null || processHandle.signalCode !== null) {
-      throw new Error(`Test server exited before serving ${url} (code ${processHandle.exitCode}, signal ${processHandle.signalCode}).`);
-    }
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
-      if (response.ok) return;
-      lastError = new Error(`HTTP ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`Timed out waiting for ${url}: ${String(lastError)}`);
-}
-
 async function waitForText(page: Page, testId: string, expected: string): Promise<void> {
   const deadline = Date.now() + 30_000;
   let lastText: string | null = null;
@@ -109,181 +72,190 @@ async function waitForText(page: Page, testId: string, expected: string): Promis
   throw new Error(`Timed out waiting for ${testId} to equal "${expected}", got "${lastText}"`);
 }
 
+async function cleanupFixtureRows(): Promise<void> {
+  await db.transaction(async (tx) => {
+    // Discover the identity through our unique challenge too, so cleanup
+    // still works if an assertion fails before the cookie is captured.
+    const anonymousEntries = await tx.select({ userId: entriesTable.userId })
+      .from(entriesTable).where(eq(entriesTable.challengeId, anonymousChallengeId));
+    const ownedAnonymousIds = new Set(anonymousEntries.map((entry) => entry.userId));
+    if (anonymousUserId) ownedAnonymousIds.add(anonymousUserId);
+    for (const id of ownedAnonymousIds) {
+      assert.match(id, /^anon_[a-f0-9]{32}$/);
+      await tx.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, id));
+      await tx.delete(entriesTable).where(eq(entriesTable.userId, id));
+      await tx.delete(usersTable).where(eq(usersTable.id, id));
+    }
+    await tx.delete(challengesTable).where(eq(challengesTable.id, anonymousChallengeId));
+    await tx.delete(sessionsTable).where(eq(sessionsTable.sid, sessionId));
+    await tx.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, userId));
+    await tx.delete(entriesTable).where(eq(entriesTable.userId, userId));
+    await tx.delete(challengesTable).where(eq(challengesTable.id, challengeId));
+    await tx.delete(usersTable).where(eq(usersTable.id, userId));
+  });
+}
+
 describe("StridePool browser persistence", () => {
   before(async () => {
     const executablePath = process.env.CHROMIUM_PATH
       ?? (existsSync("/repl/tools/bin/chromium") ? "/repl/tools/bin/chromium" : undefined);
-    try {
-      browser = await chromium.launch({
+    const initialized = await initializeWithCleanup(async (cleanup) => {
+      // Register shared-state cleanup before creating any fixtures so partial
+      // setup failures still remove every row and release the DB connection.
+      cleanup.defer(() => pool.end());
+      cleanup.defer(cleanupFixtureRows);
+
+      browser = await launchRequiredChromium(() => chromium.launch({
         executablePath,
         headless: true,
         args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      }));
+      cleanup.defer(async () => {
+        try {
+          // Capture even a failed join's new identity before closing its browser.
+          if (anonymousContext && !anonymousUserId) {
+            anonymousUserId = (await anonymousContext.cookies())
+              .find((cookie) => cookie.name === "stridepool_anon")?.value ?? "";
+          }
+        } finally {
+          try {
+            await context?.close();
+          } finally {
+            try {
+              await anonymousContext?.close();
+            } finally {
+              await browser?.close();
+            }
+          }
+        }
       });
-    } catch (cause) {
-      throw new Error(
-        "Browser persistence validation requires Chromium. Set CHROMIUM_PATH or run pnpm --filter @workspace/scripts exec playwright install --with-deps chromium.",
-        { cause },
+
+      const apiPort = await getFreePort();
+      const webPort = await getFreePort();
+
+      await db.insert(usersTable).values({
+        id: userId,
+        email: `${userId}@example.test`,
+        firstName: "Browser",
+        lastName: "Walker",
+        displayName: "Initial Walker",
+        walletBalance: wallet.balance.toFixed(2),
+        walletPending: wallet.pending.toFixed(2),
+        totalEarned: wallet.totalEarned.toFixed(2),
+        goalBaseline: "8000",
+      });
+      await db.insert(challengesTable).values({
+        id: challengeId,
+        name: "Browser Reload Check",
+        theme: "A unique browser persistence challenge",
+        level: "Open",
+        startDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        endDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10),
+        days: 5,
+        dailyGoal: 8000,
+        entryFee: "0.00",
+        prizePool: "0.00",
+        participantCount: 0,
+        finishers: 0,
+        settlementStatus: "open",
+        color: "#7f9f56",
+        challengeType: "goal",
+        goalType: "fixed",
+        community: true,
+      });
+      await db.insert(dailyStepRecordsTable).values({
+        userId,
+        challengeId: null,
+        recordDate: new Date().toISOString().slice(0, 10),
+        steps: syncedSteps,
+        source: "apple_health",
+        verified: true,
+      });
+      await db.insert(challengesTable).values({
+        id: anonymousChallengeId,
+        name: "Anonymous Reload Check",
+        theme: "An isolated anonymous community persistence challenge",
+        level: "Open",
+        startDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        endDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10),
+        days: 5,
+        dailyGoal: 8000,
+        entryFee: "0.00",
+        prizePool: "0.00",
+        participantCount: 0,
+        finishers: 0,
+        settlementStatus: "open",
+        color: "#7f9f56",
+        challengeType: "goal",
+        goalType: "fixed",
+        community: true,
+      });
+
+      sessionId = crypto.randomBytes(32).toString("hex");
+      await db.insert(sessionsTable).values({
+        sid: sessionId,
+        sess: {
+          user: {
+            id: userId,
+            email: `${userId}@example.test`,
+            firstName: "Browser",
+            lastName: "Walker",
+            profileImageUrl: null,
+          },
+          access_token: "browser-test-access-token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        expire: new Date(Date.now() + 3600000),
+      });
+
+      const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
+      apiProcess = spawn(
+        "pnpm",
+        ["exec", "tsx", "../artifacts/api-server/src/browser-test-server.ts"],
+        {
+          cwd: process.cwd(),
+          env: { ...process.env, PORT: String(apiPort), NODE_ENV: "test" },
+          stdio: "inherit",
+          detached: process.platform !== "win32",
+        },
       );
-    }
-    const apiPort = await getFreePort();
-    const webPort = await getFreePort();
+      cleanup.defer(() => stopProcess(apiProcess));
+      await waitForHttp(`${apiBaseUrl}/api/healthz`, apiProcess);
 
-    await db.insert(usersTable).values({
-      id: userId,
-      email: `${userId}@example.test`,
-      firstName: "Browser",
-      lastName: "Walker",
-      displayName: "Initial Walker",
-      walletBalance: wallet.balance.toFixed(2),
-      walletPending: wallet.pending.toFixed(2),
-      totalEarned: wallet.totalEarned.toFixed(2),
-      goalBaseline: "8000",
-    });
-    await db.insert(challengesTable).values({
-      id: challengeId,
-      name: "Browser Reload Check",
-      theme: "A unique browser persistence challenge",
-      level: "Open",
-      startDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-      endDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10),
-      days: 5,
-      dailyGoal: 8000,
-      entryFee: "0.00",
-      prizePool: "0.00",
-      participantCount: 0,
-      finishers: 0,
-      settlementStatus: "open",
-      color: "#7f9f56",
-      challengeType: "goal",
-      goalType: "fixed",
-      community: true,
-    });
-    await db.insert(dailyStepRecordsTable).values({
-      userId,
-      challengeId: null,
-      recordDate: new Date().toISOString().slice(0, 10),
-      steps: syncedSteps,
-      source: "apple_health",
-      verified: true,
-    });
-    await db.insert(challengesTable).values({
-      id: anonymousChallengeId,
-      name: "Anonymous Reload Check",
-      theme: "An isolated anonymous community persistence challenge",
-      level: "Open",
-      startDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-      endDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10),
-      days: 5,
-      dailyGoal: 8000,
-      entryFee: "0.00",
-      prizePool: "0.00",
-      participantCount: 0,
-      finishers: 0,
-      settlementStatus: "open",
-      color: "#7f9f56",
-      challengeType: "goal",
-      goalType: "fixed",
-      community: true,
-    });
-
-    sessionId = crypto.randomBytes(32).toString("hex");
-    await db.insert(sessionsTable).values({
-      sid: sessionId,
-      sess: {
-        user: {
-          id: userId,
-          email: `${userId}@example.test`,
-          firstName: "Browser",
-          lastName: "Walker",
-          profileImageUrl: null,
+      webProcess = spawn(
+        "pnpm",
+        ["--filter", "@workspace/stridepool", "run", "dev"],
+        {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            PORT: String(webPort),
+            BASE_PATH: "/",
+            API_PROXY_TARGET: apiBaseUrl,
+            NODE_ENV: "test",
+          },
+          stdio: "inherit",
+          detached: process.platform !== "win32",
         },
-        access_token: "browser-test-access-token",
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-      },
-      expire: new Date(Date.now() + 3600000),
+      );
+      cleanup.defer(() => stopProcess(webProcess));
+      webBaseUrl = `http://127.0.0.1:${webPort}`;
+      await waitForHttp(webBaseUrl, webProcess);
+      context = await browser!.newContext();
+      await context.addCookies([{
+        name: "sid",
+        value: sessionId,
+        domain: "127.0.0.1",
+        path: "/",
+        httpOnly: true,
+        secure: false,
+      }]);
     });
-
-    const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
-    apiProcess = spawn(
-      "pnpm",
-      ["exec", "tsx", "../artifacts/api-server/src/browser-test-server.ts"],
-      {
-        cwd: process.cwd(),
-        env: { ...process.env, PORT: String(apiPort), NODE_ENV: "test" },
-        stdio: "inherit",
-        detached: process.platform !== "win32",
-      },
-    );
-    await waitForHttp(`${apiBaseUrl}/api/healthz`, apiProcess);
-
-    webProcess = spawn(
-      "pnpm",
-      ["--filter", "@workspace/stridepool", "run", "dev"],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          PORT: String(webPort),
-          BASE_PATH: "/",
-          API_PROXY_TARGET: apiBaseUrl,
-          NODE_ENV: "test",
-        },
-        stdio: "inherit",
-        detached: process.platform !== "win32",
-      },
-    );
-    webBaseUrl = `http://127.0.0.1:${webPort}`;
-    await waitForHttp(webBaseUrl, webProcess);
-    context = await browser.newContext();
-    await context.addCookies([{
-      name: "sid",
-      value: sessionId,
-      domain: "127.0.0.1",
-      path: "/",
-      httpOnly: true,
-      secure: false,
-    }]);
+    cleanupStack = initialized.cleanup;
   });
 
   after(async () => {
-    try {
-      // Capture even a failed join's new identity before closing its browser.
-      if (anonymousContext && !anonymousUserId) {
-        anonymousUserId = (await anonymousContext.cookies())
-          .find((cookie) => cookie.name === "stridepool_anon")?.value ?? "";
-      }
-      try {
-        await context?.close();
-      } finally {
-        await browser?.close();
-      }
-    } finally {
-      await Promise.all([stopProcess(apiProcess), stopProcess(webProcess)]);
-      try {
-        await db.transaction(async (tx) => {
-          // Discover the identity through our unique challenge too, so cleanup
-          // still works if an assertion fails before the cookie is captured.
-          const anonymousEntries = await tx.select({ userId: entriesTable.userId })
-            .from(entriesTable).where(eq(entriesTable.challengeId, anonymousChallengeId));
-          const ownedAnonymousIds = new Set(anonymousEntries.map((entry) => entry.userId));
-          if (anonymousUserId) ownedAnonymousIds.add(anonymousUserId);
-          for (const id of ownedAnonymousIds) {
-            assert.match(id, /^anon_[a-f0-9]{32}$/);
-            await tx.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, id));
-            await tx.delete(entriesTable).where(eq(entriesTable.userId, id));
-            await tx.delete(usersTable).where(eq(usersTable.id, id));
-          }
-          await tx.delete(challengesTable).where(eq(challengesTable.id, anonymousChallengeId));
-          await tx.delete(sessionsTable).where(eq(sessionsTable.sid, sessionId));
-          await tx.delete(dailyStepRecordsTable).where(eq(dailyStepRecordsTable.userId, userId));
-          await tx.delete(entriesTable).where(eq(entriesTable.userId, userId));
-          await tx.delete(challengesTable).where(eq(challengesTable.id, challengeId));
-          await tx.delete(usersTable).where(eq(usersTable.id, userId));
-        });
-      } finally {
-        await pool.end();
-      }
-    }
+    await cleanupStack?.close();
   });
 
   it("keeps profile, membership, wallet, steps, and history after a full reload", async () => {
