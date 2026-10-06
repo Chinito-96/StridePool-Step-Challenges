@@ -5,7 +5,8 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { LaunchControls } from '@/components/launch-controls';
 import RulesPage from '@/pages/rules';
 import TermsPage from '@/pages/terms';
-import { BookOpen, ScrollText } from 'lucide-react';
+import PrivacyPage from '@/pages/privacy';
+import { BookOpen, ScrollText, Shield } from 'lucide-react';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert, CircleHelp, CircleUserRound, Clock3, Compass, Copy, CreditCard, ExternalLink, Flame, Footprints, Gift, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, UserCheck, UserPlus, Users, UsersRound, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
 import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
@@ -274,6 +275,7 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/safety', label: 'Safety', icon: ShieldCheck },
   { href: '/rules', label: 'Rules', icon: BookOpen },
   { href: '/terms', label: 'Terms', icon: ScrollText },
+  { href: '/privacy', label: 'Privacy', icon: Shield },
   { href: '/profile', label: 'Profile', icon: CircleUserRound },
 ];
 
@@ -329,7 +331,7 @@ function AppShell({ children }: { children: ReactNode }) {
        <main className="shell-main page-enter min-h-[calc(100dvh-72px)] px-5 pb-28 pt-8 sm:px-8 lg:px-12 lg:pb-12">{children}</main>
     </div>
      <nav className="mobile-nav fixed bottom-0 left-0 right-0 z-30 flex border-t border-border bg-card/95 px-3 py-2 backdrop-blur-md lg:hidden" aria-label="Mobile navigation">
-      {navItems.filter((item) => item.href !== '/rules' && item.href !== '/terms').map((item) => <NavItem key={item.href} item={item} active={item.href === '/' ? location === '/' : location.startsWith(item.href)} />)}
+      {navItems.filter((item) => item.href !== '/rules' && item.href !== '/terms' && item.href !== '/privacy').map((item) => <NavItem key={item.href} item={item} active={item.href === '/' ? location === '/' : location.startsWith(item.href)} />)}
     </nav>
     {mobileOpen && <div className="fixed inset-0 z-40 lg:hidden"><button className="absolute inset-0 bg-foreground/35" onClick={() => setMobileOpen(false)} aria-label="Close navigation overlay" data-testid="button-close-navigation-overlay" /><aside className="relative flex h-full w-[280px] flex-col justify-between bg-sidebar px-5 py-6 text-sidebar-foreground shadow-2xl"><div><div className="flex items-center justify-between"><Logo /><button onClick={() => setMobileOpen(false)} className="rounded-lg p-2 hover:bg-sidebar-foreground/10" aria-label="Close navigation" data-testid="button-close-navigation"><X size={18} /></button></div><nav className="mt-12 space-y-1">{navItems.map((item) => <NavItem key={item.href} item={item} active={item.href === '/' ? location === '/' : location.startsWith(item.href)} dark onNavigate={() => setMobileOpen(false)} />)}</nav></div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Small steps, shared momentum.</p></aside></div>}
   </div>;
@@ -1065,6 +1067,7 @@ function SafetyPage() {
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Free community challenges are open. Real-money entries remain locked until counsel review, provider-verified identity, state eligibility, and payment controls are complete.</p>
         <Link href="/rules" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary underline underline-offset-4" data-testid="link-safety-rules"><BookOpen size={16} /> Read the challenge rules</Link>
         <p className="mt-3 text-xs leading-5 text-muted-foreground"><Link href="/terms" className="font-bold text-primary underline underline-offset-4" data-testid="link-safety-terms">Review the Terms &amp; Conditions draft</Link> — not yet adopted; viewing it does not change your consent or eligibility.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground"><Link href="/privacy" className="font-bold text-primary underline underline-offset-4" data-testid="link-safety-privacy">Review the Privacy Policy draft</Link> — pending legal and product review.</p>
       </div>
       <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <section className="space-y-5">
@@ -1391,6 +1394,7 @@ function Router() {
     <Route path="/safety" component={SafetyPage} />
     <Route path="/rules" component={RulesPage} />
     <Route path="/terms" component={TermsPage} />
+    <Route path="/privacy" component={PrivacyPage} />
     <Route path="/profile" component={ProfilePage} />
     <Route path="/admin" component={AdminPage} />
     <Route component={NotFound} />
