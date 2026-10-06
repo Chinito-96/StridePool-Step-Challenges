@@ -14,3 +14,9 @@ Stripe test payouts can emit both `payout.paid` and `payout.failed` for one payo
 **Why:** Event type and the payout object's current status can disagree in sandbox delivery; in addition, a failed payout has a debit and a separate reversal. Event-only reconciliation can match receipts while incorrectly counting returned funds as still paid.
 
 **How to apply:** Preserve each raw event type and ID as a receipt, derive payout state from `data.object.status`, and append money movement per account-scoped balance-transaction ID. Reconcile those IDs against an independent Stripe Balance Transactions report; duplicate and out-of-order event delivery must not duplicate either movement, and an unresolved mismatch must keep the paid-play gate closed. Signed-webhook delivery, payout projection, and balance-transaction reconciliation are separate evidence.
+
+Development intentionally uses a separate test account from the app's live Stripe connection.
+
+**Why:** The user explicitly chose to keep a separate test account rather than match the live account.
+
+**How to apply:** Different account IDs across development and live are expected, not a configuration error. Verify credentials and Connect readiness within each intended account; do not replace the development key solely to make those IDs match.
