@@ -82,6 +82,10 @@ export interface Challenge {
   endDate: string;
   days: number;
   dailyGoal: number;
+  /** IANA time zone that defines every challenge day (Paid Play Terms 3.4). */
+  timeZone?: string;
+  /** Below this count at start, a paid challenge is cancelled and refunded (Paid Play Terms 4.5). */
+  minParticipants?: number;
   entryFee: number;
   prizePool: number;
   participantCount: number;

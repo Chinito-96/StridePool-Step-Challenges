@@ -19,8 +19,8 @@ test("public compliance route serves contract-valid launch controls without cach
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
     const body = GetComplianceStatusResponse.parse(await response.json());
-    assert.equal(body.launchControls.length, 7);
-    assert.equal(new Set(body.launchControls.map((control) => control.id)).size, 7);
+    assert.equal(body.launchControls.length, 8);
+    assert.equal(new Set(body.launchControls.map((control) => control.id)).size, 8);
     assert.equal(body.paidPlayEnabled, body.launchControls.every((control) => control.status === "ready"));
     assert.ok(body.launchControls.every((control) => control.explanation.length > 0));
   } finally {

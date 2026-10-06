@@ -15,6 +15,7 @@ StridePool is a responsive step-challenge web app where people build consistency
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/scripts run seed:stridepool` — reset and seed demo challenges, wallet, profile, entries, and steps
 - Required env: `DATABASE_URL` — Postgres connection string
+- Paid-play launch env: `PAID_PLAY_ENABLED`, `PAID_PLAY_COUNSEL_APPROVED`, `PAID_PLAY_APPROVED_STATES`, and `PAID_PLAY_TERMS_EFFECTIVE_DATE` (YYYY-MM-DD; paid play stays closed until that date)
 
 ## Stack
 
@@ -33,6 +34,9 @@ StridePool is a responsive step-challenge web app where people build consistency
 - `lib/db/src/schema/auth.ts` and `lib/db/src/schema/stridepool.ts` — persisted users, sessions, challenges, entries, and daily steps
 - `artifacts/stridepool/src/index.css` — StridePool visual system and responsive layout
 - `docs/steppa-benchmark.md` — sourced competitor research and product opportunities
+- `lib/db/src/stridepool-paid-play-policy.ts` — Paid Play Terms rules (restricted states, time zones, sync/review windows, fee-refund table, cent allocation)
+- `docs/paid-play-terms-implementation.md` — which code and tests enforce each Paid Play Terms section, and what is still missing
+- `artifacts/stridepool/src/lib/paid-play-terms.ts` — in-app official rules; version must match the API
 - `competitor-monitoring.md` — competitor bookmark bundle and monthly review ritual
 
 ## Architecture decisions

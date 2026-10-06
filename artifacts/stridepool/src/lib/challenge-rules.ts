@@ -36,7 +36,7 @@ export const challengeRules: RuleSection[] = [
     summary: "Review the format, dates, goal, and complete entry amount first.",
     paragraphs: [
       "Read the challenge details before confirming an entry. Paid entry is activated after the payment provider confirms a successful payment; opening checkout or returning from it is not proof of enrollment.",
-      "The current entry window closes when the challenge starts. Challenge-date boundaries are evaluated by the backend in UTC; do not assume the closing time is midnight in your phone's local timezone.",
+      "The current entry window closes when the challenge starts. Every challenge day runs midnight to midnight in the challenge time zone shown on the challenge (America/Chicago unless stated), no matter where you are or whether you travel.",
       "Free challenges cannot be created. Existing free community challenges may remain available, subject to their access rules, but joining one does not establish paid-play eligibility.",
     ],
   },
@@ -67,7 +67,7 @@ export const challengeRules: RuleSection[] = [
     paragraphs: [
       "Connect Apple Health on iPhone or Health Connect on Android through the installed StridePool companion. A browser cannot request native health permissions. Wearable activity must reach a supported health source before it can be considered.",
       "Manually entered steps, imported CSV totals, and fabricated activity are not accepted as verified challenge steps. Duplicate source samples must not count twice. Suspicious samples can be held for review and do not contribute to verified totals while held.",
-      "Keep health access enabled and check your sync status regularly. Background delivery depends on the device and operating system; it is not guaranteed after force-quitting or force-stopping the app. Reopening may recover undelivered records, but a sync indicator is not itself proof that a day qualified.",
+      "Steps for a day count if they sync within 24 hours after that day ends. Until then a short day shows At Risk, not Eliminated. Settlement waits another 24 hours for review. Keep health access enabled and check your sync status regularly. Background delivery depends on the device and operating system; it is not guaranteed after force-quitting or force-stopping the app. Reopening may recover undelivered records, but a sync indicator is not itself proof that a day qualified.",
     ],
   },
   {
@@ -75,7 +75,7 @@ export const challengeRules: RuleSection[] = [
     title: "How the pool is distributed",
     summary: "Final results use the applicable format and verified records.",
     paragraphs: [
-      "For daily-goal challenges, qualifying finishers share the pool equally. Whole-cent remainders are allocated deterministically so the distributed amounts reconcile to the pool.",
+      "For daily-goal challenges, qualifying finishers share the pool equally. Leftover cents go one cent each to finishers in the order they joined, so the distributed amounts always equal the pool.",
       "Ranking challenges allocate 60% to first place, 25% to second, and 15% to third. Tied participants share the combined amounts for the positions they occupy. If fewer than three participants qualify for ranking, the pool is redistributed among the available places.",
       "Under the current settlement logic, a daily-goal challenge with no finishers returns entry contributions to participants rather than awarding the pool to StridePool. Platform fees are separate; this does not promise that every fee is refunded.",
       "Settlement happens after the challenge ends and required checks complete. Held records, support reviews, or payment reconciliation can delay final results. No fixed settlement or cash-out time is promised.",

@@ -159,6 +159,8 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>, joinPrice = 
     finishers: challenge.finishers,
     color: challenge.color,
     challengeType: challenge.challengeType === "ranking" ? "ranking" as const : challenge.challengeType === "elimination" ? "elimination" as const : "goal" as const,
+    timeZone: challenge.timeZone,
+    minParticipants: challenge.minParticipants,
     goalType: challenge.goalType,
     community: challenge.community,
     visibility: challenge.groupId ? "private_group" as const : "public" as const,

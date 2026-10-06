@@ -14,8 +14,8 @@ import {
   walletLedgerEntriesTable,
 } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
-import { processPendingEntryRefunds, type ProviderRefundOutcome } from "../../artifacts/api-server/src/services/entry-refunds";
-import { unwithdrawnRefundCreditCents, withdrawAvailableBalance } from "../../artifacts/api-server/src/services/ledger";
+import { processPendingEntryRefunds, type ProviderRefundOutcome } from "./entry-refunds";
+import { unwithdrawnRefundCreditCents, withdrawAvailableBalance } from "./ledger";
 
 // Paid Play Terms 4.4, 4.5, 5.3, 5.4, 6.3 and 6.4 against a real database.
 const runId = `refund-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

@@ -105,9 +105,10 @@ The final production launch requires all of these controls together:
 
 1. Written counsel approval is recorded and `PAID_PLAY_COUNSEL_APPROVED=true`.
 2. `PAID_PLAY_APPROVED_STATES` contains only jurisdictions covered by that approval.
-3. `PAID_PLAY_ENABLED=true`.
-4. Stripe provider and managed webhook readiness are true.
-5. `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` is set after the required evidence is reviewed.
+3. `PAID_PLAY_TERMS_EFFECTIVE_DATE` (YYYY-MM-DD) is set to the adopted Paid Play Terms effective date and that date has arrived.
+4. `PAID_PLAY_ENABLED=true`.
+5. Stripe provider and managed webhook readiness are true.
+6. `STRIPE_SANDBOX_RECONCILIATION_PASSED=true` is set after the required evidence is reviewed.
 
 ## Per-control launch readiness
 
@@ -122,13 +123,14 @@ evidence remains behind admin authorization.
 | --- | --- |
 | `launch_enabled` | `PAID_PLAY_ENABLED` is exactly `true` |
 | `counsel_approval` | `PAID_PLAY_COUNSEL_APPROVED` is exactly `true` |
-| `approved_states` | The configured approved-jurisdiction list is nonempty |
+| `terms_effective` | `PAID_PLAY_TERMS_EFFECTIVE_DATE` is a valid date on or before today |
+| `approved_states` | The configured approved-jurisdiction list is nonempty after removing the 13 restricted states (Paid Play Terms 1.2) |
 | `stripe_provider` | Stripe provider initialization is complete |
 | `managed_webhook` | Managed webhook signature-verification configuration is ready |
 | `provider_backfill` | Stripe sync backfill has completed |
 | `sandbox_reconciliation` | Manual sandbox approval is `true` and no persisted provider/ledger mismatch remains unresolved |
 
-`paidPlayEnabled` is true only when all seven controls are ready. Controls are
+`paidPlayEnabled` is true only when all eight controls are ready. Controls are
 evaluated independently so operators can see every blocker at once, including
 backfill readiness which was not previously exposed separately. Readiness reports
 the existing launch checks, not independent proof of legal approval, jurisdiction

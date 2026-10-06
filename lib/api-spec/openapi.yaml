@@ -1473,6 +1473,8 @@ components:
         endDate: { type: string }
         days: { type: integer }
         dailyGoal: { type: integer }
+        timeZone: { type: string, description: "IANA time zone that defines every challenge day (Paid Play Terms 3.4)." }
+        minParticipants: { type: integer, description: "Below this count at start, a paid challenge is cancelled and refunded (Paid Play Terms 4.5)." }
         entryFee: { type: number }
         prizePool: { type: number }
         participantCount: { type: integer }
