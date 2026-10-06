@@ -7,6 +7,8 @@
  */
 
 export interface WithdrawalInput {
+  /** @minimum 2000 */
+  amountCents: number;
   /** @minLength 8 */
   idempotencyKey: string;
 }

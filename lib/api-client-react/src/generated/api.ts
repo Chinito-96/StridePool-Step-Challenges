@@ -580,7 +580,7 @@ export const getCreateWithdrawalUrl = () => {
 }
 
 /**
- * @summary Withdraw the full available wallet balance to the linked bank account
+ * @summary Withdraw a specified amount from the available wallet balance to the linked bank account
  */
 export const createWithdrawal = async (withdrawalInput: WithdrawalInput, options?: Parameters<typeof customFetch>[1]): Promise<WithdrawalResponse> => {
 
@@ -629,7 +629,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateWithdrawalMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Withdraw the full available wallet balance to the linked bank account
+ * @summary Withdraw a specified amount from the available wallet balance to the linked bank account
  */
 export const useCreateWithdrawal = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWithdrawal>>, TError,{data: BodyType<WithdrawalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

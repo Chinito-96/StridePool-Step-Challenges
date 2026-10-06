@@ -338,6 +338,15 @@ describe("StridePool browser persistence", () => {
     await waitForText(page, "text-wallet-balance", "$12.34");
     await page.getByText("$5.67", { exact: true }).waitFor();
     await page.getByText("$8.90", { exact: true }).waitFor();
+    const withdrawalAmount = page.getByTestId("input-withdrawal-amount");
+    assert.equal(await withdrawalAmount.getAttribute("min"), "20");
+    assert.equal(await withdrawalAmount.getAttribute("max"), "12.34");
+    await withdrawalAmount.fill("19.99");
+    await page.getByText("Minimum withdrawal is $20.00.", { exact: true }).waitFor();
+    assert.equal(await page.getByTestId("button-withdraw-wallet").isDisabled(), true);
+    await withdrawalAmount.fill("42.50");
+    await page.getByText("Amount cannot exceed your available balance.", { exact: true }).waitFor();
+    assert.equal(await page.getByTestId("button-withdraw-wallet").isDisabled(), true);
 
     await page.goto(webBaseUrl, { waitUntil: "domcontentloaded" });
     await page.getByText(`You joined Browser Reload Check`, { exact: true }).waitFor();

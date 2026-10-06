@@ -135,7 +135,7 @@ paths:
     post:
       operationId: createWithdrawal
       tags: [money]
-      summary: Withdraw the full available wallet balance to the linked bank account
+      summary: Withdraw a specified amount from the available wallet balance to the linked bank account
       requestBody:
         required: true
         content:
@@ -1943,8 +1943,9 @@ components:
     WithdrawalInput:
       type: object
       properties:
+        amountCents: { type: integer, minimum: 2000 }
         idempotencyKey: { type: string, minLength: 8 }
-      required: [idempotencyKey]
+      required: [amountCents, idempotencyKey]
     WithdrawalResponse:
       type: object
       properties:

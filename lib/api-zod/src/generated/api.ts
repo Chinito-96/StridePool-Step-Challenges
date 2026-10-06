@@ -120,13 +120,16 @@ export const GetPayoutAccountResponse = zod.object({
 
 
 /**
- * @summary Withdraw the full available wallet balance to the linked bank account
+ * @summary Withdraw a specified amount from the available wallet balance to the linked bank account
  */
+export const createWithdrawalBodyAmountCentsMin = 2000;
+
 export const createWithdrawalBodyIdempotencyKeyMin = 8;
 
 
 
 export const CreateWithdrawalBody = zod.object({
+  "amountCents": zod.int().min(createWithdrawalBodyAmountCentsMin),
   "idempotencyKey": zod.string().min(createWithdrawalBodyIdempotencyKeyMin)
 })
 

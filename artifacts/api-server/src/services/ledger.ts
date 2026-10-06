@@ -255,45 +255,75 @@ export async function getPayoutAccount(userId: string) {
   };
 }
 
-export async function withdrawAvailableBalance(userId: string, input: WithdrawalInput) {
+type WithdrawalDependencies = {
+  getPayoutAccount: typeof getStripePayoutAccount;
+  createWithdrawal: typeof createStripeWithdrawal;
+};
+
+export async function withdrawAvailableBalance(
+  userId: string,
+  input: WithdrawalInput,
+  dependencies: WithdrawalDependencies = {
+    getPayoutAccount: getStripePayoutAccount,
+    createWithdrawal: createStripeWithdrawal,
+  },
+) {
+  const amountCents = input.amountCents;
+  if (!Number.isSafeInteger(amountCents) || amountCents < MINIMUM_WITHDRAWAL_CENTS) {
+    throw new Error("Withdrawal amount must be at least $20.00 in whole cents.");
+  }
+  const existingResult = (entry: typeof walletLedgerEntriesTable.$inferSelect) => {
+    if (entry.amountCents !== amountCents) {
+      throw new Error("This withdrawal request key was already used for a different amount.");
+    }
+    if (entry.status === "provider_failed") {
+      throw new Error("This withdrawal already failed. Submit a new request to retry.");
+    }
+    return {
+      withdrawalId: String(entry.metadata.payoutId ?? entry.id),
+      amountCents: entry.amountCents,
+      status: "pending" as const,
+      provider: providerName,
+    };
+  };
   const existing = await db.select().from(walletLedgerEntriesTable).where(and(
     eq(walletLedgerEntriesTable.userId, userId),
     eq(walletLedgerEntriesTable.idempotencyKey, input.idempotencyKey),
   ));
-  if (existing[0]) {
-    return {
-      withdrawalId: String(existing[0].metadata.payoutId ?? existing[0].id),
-      amountCents: existing[0].amountCents,
-      status: "pending" as const,
-      provider: providerName,
-    };
-  }
+  if (existing[0]) return existingResult(existing[0]);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) throw new Error("Account was not found.");
-  const amountCents = Math.round(Number(user.walletBalance) * 100);
-  if (amountCents < MINIMUM_WITHDRAWAL_CENTS) {
-    throw new Error(`Keep at least $${(MINIMUM_WITHDRAWAL_CENTS / 100).toFixed(2)} available before withdrawing.`);
+  const availableCents = Math.round(Number(user.walletBalance) * 100);
+  if (amountCents > availableCents) {
+    throw new Error("Requested withdrawal exceeds your available wallet balance.");
   }
-  const account = await getStripePayoutAccount(user);
+  const account = await dependencies.getPayoutAccount(user);
   if (!account.linked || !account.payoutsEnabled) {
     throw new Error("Link and verify a bank account before withdrawing.");
   }
   const ledgerId = `ledger_${randomUUID()}`;
-  const reservedAmountCents = await db.transaction(async (tx) => {
+  const reservation = await db.transaction(async (tx) => {
     const [lockedUser] = await tx.select().from(usersTable).where(eq(usersTable.id, userId)).for("update");
+    const [racedEntry] = await tx.select().from(walletLedgerEntriesTable).where(and(
+      eq(walletLedgerEntriesTable.userId, userId),
+      eq(walletLedgerEntriesTable.idempotencyKey, input.idempotencyKey),
+    )).for("update");
+    if (racedEntry) {
+      return { existing: racedEntry };
+    }
     const lockedAmountCents = Math.round(Number(lockedUser?.walletBalance ?? 0) * 100);
-    if (!lockedUser || lockedAmountCents < MINIMUM_WITHDRAWAL_CENTS) {
-      throw new Error("Available balance changed before the withdrawal could be recorded.");
+    if (!lockedUser || lockedAmountCents < amountCents) {
+      throw new Error("Available balance changed or is too low for the requested withdrawal.");
     }
     await tx.update(usersTable).set({
-      walletBalance: "0.00",
+      walletBalance: ((lockedAmountCents - amountCents) / 100).toFixed(2),
     }).where(eq(usersTable.id, userId));
     await tx.insert(walletLedgerEntriesTable).values({
       id: ledgerId,
       userId,
       eventType: "withdrawal_requested",
       status: "pending_provider",
-      amountCents: lockedAmountCents,
+      amountCents,
       currency: "usd",
       providerEventId: null,
       idempotencyKey: input.idempotencyKey,
@@ -302,11 +332,16 @@ export async function withdrawAvailableBalance(userId: string, input: Withdrawal
         auditRule: "available wallet balance reserved before provider payout reconciliation",
       },
     });
-    return lockedAmountCents;
+    return { reservedAmountCents: amountCents };
   });
+  if ("existing" in reservation && reservation.existing) return existingResult(reservation.existing);
+  if (!("reservedAmountCents" in reservation)) {
+    throw new Error("Withdrawal reservation could not be completed.");
+  }
+  const reservedAmountCents = reservation.reservedAmountCents;
   let withdrawal: Awaited<ReturnType<typeof createStripeWithdrawal>>;
   try {
-    withdrawal = await createStripeWithdrawal(user, reservedAmountCents, input.idempotencyKey);
+    withdrawal = await dependencies.createWithdrawal(user, reservedAmountCents, input.idempotencyKey);
   } catch (error) {
     await db.transaction(async (tx) => {
       const [entry] = await tx.select().from(walletLedgerEntriesTable).where(eq(walletLedgerEntriesTable.id, ledgerId)).for("update");

@@ -1049,6 +1049,23 @@ function WalletPage() {
   const payoutAccount = useGetPayoutAccount({ query: { queryKey: getGetPayoutAccountQueryKey(), enabled: auth.isAuthenticated && compliance.providerConfigured, staleTime: 30_000 } });
   const withdrawal = useCreateWithdrawal();
   const [message, setMessage] = useState('');
+  const [withdrawalAmount, setWithdrawalAmount] = useState('');
+  const withdrawalAmountCents = (() => {
+    if (!/^\d+(?:\.\d{0,2})?$/.test(withdrawalAmount)) return null;
+    const [dollars, cents = ''] = withdrawalAmount.split('.');
+    const amount = Number(dollars) * 100 + Number(cents.padEnd(2, '0'));
+    return Number.isSafeInteger(amount) ? amount : null;
+  })();
+  const walletAvailableCents = Math.round(wallet.balance * 100);
+  const withdrawalAmountError = withdrawalAmount === ''
+    ? ''
+    : withdrawalAmountCents === null
+      ? 'Enter an amount in dollars and cents.'
+      : withdrawalAmountCents < 2_000
+        ? 'Minimum withdrawal is $20.00.'
+        : withdrawalAmountCents > walletAvailableCents
+          ? 'Amount cannot exceed your available balance.'
+          : '';
   const startPayoutOnboarding = () => {
     setMessage('');
     payoutOnboarding.mutate({ data: { idempotencyKey: `payout-${Date.now()}` } }, {
@@ -1062,7 +1079,8 @@ function WalletPage() {
   };
   const withdraw = () => {
     setMessage('');
-    withdrawal.mutate({ data: { idempotencyKey: `withdrawal-${Date.now()}` } }, {
+    if (withdrawalAmountCents === null || withdrawalAmountCents < 2_000 || withdrawalAmountCents > walletAvailableCents) return;
+    withdrawal.mutate({ data: { amountCents: withdrawalAmountCents, idempotencyKey: `withdrawal-${Date.now()}-${withdrawalAmountCents}` } }, {
       onSuccess: (result) => {
         setMessage(`$${(result.amountCents / 100).toFixed(2)} withdrawal submitted to your linked bank account.`);
         queryClient.invalidateQueries({ queryKey: getGetLedgerQueryKey() });
@@ -1071,7 +1089,99 @@ function WalletPage() {
       onError: () => setMessage('Withdrawal could not be submitted. Your available wallet balance was not changed.'),
     });
   };
-  return <div className="mx-auto max-w-[1100px]"><div className="mb-8"><p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Provider-backed money</p><h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Wallet</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Link a bank account through Stripe, then withdraw once your available balance reaches $20.</p></div><section className="grid gap-4 md:grid-cols-[1.4fr_.8fr_.8fr]"><div className="rounded-2xl bg-foreground p-6 text-background shadow-[var(--shadow-soft)]"><div className="flex items-center justify-between text-background/55"><span className="font-mono-app text-[10px] uppercase tracking-[.16em]">Available balance</span><WalletCards size={18} /></div><p className="mt-8 font-display text-5xl font-bold tracking-[-.07em]" data-testid="text-wallet-balance">${wallet.balance.toFixed(2)}</p><p className="mt-2 text-xs text-background/55">{wallet.balance >= 20 ? 'Eligible to withdraw after bank verification' : `$${(20 - wallet.balance).toFixed(2)} more needed to withdraw`}</p></div><WalletStat label="Pending in pools" value={`$${wallet.pending.toFixed(2)}`} detail="Released only after settlement" icon={<Clock3 size={17} />} /><WalletStat label="Total earned" value={`$${wallet.totalEarned.toFixed(2)}`} detail="Audited provider credits" icon={<TrendingUp size={17} />} /></section><section className="mt-10 grid gap-8 lg:grid-cols-[1fr_330px]"><div><SectionHeading eyebrow="Immutable event history" title="Money ledger" /><div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">{ledger.length ? ledger.map((entry) => <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0" key={entry.id} data-testid={`ledger-entry-${entry.id}`}><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-primary"><ShieldCheck size={16} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{entry.eventType.replaceAll('_', ' ')}</p><p className="mt-0.5 text-xs text-muted-foreground">{entry.status} · {new Date(entry.createdAt).toLocaleString()}</p></div><span className="font-mono-app text-sm font-bold">${(entry.amountCents / 100).toFixed(2)}</span></div>) : <div className="p-10 text-center"><ShieldCheck size={21} className="mx-auto text-primary" /><p className="mt-3 text-sm font-bold">No provider events yet</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Payment, refund, dispute, and payout events will appear here with their provider reference.</p></div>}</div></div><div><SectionHeading eyebrow="Payouts" title="Linked bank account" /><div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"><div className="flex items-start gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><CreditCard size={19} /></span><div><p className="text-sm font-bold">{payoutAccount.data?.linked ? 'Bank account linked' : 'No verified bank account'}</p><p className="text-xs leading-5 text-muted-foreground">{payoutAccount.data?.payoutsEnabled ? 'Stripe has enabled payouts.' : 'Complete secure Stripe onboarding to link and verify your bank.'}</p></div>{payoutAccount.data?.payoutsEnabled && <Check size={16} className="ml-auto text-primary" />}</div><Button variant="secondary" className="mt-5 w-full" onClick={startPayoutOnboarding} disabled={payoutOnboarding.isPending} data-testid="button-start-payout-onboarding">{payoutOnboarding.isPending ? 'Opening…' : payoutAccount.data?.linked ? 'Manage bank account' : 'Link bank account'} <ChevronRight size={15} /></Button><Button className="mt-3 w-full" onClick={withdraw} disabled={withdrawal.isPending || wallet.balance < 20 || !payoutAccount.data?.payoutsEnabled} data-testid="button-withdraw-wallet">{withdrawal.isPending ? 'Submitting…' : `Withdraw $${wallet.balance.toFixed(2)}`}</Button>{message && <p className="mt-4 rounded-xl bg-muted p-3 text-[11px] leading-5" role="status" data-testid="status-payout-onboarding">{message}</p>}<p className="mt-4 flex gap-2 text-[11px] leading-4 text-muted-foreground"><ShieldCheck size={14} className="shrink-0 text-primary" /> Minimum available balance: $20. Bank details stay with Stripe.</p></div></div></section></div>;
+  return (
+    <div className="mx-auto max-w-[1100px]">
+      <div className="mb-8">
+        <p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Provider-backed money</p>
+        <h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Wallet</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Link a bank account through Stripe, then choose an amount of at least $20 to withdraw.</p>
+      </div>
+      <section className="grid gap-4 md:grid-cols-[1.4fr_.8fr_.8fr]">
+        <div className="rounded-2xl bg-foreground p-6 text-background shadow-[var(--shadow-soft)]">
+          <div className="flex items-center justify-between text-background/55">
+            <span className="font-mono-app text-[10px] uppercase tracking-[.16em]">Available balance</span>
+            <WalletCards size={18} />
+          </div>
+          <p className="mt-8 font-display text-5xl font-bold tracking-[-.07em]" data-testid="text-wallet-balance">${wallet.balance.toFixed(2)}</p>
+          <p className="mt-2 text-xs text-background/55">{wallet.balance >= 20 ? 'Choose any withdrawal up to this balance after bank verification.' : `$${(20 - wallet.balance).toFixed(2)} more needed to withdraw`}</p>
+        </div>
+        <WalletStat label="Pending in pools" value={`$${wallet.pending.toFixed(2)}`} detail="Released only after settlement" icon={<Clock3 size={17} />} />
+        <WalletStat label="Total earned" value={`$${wallet.totalEarned.toFixed(2)}`} detail="Audited provider credits" icon={<TrendingUp size={17} />} />
+      </section>
+      <section className="mt-10 grid gap-8 lg:grid-cols-[1fr_330px]">
+        <div>
+          <SectionHeading eyebrow="Immutable event history" title="Money ledger" />
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">
+            {ledger.length ? ledger.map((entry) => (
+              <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 last:border-0" key={entry.id} data-testid={`ledger-entry-${entry.id}`}>
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-primary"><ShieldCheck size={16} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{entry.eventType.replaceAll('_', ' ')}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{entry.status} · {new Date(entry.createdAt).toLocaleString()}</p>
+                </div>
+                <span className="font-mono-app text-sm font-bold">${(entry.amountCents / 100).toFixed(2)}</span>
+              </div>
+            )) : (
+              <div className="p-10 text-center">
+                <ShieldCheck size={21} className="mx-auto text-primary" />
+                <p className="mt-3 text-sm font-bold">No provider events yet</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Payment, refund, dispute, and payout events will appear here with their provider reference.</p>
+              </div>
+            )}
+          </div>
+        </div>
+        <div>
+          <SectionHeading eyebrow="Payouts" title="Linked bank account" />
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><CreditCard size={19} /></span>
+              <div>
+                <p className="text-sm font-bold">{payoutAccount.data?.linked ? 'Bank account linked' : 'No verified bank account'}</p>
+                <p className="text-xs leading-5 text-muted-foreground">{payoutAccount.data?.payoutsEnabled ? 'Stripe has enabled payouts.' : 'Complete secure Stripe onboarding to link and verify your bank.'}</p>
+              </div>
+              {payoutAccount.data?.payoutsEnabled && <Check size={16} className="ml-auto text-primary" />}
+            </div>
+            <Button variant="secondary" className="mt-5 w-full" onClick={startPayoutOnboarding} disabled={payoutOnboarding.isPending} data-testid="button-start-payout-onboarding">
+              {payoutOnboarding.isPending ? 'Opening…' : payoutAccount.data?.linked ? 'Manage bank account' : 'Link bank account'} <ChevronRight size={15} />
+            </Button>
+            <label className="mt-5 block text-xs font-bold" htmlFor="input-withdrawal-amount">Amount to withdraw (USD)
+              <input
+                id="input-withdrawal-amount"
+                type="number"
+                min="20"
+                max={wallet.balance}
+                step="0.01"
+                inputMode="decimal"
+                value={withdrawalAmount}
+                onChange={(event) => {
+                  setWithdrawalAmount(event.target.value);
+                  setMessage('');
+                }}
+                aria-invalid={Boolean(withdrawalAmountError)}
+                aria-describedby="withdrawal-amount-help"
+                className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal outline-none focus:border-primary"
+                placeholder="20.00"
+                data-testid="input-withdrawal-amount"
+              />
+            </label>
+            <p id="withdrawal-amount-help" className={`mt-2 text-[11px] leading-4 ${withdrawalAmountError ? 'text-destructive' : 'text-muted-foreground'}`} role={withdrawalAmountError ? 'alert' : undefined}>
+              {withdrawalAmountError || `Enter an amount from $20.00 up to $${wallet.balance.toFixed(2)}.`}
+            </p>
+            <Button
+              className="mt-3 w-full"
+              onClick={withdraw}
+              disabled={withdrawal.isPending || withdrawalAmountCents === null || withdrawalAmountCents < 2_000 || withdrawalAmountCents > walletAvailableCents || !payoutAccount.data?.payoutsEnabled}
+              data-testid="button-withdraw-wallet"
+            >
+              {withdrawal.isPending ? 'Submitting…' : withdrawalAmountCents === null ? 'Enter withdrawal amount' : `Withdraw $${(withdrawalAmountCents / 100).toFixed(2)}`}
+            </Button>
+            {message && <p className="mt-4 rounded-xl bg-muted p-3 text-[11px] leading-5" role="status" data-testid="status-payout-onboarding">{message}</p>}
+            <p className="mt-4 flex gap-2 text-[11px] leading-4 text-muted-foreground"><ShieldCheck size={14} className="shrink-0 text-primary" /> Minimum withdrawal: $20. Bank details stay with Stripe.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function LegacyWalletPage() {
