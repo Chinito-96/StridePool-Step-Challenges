@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getGetAdminCloseoutAlertsQueryKey, useGetAdminCloseoutAlerts, type AdminCloseoutAlert, getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetPayoutAccountQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolChallengeChatQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getGetStridePoolReferralSummaryQueryKey, getGetStridePoolReferralPreviewQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateProSubscriptionCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useCreateWithdrawal, useGetComplianceStatus, useGetLedger, useGetPayoutAccount, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolChallengeChat, useSendStridePoolChallengeChatMessage, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useGetStridePoolReferralSummary, useGetStridePoolReferralPreview, useClaimStridePoolReferral, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useSearchStridePoolUsers, useStartPayoutOnboarding, useUpdateStridePoolProfile, useUpdateStridePoolHealthSourceConnection, useReportStridePoolSourceDelivery, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ChallengeChatResponse, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type MembershipSummary, type Notification as ApiNotification, type PendingInvite, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
+import type { ChallengeLeaderboardResponse } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { LaunchControls } from '@/components/launch-controls';
 import RulesPage from '@/pages/rules';
@@ -657,7 +658,7 @@ function NativeSourceCards({ sources }: { sources: HealthSource[] }) {
 }
 
 function RadioDot() { return <span className="flex items-center gap-2 font-mono-app text-[10px] uppercase tracking-widest text-muted-foreground font-bold"><span className="pulse-dot h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" /> updates live</span>; }
-function StatLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { const isValue = label === 'Est. finisher share' || label === 'Secured pool'; return <div className="flex items-center gap-3.5"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-background border border-border/50 text-primary shadow-sm">{icon}</span><span className="text-[13px] font-medium text-muted-foreground">{label === 'Est. finisher share' ? 'Payout if you finish' : label}</span><span className={`ml-auto text-sm font-bold ${isValue ? 'text-accent-text' : 'text-foreground'}`}>{label === 'Est. finisher share' ? value.replace(/^~/, '') : value}</span></div>; }
+function StatLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { if (label === 'Est. finisher share' && value === '~$—') return null; const isValue = label === 'Est. finisher share' || label === 'Secured pool'; return <div className="flex items-center gap-3.5"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-background border border-border/50 text-primary shadow-sm">{icon}</span><span className="text-[13px] font-medium text-muted-foreground">{label === 'Est. finisher share' ? 'Payout if you finish' : label}</span><span className={`ml-auto text-sm font-bold ${isValue ? 'text-accent-text' : 'text-foreground'}`}>{label === 'Est. finisher share' ? value.replace(/^~/, '') : value}</span></div>; }
 function ChallengeMiniCard({ challenge }: { challenge: Challenge }) { const progress = Math.round((challenge.finishers / challenge.participantCount) * 100); return <Link href={`/challenge/${challenge.id}`} className="lift-card group block rounded-[24px] border border-border bg-card p-6 shadow-[var(--shadow-card)] relative overflow-hidden" data-testid={`card-joined-challenge-${challenge.id}`}><div className="absolute top-0 right-0 w-16 h-16 opacity-10 rounded-bl-full pointer-events-none transition-transform group-hover:scale-110" style={{ backgroundColor: challenge.color }} /><div className="flex items-start justify-between"><span className="h-4 w-4 rounded-full shadow-sm" style={{ backgroundColor: challenge.color }} /><Badge tone="lime">Joined</Badge></div><h3 className="mt-6 font-display text-xl font-bold tracking-[-.02em]">{challenge.name}</h3><div className="mt-2 flex items-center gap-2 text-xs font-medium text-muted-foreground"><Clock3 size={14} /> {challenge.days} day challenge <span className="text-border">/</span> ends {challenge.endDate}</div><div className="mt-6"><div className="mb-2.5 flex justify-between font-mono-app text-[10px] uppercase tracking-wider text-muted-foreground font-bold"><span>Group progress</span><span>{progress}%</span></div><div className="h-2 rounded-full bg-muted/50 overflow-hidden"><div className="progress-fill h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: challenge.color }} /></div></div></Link>; }
 function ActivityRow({ activity }: { activity: Activity }) { const Icon = activity.type === 'sync' ? RefreshCw : activity.type === 'milestone' ? Trophy : Footprints; return <div className="flex items-center gap-4 border-b border-border/60 px-5 py-4.5 last:border-0 hover:bg-muted/30 transition-colors"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-background border border-border/50 text-primary shadow-sm"><Icon size={18} strokeWidth={2} /></span><div className="min-w-0 flex-1"><p className="truncate text-[15px] font-bold tracking-[-.01em]">{activity.title}</p><p className="mt-1 truncate text-[13px] font-medium text-muted-foreground">{activity.meta}</p></div><span className="shrink-0 font-mono-app text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{activity.timestamp}</span></div>; }
 
@@ -785,7 +786,7 @@ function ChallengeDetail() {
   const { challenges, leaveChallenge, eligibility, compliance, membership, auth } = useApp();
   const communityQuery = useGetStridePoolCommunityChallenges(undefined, { query: { queryKey: getGetStridePoolCommunityChallengesQueryKey(), staleTime: 30_000 } });
   const challenge = challenges.find((item) => item.id === id) ?? communityQuery.data?.challenges.find((item) => item.id === id);
-  const leaderboard = useGetStridePoolChallengeLeaderboard(id ?? '', { query: { queryKey: getGetStridePoolChallengeLeaderboardQueryKey(id ?? ''), enabled: Boolean(id && challenge), staleTime: 15_000, refetchInterval: 60_000 } });
+  const leaderboard = useGetStridePoolChallengeLeaderboard(id ?? '', { query: { queryKey: [...getGetStridePoolChallengeLeaderboardQueryKey(id ?? ''), auth.user?.id ?? 'anonymous'], enabled: Boolean(id && challenge), staleTime: 15_000, refetchInterval: 60_000 } });
   const [confirming, setConfirming] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState('');
   const checkout = useCreateCheckout();
@@ -795,8 +796,11 @@ function ChallengeDetail() {
   const platformFee = challenge.entryFee > 0 ? membership.challengeJoinPrice : 0;
   const joinTotal = challenge.entryFee + platformFee;
   const joinLabel = challenge.community ? 'Join for free' : `Join for $${joinTotal.toFixed(2)}`;
-  const currentProjection = leaderboard.data?.leaderboard.find((entry) => entry.isCurrentUser)?.projectedPayout ?? leaderboard.data?.leaderboard.find((entry) => entry.status !== 'eliminated')?.projectedPayout ?? 0;
-  const winnerShare = `${currentProjection.toFixed(2)} · ${leaderboard.data?.disqualifiedCount ?? 0} disqualified`;
+  const currentEntry = leaderboard.data?.leaderboard.find((entry) => entry.isCurrentUser);
+  const currentProjection = currentEntry?.projectedPayout;
+  const winnerShare = currentProjection === undefined
+    ? '—'
+    : `${currentProjection.toFixed(2)} · ${leaderboard.data?.disqualifiedCount ?? 0} disqualified`;
   const paidEligible = eligibility.age >= 18 && eligibility.state.length === 2 && eligibility.identityStatus === 'verified' && eligibility.acceptedTerms && compliance.paidPlayEnabled;
   const joinChallenge = (challengeId: string) => {
     if (!auth.isAuthenticated && !(challenge.community && challenge.entryFee === 0)) { auth.login(); return false; }
@@ -834,13 +838,18 @@ function ChallengeDetail() {
 }
 
 function ChallengeChat({ challengeId }: { challengeId: string }) {
-  const { auth } = useApp();
+  const { auth, challenges } = useApp();
+  const challenge = challenges.find((item) => item.id === challengeId);
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
   const messagesRef = useRef<HTMLDivElement>(null);
   const queryKey = [...getGetStridePoolChallengeChatQueryKey(challengeId), auth.user?.id ?? 'anonymous'];
   const chat = useGetStridePoolChallengeChat(challengeId, {
     query: { queryKey, staleTime: 0, refetchInterval: 5_000, refetchOnWindowFocus: true },
+  });
+  const leaderboardQueryKey = [...getGetStridePoolChallengeLeaderboardQueryKey(challengeId), auth.user?.id ?? 'anonymous'];
+  const payoutLeaderboard = useGetStridePoolChallengeLeaderboard(challengeId, {
+    query: { queryKey: leaderboardQueryKey, enabled: Boolean(challengeId), staleTime: 15_000, refetchInterval: 60_000 },
   });
   const sendMessage = useSendStridePoolChallengeChatMessage();
   const messages = chat.data?.messages ?? [];
@@ -868,7 +877,15 @@ function ChallengeChat({ challengeId }: { challengeId: string }) {
     });
   };
 
-  return <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6" aria-labelledby="challenge-chat-title" data-testid="panel-challenge-chat">
+  return <div className="mt-6 space-y-5">
+    {challenge?.joined && !challenge.community && challenge.settlementStatus === 'open' && challenge.prizePool > 0 && <PotentialWinningsCard
+      challenge={challenge}
+      data={payoutLeaderboard.data}
+      isLoading={payoutLeaderboard.isLoading}
+      isError={payoutLeaderboard.isError}
+      onRetry={() => void payoutLeaderboard.refetch()}
+    />}
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6" aria-labelledby="challenge-chat-title" data-testid="panel-challenge-chat">
     <div className="flex items-start justify-between gap-4">
       <div>
         <p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-primary">Walk together</p>
@@ -896,8 +913,85 @@ function ChallengeChat({ challengeId }: { challengeId: string }) {
     </form>
     {status && <p className="mt-2 text-xs text-destructive" role="alert">{status}</p>}
     <p className="mt-2 text-[10px] text-muted-foreground">Messages are plain text and limited to 1,000 characters.</p>
+    </section>
+  </div>;
+}
+
+function PotentialWinningsCard({
+  challenge,
+  data,
+  isLoading,
+  isError,
+  onRetry,
+}: {
+  challenge: ApiChallenge;
+  data: ChallengeLeaderboardResponse | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  const currentEntry = data?.leaderboard.find((entry) => entry.isCurrentUser);
+  const isRanking = challenge.challengeType === 'ranking';
+  const isEliminated = currentEntry?.status === 'eliminated';
+  const estimate = currentEntry
+    ? `$${(isEliminated ? 0 : currentEntry.projectedPayout).toFixed(2)}`
+    : data
+      ? '—'
+      : isLoading
+        ? 'Calculating…'
+        : 'Unavailable';
+  const currentPool = data?.prizePool ?? challenge.prizePool;
+  let explanation: string;
+  if (!data) {
+    explanation = isError
+      ? 'We could not load your current estimate. Try refreshing it.'
+      : 'Loading the current pool and participant standings.';
+  } else if (!currentEntry) {
+    explanation = 'Your entry is not on the latest leaderboard response, so we cannot show a personal estimate yet.';
+  } else if (isEliminated) {
+    explanation = 'Your entry is currently marked eliminated and has no projected payout.';
+  } else if (isRanking) {
+    explanation = currentEntry.projectedPayout > 0
+      ? 'This projection assumes the current verified-step standings hold. Final places and payouts can still change.'
+      : 'Current standings do not project a podium payout for you yet. More verified steps can change your rank.';
+  } else if (data.eligibleParticipantCount === 0) {
+    explanation = 'No participants are currently eligible. If nobody finishes, every entry is refunded.';
+  } else {
+    explanation = `If you complete every required day, this estimate assumes the current pool is shared among the ${data.eligibleParticipantCount} participants still eligible. The amount can change as the pool and eligible field change.`;
+  }
+
+  return <section className="rounded-2xl border border-border bg-accent/20 p-5 shadow-[var(--shadow-card)] sm:p-6" aria-labelledby="potential-winnings-title" data-testid="card-potential-winnings">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="font-mono-app text-[10px] uppercase tracking-[.16em] text-accent-foreground">Your estimate</p>
+        <h2 id="potential-winnings-title" className="mt-1 font-display text-xl font-bold tracking-[-.035em]">Potential winnings</h2>
+      </div>
+      <Award size={19} className="mt-1 shrink-0 text-accent-foreground" />
+    </div>
+    <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+      <p className="font-display text-4xl font-bold tracking-[-.06em]" aria-live="polite" data-testid="text-potential-payout">{estimate}</p>
+      <p className="pb-1 text-right text-xs text-muted-foreground">{isRanking ? 'if current standings hold' : 'if you finish eligible'}</p>
+    </div>
+    <p className="mt-3 text-xs leading-5 text-muted-foreground" data-testid="text-potential-payout-explanation">{explanation}</p>
+    <div className={`mt-4 grid gap-2 ${isRanking ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+      <div className="rounded-xl bg-background/65 p-3">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Current pool</p>
+        <p className="mt-1 text-sm font-bold tabular-nums" data-testid="text-potential-pool">${currentPool.toFixed(2)}</p>
+      </div>
+      <div className="rounded-xl bg-background/65 p-3">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{isRanking ? 'In standings' : 'Still eligible'}</p>
+        <p className="mt-1 text-sm font-bold tabular-nums" data-testid="text-potential-eligible">{data?.eligibleParticipantCount ?? '—'}</p>
+      </div>
+      {!isRanking && <div className="rounded-xl bg-background/65 p-3">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Eliminated</p>
+        <p className="mt-1 text-sm font-bold tabular-nums" data-testid="text-potential-eliminated">{data?.disqualifiedCount ?? '—'}</p>
+      </div>}
+    </div>
+    {isError && data && <p className="mt-3 text-xs text-muted-foreground" role="status">Showing the latest available estimate; refresh to check for updates.</p>}
+    {isError && !data && <button type="button" onClick={onRetry} className="mt-3 text-xs font-bold text-primary underline" data-testid="button-retry-potential-payout">Try again</button>}
   </section>;
 }
+
 function DetailLoading() {
   return <div className="mx-auto max-w-[1050px] animate-pulse"><div className="mb-7 h-5 w-40 rounded bg-muted" /><div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><div><div className="h-[360px] rounded-[24px] bg-muted" /><div className="mt-6 h-56 rounded-2xl bg-muted" /></div><div className="h-[420px] rounded-2xl bg-muted" /></div></div>;
 }
