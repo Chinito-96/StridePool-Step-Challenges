@@ -275,7 +275,6 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/challenges', label: 'Challenges', icon: Compass },
   { href: '/community', label: 'Community', icon: UsersRound },
   { href: '/wallet', label: 'Wallet', icon: WalletCards },
-  { href: '/safety', label: 'Safety', icon: ShieldCheck },
   { href: '/profile', label: 'Profile', icon: CircleUserRound },
 ];
 
@@ -1090,9 +1089,10 @@ function ProfilePage() {
         <div className="rounded-2xl border border-border bg-accent/20 p-5"><div className="flex gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-accent-foreground" /><div><p className="text-sm font-bold text-accent-foreground">Your steps stay trustworthy</p><p className="mt-1 text-xs leading-5 text-accent-foreground/75">We look for impossible bursts and unusually large totals, then keep the original source record for review. Your exact route is never shared.</p></div></div></div>
         <SettingsGroup eyebrow="Nudges, not noise" title="Notifications"><ToggleRow label="Daily rhythm reminder" description="A gentle note when your daily goal is still open." checked={profile.reminders} onToggle={() => toggleSetting('reminders')} testId="toggle-daily-reminder" /><ToggleRow label="Weekly walking digest" description="A Sunday look at your consistency and pool history." checked={profile.weeklyDigest} onToggle={() => toggleSetting('weekly-digest')} testId="toggle-weekly-digest" /></SettingsGroup>
         <SettingsGroup eyebrow="Your visibility" title="Privacy"><ToggleRow label="Show progress to challenge members" description="Members can see your completion status, never your exact route." checked={profile.publicProgress} onToggle={() => toggleSetting('publicProgress')} testId="toggle-public-progress" /></SettingsGroup>
-        <SettingsGroup eyebrow="Reference" title="Rules & legal documents">
-          <div className="grid gap-2 sm:grid-cols-3">
+        <SettingsGroup eyebrow="Reference" title="Rules, safety & legal documents">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Link href="/rules" className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-xs font-bold transition hover:border-primary" data-testid="link-profile-rules"><BookOpen size={16} className="shrink-0 text-primary" /> Rules</Link>
+            <Link href="/safety" className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-xs font-bold transition hover:border-primary" data-testid="link-profile-safety"><ShieldCheck size={16} className="shrink-0 text-primary" /> Safety</Link>
             <Link href="/terms" className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-xs font-bold transition hover:border-primary" data-testid="link-profile-terms"><ScrollText size={16} className="shrink-0 text-primary" /> Terms</Link>
             <Link href="/privacy" className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-xs font-bold transition hover:border-primary" data-testid="link-profile-privacy"><Shield size={16} className="shrink-0 text-primary" /> Privacy</Link>
           </div>
