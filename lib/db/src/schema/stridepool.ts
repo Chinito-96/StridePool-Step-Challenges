@@ -84,6 +84,22 @@ export const entriesTable = pgTable(
   ],
 );
 
+export const challengeChatMessagesTable = pgTable(
+  "challenge_chat_messages",
+  {
+    id: serial("id").primaryKey(),
+    challengeId: varchar("challenge_id").notNull().references(() => challengesTable.id, { onDelete: "cascade" }),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    authorName: text("author_name").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("challenge_chat_messages_challenge_created_idx").on(table.challengeId, table.createdAt),
+    index("challenge_chat_messages_user_created_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 export const dailyStepRecordsTable = pgTable(
   "daily_step_records",
   {

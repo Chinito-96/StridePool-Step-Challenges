@@ -132,6 +132,20 @@ export interface ProfileSettings {
   eligibilityState: string;
   identityStatus: ProfileSettingsIdentityStatus;
   acceptedTerms: boolean;
+  /**
+     * @minimum 0
+     * @maximum 2000
+     * @nullable
+     */
+  weightLbs: number | null;
+  /**
+     * @minimum 24
+     * @maximum 96
+     * @nullable
+     */
+  heightInches: number | null;
+  /** @maxLength 500 */
+  fitnessGoals: string;
 }
 
 export interface ProfileUpdate {
@@ -144,11 +158,48 @@ export interface ProfileUpdate {
   weeklyDigest?: boolean;
   publicProgress?: boolean;
   healthConnected?: boolean;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 120
+     */
   eligibilityAge?: number;
   /** @maxLength 2 */
   eligibilityState?: string;
   acceptedTerms?: boolean;
+  /**
+     * @minimum 0
+     * @maximum 2000
+     * @nullable
+     */
+  weightLbs?: number | null;
+  /**
+     * @minimum 24
+     * @maximum 96
+     * @nullable
+     */
+  heightInches?: number | null;
+  /** @maxLength 500 */
+  fitnessGoals?: string;
+}
+
+export interface ChallengeChatMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  content: string;
+}
+
+export interface ChallengeChatMessage {
+  id: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  isMine: boolean;
+}
+
+export interface ChallengeChatResponse {
+  messages: ChallengeChatMessage[];
 }
 
 export type MembershipSummaryPlan = typeof MembershipSummaryPlan[keyof typeof MembershipSummaryPlan];

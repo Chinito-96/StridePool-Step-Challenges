@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, integer, jsonb, numeric, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, numeric, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const sessionsTable = pgTable(
   "sessions",
@@ -36,6 +36,9 @@ export const usersTable = pgTable("users", {
   eligibilityAcceptedTerms: boolean("eligibility_accepted_terms").notNull().default(false),
   eligibilityAcceptedTermsAt: timestamp("eligibility_accepted_terms_at", { withTimezone: true }),
   eligibilityAcceptedTermsVersion: varchar("eligibility_accepted_terms_version"),
+  weightLbs: numeric("weight_lbs", { precision: 6, scale: 1 }),
+  heightInches: integer("height_inches"),
+  fitnessGoals: text("fitness_goals").notNull().default(""),
   // Future real-payment fields: populate only when a provider is selected.
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeConnectAccountId: varchar("stripe_connect_account_id"),

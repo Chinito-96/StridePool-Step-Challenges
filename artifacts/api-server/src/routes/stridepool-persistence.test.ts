@@ -191,6 +191,9 @@ describe("StridePool authenticated persistence across sessions", () => {
         eligibilityAge: 34,
         eligibilityState: "NY",
         acceptedTerms: true,
+        weightLbs: 167.5,
+        heightInches: 69,
+        fitnessGoals: "Build a consistent walking routine.",
       }),
     });
     assert.equal(profile.status, 200);
@@ -205,6 +208,9 @@ describe("StridePool authenticated persistence across sessions", () => {
       eligibilityState: "NY",
       identityStatus: "not_started",
       acceptedTerms: true,
+      weightLbs: 167.5,
+      heightInches: 69,
+      fitnessGoals: "Build a consistent walking routine.",
     });
 
     await activateProviderChallengeEntry(userId, challengeId, 500, 200, 700, `${runId}-payment`, new Date());
@@ -368,6 +374,9 @@ describe("StridePool authenticated persistence across sessions", () => {
       eligibilityState: "",
       identityStatus: "not_started",
       acceptedTerms: false,
+      weightLbs: null,
+      heightInches: null,
+      fitnessGoals: "",
     });
     assert.deepEqual(revoked.joinedIds, []);
     assert.notEqual(revoked.steps, first.steps);

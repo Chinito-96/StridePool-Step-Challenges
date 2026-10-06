@@ -2,6 +2,11 @@ import {
   AcceptStridePoolInviteResponse,
   CreateStridePoolChallengeInviteBody,
   GetStridePoolChallengeLeaderboardResponse,
+  GetStridePoolChallengeChatParams,
+  GetStridePoolChallengeChatResponse,
+  SendStridePoolChallengeChatMessageBody,
+  SendStridePoolChallengeChatMessageParams,
+  SendStridePoolChallengeChatMessageResponse,
   GetStridePoolCommunityChallengesResponse,
   GetStridePoolLifetimeLeaderboardResponse,
   CreateStridePoolChallengeBody,
@@ -37,6 +42,7 @@ import {
 } from "@workspace/api-zod";
 import {
   challengeRecoveryCasesTable,
+  challengeChatMessagesTable,
   challengeInvitesTable,
   challengesTable,
   calculatePodiumPayouts,
@@ -74,7 +80,7 @@ import { publicUser } from "../lib/public-user";
 const router: IRouter = Router();
 const ANONYMOUS_WALKER_COOKIE = "stridepool_anon";
 const ANONYMOUS_WALKER_TTL = 30 * 24 * 60 * 60 * 1000;
-const DEFAULT_PROFILE = { displayName: "Alex Morgan", reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, eligibilityAge: 0, eligibilityState: "", identityStatus: "not_started" as const, acceptedTerms: false };
+const DEFAULT_PROFILE = { displayName: "Alex Morgan", reminders: true, weeklyDigest: true, publicProgress: false, healthConnected: true, goalBaseline: 7500, eligibilityAge: 0, eligibilityState: "", identityStatus: "not_started" as const, acceptedTerms: false, weightLbs: null, heightInches: null, fitnessGoals: "" };
 const DEFAULT_WALLET = { balance: 0, pending: 0, totalEarned: 0 };
 const DEFAULT_MEMBERSHIP = { plan: "free" as const, status: "inactive" as const, monthlyPrice: 0, challengeJoinPrice: 2, activeChallengeLimit: 1, activeChallengeCount: 0, challengeCreationLimit: 0, activeCreatedChallengeCount: 0 };
 const HEALTH_SOURCES = [
@@ -132,6 +138,9 @@ function profileFor(user: typeof usersTable.$inferSelect) {
     // Legacy profile claims are not provider verification evidence.
     identityStatus: "not_started" as const,
     acceptedTerms: hasCurrentPaidTermsAcceptance(user),
+    weightLbs: user.weightLbs == null ? null : numberValue(user.weightLbs),
+    heightInches: user.heightInches,
+    fitnessGoals: user.fitnessGoals,
   };
 }
 function challengeFor(challenge: Challenge, joinedIds: Set<string>, joinPrice = 2, currentUserId: string | null = null) {
@@ -161,6 +170,34 @@ function challengeFor(challenge: Challenge, joinedIds: Set<string>, joinPrice = 
 async function getUser(userId: string) {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   return user;
+}
+
+async function requireActiveChallengeChatUser(req: Request, res: Response, challengeId: string) {
+  const [challenge] = await db.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
+  if (!challenge) {
+    res.status(404).json({ error: "Challenge not found." });
+    return null;
+  }
+
+  const authenticated = req.isAuthenticated();
+  const userId = authenticated ? req.user.id : anonymousWalkerId(req);
+  const anonymousCommunityEntry = challenge.community && numberValue(challenge.entryFee) === 0;
+  if (!userId || (!authenticated && !anonymousCommunityEntry)) {
+    res.status(403).json({ error: "Chat is available only to active participants while the challenge is running." });
+    return null;
+  }
+
+  const [entry] = await db.select({ id: entriesTable.id }).from(entriesTable).where(and(
+    eq(entriesTable.userId, userId),
+    eq(entriesTable.challengeId, challenge.id),
+    eq(entriesTable.status, "active"),
+  )).limit(1);
+  const today = new Date().toISOString().slice(0, 10);
+  if (!entry || today < challenge.startDate || today > challenge.endDate) {
+    res.status(403).json({ error: "Chat is available only to active participants while the challenge is running." });
+    return null;
+  }
+  return { challenge, userId };
 }
 
 async function getVisibleChallenges(userId: string | null) {
@@ -739,6 +776,67 @@ router.post("/stridepool/notifications/read-all", async (req, res): Promise<void
     isNull(notificationsTable.readAt),
   ));
   res.json(MarkAllStridePoolNotificationsReadResponse.parse({ success: true }));
+});
+
+router.get("/stridepool/challenges/:id/chat", async (req, res): Promise<void> => {
+  const params = GetStridePoolChallengeChatParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const access = await requireActiveChallengeChatUser(req, res, params.data.id);
+  if (!access) return;
+
+  const rows = await db.select().from(challengeChatMessagesTable).where(
+    eq(challengeChatMessagesTable.challengeId, access.challenge.id),
+  ).orderBy(desc(challengeChatMessagesTable.createdAt), desc(challengeChatMessagesTable.id)).limit(100);
+  res.json(GetStridePoolChallengeChatResponse.parse({
+    messages: rows.reverse().map((message) => ({
+      id: String(message.id),
+      authorName: message.authorName,
+      content: message.content,
+      createdAt: message.createdAt,
+      isMine: message.userId === access.userId,
+    })),
+  }));
+});
+
+router.post("/stridepool/challenges/:id/chat", async (req, res): Promise<void> => {
+  const params = SendStridePoolChallengeChatMessageParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const body = SendStridePoolChallengeChatMessageBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const content = body.data.content.trim();
+  if (!content) {
+    res.status(400).json({ error: "Message cannot be blank." });
+    return;
+  }
+  const access = await requireActiveChallengeChatUser(req, res, params.data.id);
+  if (!access) return;
+  const author = await getUser(access.userId);
+  if (!author) {
+    res.status(403).json({ error: "Chat is available only to active participants while the challenge is running." });
+    return;
+  }
+  const [message] = await db.insert(challengeChatMessagesTable).values({
+    challengeId: access.challenge.id,
+    userId: access.userId,
+    authorName: publicUser(author).displayName,
+    content,
+  }).returning();
+  res.status(201).json(SendStridePoolChallengeChatMessageResponse.parse({
+    id: String(message.id),
+    authorName: message.authorName,
+    content: message.content,
+    createdAt: message.createdAt,
+    isMine: true,
+  }));
 });
 
 router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<void> => {
@@ -1347,6 +1445,9 @@ router.patch("/stridepool/profile", async (req, res): Promise<void> => {
     healthConnected: parsed.data.healthConnected,
     eligibilityAge: parsed.data.eligibilityAge,
     eligibilityState: parsed.data.eligibilityState,
+    weightLbs: parsed.data.weightLbs === undefined ? undefined : parsed.data.weightLbs === null ? null : String(parsed.data.weightLbs),
+    heightInches: parsed.data.heightInches,
+    fitnessGoals: parsed.data.fitnessGoals,
     ...termsConsentUpdate,
     updatedAt: new Date(),
   }).where(eq(usersTable.id, userId)).returning();

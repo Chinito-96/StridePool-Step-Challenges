@@ -519,6 +519,65 @@ paths:
                 $ref: "#/components/schemas/ChallengeLeaderboardResponse"
         "404":
           description: Free community challenge not found.
+  /stridepool/challenges/{id}/chat:
+    get:
+      tags: [stridepool]
+      operationId: getStridePoolChallengeChat
+      summary: Read recent messages in an active challenge
+      parameters:
+        - $ref: "#/components/parameters/ChallengeId"
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: The latest challenge messages, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeChatResponse"
+        "403":
+          description: An active participant may read chat only during the challenge dates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Challenge not found.
+    post:
+      tags: [stridepool]
+      operationId: sendStridePoolChallengeChatMessage
+      summary: Send a message in an active challenge
+      parameters:
+        - $ref: "#/components/parameters/ChallengeId"
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeChatMessageInput"
+      responses:
+        "201":
+          description: Message sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeChatMessage"
+        "400":
+          description: Invalid or empty message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: An active participant may send chat only during the challenge dates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Challenge not found.
   /stridepool/lifetime-leaderboard:
     get:
       tags: [stridepool]
@@ -1354,7 +1413,7 @@ components:
         totalEarned: { type: number }
     ProfileSettings:
       type: object
-      required: [displayName, reminders, weeklyDigest, publicProgress, healthConnected, goalBaseline, eligibilityAge, eligibilityState, identityStatus, acceptedTerms]
+      required: [displayName, reminders, weeklyDigest, publicProgress, healthConnected, goalBaseline, eligibilityAge, eligibilityState, identityStatus, acceptedTerms, weightLbs, heightInches, fitnessGoals]
       properties:
         displayName: { type: string }
         reminders: { type: boolean }
@@ -1366,6 +1425,9 @@ components:
         eligibilityState: { type: string, maxLength: 2 }
         identityStatus: { type: string, enum: [not_started, pending, verified] }
         acceptedTerms: { type: boolean }
+        weightLbs: { type: ["number", "null"], minimum: 0, maximum: 2000 }
+        heightInches: { type: ["integer", "null"], minimum: 24, maximum: 96 }
+        fitnessGoals: { type: string, maxLength: 500 }
     ProfileUpdate:
       type: object
       properties:
@@ -1374,9 +1436,33 @@ components:
         weeklyDigest: { type: boolean }
         publicProgress: { type: boolean }
         healthConnected: { type: boolean }
-        eligibilityAge: { type: integer, minimum: 0 }
+        eligibilityAge: { type: integer, minimum: 0, maximum: 120 }
         eligibilityState: { type: string, maxLength: 2 }
         acceptedTerms: { type: boolean }
+        weightLbs: { type: ["number", "null"], minimum: 0, maximum: 2000 }
+        heightInches: { type: ["integer", "null"], minimum: 24, maximum: 96 }
+        fitnessGoals: { type: string, maxLength: 500 }
+    ChallengeChatMessageInput:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 1000 }
+    ChallengeChatMessage:
+      type: object
+      required: [id, authorName, content, createdAt, isMine]
+      properties:
+        id: { type: string }
+        authorName: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        isMine: { type: boolean }
+    ChallengeChatResponse:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeChatMessage" }
     StridePoolBootstrap:
       type: object
       required: [user, challenges, joinedIds, steps, activities, wallet, profile, membership, healthSources, recoveryCases, stepReviews, freeStreak, pendingInvites]

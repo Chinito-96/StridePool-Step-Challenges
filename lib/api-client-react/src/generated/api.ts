@@ -38,6 +38,9 @@ import type {
   AuthUserEnvelope,
   BeginBrowserLoginParams,
   Challenge,
+  ChallengeChatMessage,
+  ChallengeChatMessageInput,
+  ChallengeChatResponse,
   ChallengeInput,
   ChallengeInviteInput,
   ChallengeInvitePreview,
@@ -2001,6 +2004,155 @@ export function useGetStridePoolChallengeLeaderboard<TData = Awaited<ReturnType<
 
 
 
+
+export const getGetStridePoolChallengeChatUrl = (id: string,) => {
+
+
+
+
+  return `/api/stridepool/challenges/${id}/chat`
+}
+
+/**
+ * @summary Read recent messages in an active challenge
+ */
+export const getStridePoolChallengeChat = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ChallengeChatResponse> => {
+
+  return customFetch<ChallengeChatResponse>(getGetStridePoolChallengeChatUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStridePoolChallengeChatQueryKey = (id: string,) => {
+    return [
+    `/api/stridepool/challenges/${id}/chat`
+    ] as const;
+    }
+
+
+export const getGetStridePoolChallengeChatQueryOptions = <TData = Awaited<ReturnType<typeof getStridePoolChallengeChat>>, TError = ErrorType<ErrorResponse | void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolChallengeChat>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStridePoolChallengeChatQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStridePoolChallengeChat>>> = ({ signal }) => getStridePoolChallengeChat(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStridePoolChallengeChat>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStridePoolChallengeChatQueryResult = NonNullable<Awaited<ReturnType<typeof getStridePoolChallengeChat>>>
+export type GetStridePoolChallengeChatQueryError = ErrorType<ErrorResponse | void>
+
+
+/**
+ * @summary Read recent messages in an active challenge
+ */
+
+export function useGetStridePoolChallengeChat<TData = Awaited<ReturnType<typeof getStridePoolChallengeChat>>, TError = ErrorType<ErrorResponse | void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStridePoolChallengeChat>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStridePoolChallengeChatQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendStridePoolChallengeChatMessageUrl = (id: string,) => {
+
+
+
+
+  return `/api/stridepool/challenges/${id}/chat`
+}
+
+/**
+ * @summary Send a message in an active challenge
+ */
+export const sendStridePoolChallengeChatMessage = async (id: string,
+    challengeChatMessageInput: ChallengeChatMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<ChallengeChatMessage> => {
+
+  return customFetch<ChallengeChatMessage>(getSendStridePoolChallengeChatMessageUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(challengeChatMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendStridePoolChallengeChatMessageMutationOptions = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendStridePoolChallengeChatMessage>>, TError,{id: string;data: BodyType<ChallengeChatMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendStridePoolChallengeChatMessage>>, TError,{id: string;data: BodyType<ChallengeChatMessageInput>}, TContext> => {
+
+const mutationKey = ['sendStridePoolChallengeChatMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendStridePoolChallengeChatMessage>>, {id: string;data: BodyType<ChallengeChatMessageInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendStridePoolChallengeChatMessage(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendStridePoolChallengeChatMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendStridePoolChallengeChatMessage>>>
+    export type SendStridePoolChallengeChatMessageMutationBody = BodyType<ChallengeChatMessageInput>
+    export type SendStridePoolChallengeChatMessageMutationError = ErrorType<ErrorResponse | void>
+
+    /**
+ * @summary Send a message in an active challenge
+ */
+export const useSendStridePoolChallengeChatMessage = <TError = ErrorType<ErrorResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendStridePoolChallengeChatMessage>>, TError,{id: string;data: BodyType<ChallengeChatMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendStridePoolChallengeChatMessage>>,
+        TError,
+        {id: string;data: BodyType<ChallengeChatMessageInput>},
+        TContext
+      > => {
+      return useMutation(getSendStridePoolChallengeChatMessageMutationOptions(options));
+    }
 
 export const getGetStridePoolLifetimeLeaderboardUrl = () => {
 

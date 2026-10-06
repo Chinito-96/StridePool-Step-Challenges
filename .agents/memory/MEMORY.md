@@ -25,3 +25,5 @@
 - [Dependency installation evidence](dependency-installation-evidence.md) — a successful managed install can update the lockfile without replacing local packages.
 - [Webhook alert state](stripe-webhook-alerts.md) — preserve incomplete-evidence rules and share only matching active reviews, never completed reports.
 - [Intended launch eligibility](intended-launch-eligibility.md) — desired state coverage and age-only verification are conditional on legal requirements, not legal approval.
+- [Challenge chat access](challenge-chat-access.md) — chat reads and sends require active participation during inclusive UTC challenge dates; anonymous access stays within free community entries.
+- [Profile photo storage](profile-photo-storage.md) — uploaded profile photos belong in App Storage; persist only the object path, never image bytes in PostgreSQL.

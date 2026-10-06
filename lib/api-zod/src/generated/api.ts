@@ -258,6 +258,14 @@ export const getStridePoolBootstrapResponseProfileEligibilityAgeMin = 0;
 
 export const getStridePoolBootstrapResponseProfileEligibilityStateMax = 2;
 
+export const getStridePoolBootstrapResponseProfileWeightLbsMin = 0;
+export const getStridePoolBootstrapResponseProfileWeightLbsMax = 2000;
+
+export const getStridePoolBootstrapResponseProfileHeightInchesMin = 24;
+export const getStridePoolBootstrapResponseProfileHeightInchesMax = 96;
+
+export const getStridePoolBootstrapResponseProfileFitnessGoalsMax = 500;
+
 
 
 export const GetStridePoolBootstrapResponse = zod.object({
@@ -314,7 +322,10 @@ export const GetStridePoolBootstrapResponse = zod.object({
   "eligibilityAge": zod.int().min(getStridePoolBootstrapResponseProfileEligibilityAgeMin),
   "eligibilityState": zod.string().max(getStridePoolBootstrapResponseProfileEligibilityStateMax),
   "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
-  "acceptedTerms": zod.boolean()
+  "acceptedTerms": zod.boolean(),
+  "weightLbs": zod.number().min(getStridePoolBootstrapResponseProfileWeightLbsMin).max(getStridePoolBootstrapResponseProfileWeightLbsMax).nullable(),
+  "heightInches": zod.int().min(getStridePoolBootstrapResponseProfileHeightInchesMin).max(getStridePoolBootstrapResponseProfileHeightInchesMax).nullable(),
+  "fitnessGoals": zod.string().max(getStridePoolBootstrapResponseProfileFitnessGoalsMax)
 }),
   "membership": zod.object({
   "plan": zod.enum(['free', 'pro']),
@@ -692,6 +703,56 @@ export const GetStridePoolChallengeLeaderboardResponse = zod.object({
   "isCurrentUser": zod.boolean(),
   "projectedPayout": zod.number()
 }))
+})
+
+
+/**
+ * @summary Read recent messages in an active challenge
+ */
+export const GetStridePoolChallengeChatParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetStridePoolChallengeChatHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetStridePoolChallengeChatResponse = zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "authorName": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "isMine": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Send a message in an active challenge
+ */
+export const SendStridePoolChallengeChatMessageParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const SendStridePoolChallengeChatMessageHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const sendStridePoolChallengeChatMessageBodyContentMax = 1000;
+
+
+
+export const SendStridePoolChallengeChatMessageBody = zod.object({
+  "content": zod.string().min(1).max(sendStridePoolChallengeChatMessageBodyContentMax)
+})
+
+export const SendStridePoolChallengeChatMessageResponse = zod.object({
+  "id": zod.string(),
+  "authorName": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "isMine": zod.boolean()
 })
 
 
@@ -1174,8 +1235,17 @@ export const UpdateStridePoolProfileHeader = zod.object({
 export const updateStridePoolProfileBodyDisplayNameMax = 120;
 
 export const updateStridePoolProfileBodyEligibilityAgeMin = 0;
+export const updateStridePoolProfileBodyEligibilityAgeMax = 120;
 
 export const updateStridePoolProfileBodyEligibilityStateMax = 2;
+
+export const updateStridePoolProfileBodyWeightLbsMin = 0;
+export const updateStridePoolProfileBodyWeightLbsMax = 2000;
+
+export const updateStridePoolProfileBodyHeightInchesMin = 24;
+export const updateStridePoolProfileBodyHeightInchesMax = 96;
+
+export const updateStridePoolProfileBodyFitnessGoalsMax = 500;
 
 
 
@@ -1185,14 +1255,25 @@ export const UpdateStridePoolProfileBody = zod.object({
   "weeklyDigest": zod.boolean().optional(),
   "publicProgress": zod.boolean().optional(),
   "healthConnected": zod.boolean().optional(),
-  "eligibilityAge": zod.int().min(updateStridePoolProfileBodyEligibilityAgeMin).optional(),
+  "eligibilityAge": zod.int().min(updateStridePoolProfileBodyEligibilityAgeMin).max(updateStridePoolProfileBodyEligibilityAgeMax).optional(),
   "eligibilityState": zod.string().max(updateStridePoolProfileBodyEligibilityStateMax).optional(),
-  "acceptedTerms": zod.boolean().optional()
+  "acceptedTerms": zod.boolean().optional(),
+  "weightLbs": zod.number().min(updateStridePoolProfileBodyWeightLbsMin).max(updateStridePoolProfileBodyWeightLbsMax).nullish(),
+  "heightInches": zod.int().min(updateStridePoolProfileBodyHeightInchesMin).max(updateStridePoolProfileBodyHeightInchesMax).nullish(),
+  "fitnessGoals": zod.string().max(updateStridePoolProfileBodyFitnessGoalsMax).optional()
 })
 
 export const updateStridePoolProfileResponseEligibilityAgeMin = 0;
 
 export const updateStridePoolProfileResponseEligibilityStateMax = 2;
+
+export const updateStridePoolProfileResponseWeightLbsMin = 0;
+export const updateStridePoolProfileResponseWeightLbsMax = 2000;
+
+export const updateStridePoolProfileResponseHeightInchesMin = 24;
+export const updateStridePoolProfileResponseHeightInchesMax = 96;
+
+export const updateStridePoolProfileResponseFitnessGoalsMax = 500;
 
 
 
@@ -1206,7 +1287,10 @@ export const UpdateStridePoolProfileResponse = zod.object({
   "eligibilityAge": zod.int().min(updateStridePoolProfileResponseEligibilityAgeMin),
   "eligibilityState": zod.string().max(updateStridePoolProfileResponseEligibilityStateMax),
   "identityStatus": zod.enum(['not_started', 'pending', 'verified']),
-  "acceptedTerms": zod.boolean()
+  "acceptedTerms": zod.boolean(),
+  "weightLbs": zod.number().min(updateStridePoolProfileResponseWeightLbsMin).max(updateStridePoolProfileResponseWeightLbsMax).nullable(),
+  "heightInches": zod.int().min(updateStridePoolProfileResponseHeightInchesMin).max(updateStridePoolProfileResponseHeightInchesMax).nullable(),
+  "fitnessGoals": zod.string().max(updateStridePoolProfileResponseFitnessGoalsMax)
 })
 
 

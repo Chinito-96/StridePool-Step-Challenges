@@ -20,4 +20,18 @@ export interface ProfileSettings {
   eligibilityState: string;
   identityStatus: ProfileSettingsIdentityStatus;
   acceptedTerms: boolean;
+  /**
+     * @minimum 0
+     * @maximum 2000
+     * @nullable
+     */
+  weightLbs: number | null;
+  /**
+     * @minimum 24
+     * @maximum 96
+     * @nullable
+     */
+  heightInches: number | null;
+  /** @maxLength 500 */
+  fitnessGoals: string;
 }
