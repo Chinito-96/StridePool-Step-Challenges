@@ -46,6 +46,7 @@ import {
   getStripeProviderStatus,
 } from "./stripe-provider";
 import { hasCurrentPaidTermsAcceptance } from "./eligibility-consent";
+import { assertProductionWithdrawalsEnabled } from "./stripe-live-policy";
 
 const providerName = "Stripe";
 export const MINIMUM_WITHDRAWAL_CENTS = 2_000;
@@ -268,6 +269,8 @@ export async function withdrawAvailableBalance(
     createWithdrawal: createStripeWithdrawal,
   },
 ) {
+  // Reject before reserving wallet funds or contacting Stripe.
+  assertProductionWithdrawalsEnabled(process.env);
   const amountCents = input.amountCents;
   if (!Number.isSafeInteger(amountCents) || amountCents < MINIMUM_WITHDRAWAL_CENTS) {
     throw new Error("Withdrawal amount must be at least $20.00 in whole cents.");

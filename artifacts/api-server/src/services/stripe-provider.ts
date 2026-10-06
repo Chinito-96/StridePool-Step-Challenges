@@ -12,6 +12,7 @@ import {
 import { recordProviderWebhook, refreshProviderReconciliationGate } from "./ledger";
 import { openBillingPortal } from "./billing-portal";
 import { openPayoutOnboarding } from "./stripe-connect";
+import { assertProductionWithdrawalsEnabled } from "./stripe-live-policy";
 import {
   isSandboxReconciliationPassed,
   type StripePayoutBalanceTransaction,
@@ -278,6 +279,7 @@ export async function createStripeWithdrawal(
   amountCents: number,
   idempotencyKey: string,
 ) {
+  assertProductionWithdrawalsEnabled(process.env);
   if (!user.stripeConnectAccountId) throw new Error("Link a bank account before withdrawing.");
   const stripe = await getUncachableStripeClient();
   const transfer = await stripe.transfers.create({

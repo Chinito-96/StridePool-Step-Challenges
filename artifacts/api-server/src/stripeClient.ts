@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { StripeSync } from "stripe-replit-sync";
+import { assertProductionStripeCredential } from "./services/stripe-live-policy";
 
 type StripeCredentials = {
   secretKey: string;
@@ -62,6 +63,7 @@ async function getStripeCredentials(): Promise<StripeCredentials> {
   if (!secretKey) {
     throw new Error("The Replit-managed Stripe connection has no secret key.");
   }
+  assertProductionStripeCredential(process.env, secretKey);
 
   return {
     secretKey,
