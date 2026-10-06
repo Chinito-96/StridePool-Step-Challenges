@@ -224,6 +224,19 @@
 }
 .mobile-nav {
   box-shadow: 0 -12px 32px rgba(43, 47, 65, .08);
+  padding-bottom: max(.5rem, env(safe-area-inset-bottom));
+}
+.mobile-nav > a {
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: .25rem;
+  padding: .4rem .125rem;
+  font-size: .625rem;
+  line-height: 1rem;
+}
+.mobile-nav > a > svg {
+  flex-shrink: 0;
 }
 .page-enter { animation: page-enter .45s ease-out both; }
 .rise-in { animation: rise-in .55s cubic-bezier(.2,.8,.2,1) both; }

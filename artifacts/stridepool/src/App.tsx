@@ -3,6 +3,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getGetAdminCloseoutAlertsQueryKey, useGetAdminCloseoutAlerts, type AdminCloseoutAlert, getGetAdminChallengesQueryKey, getGetAdminFlaggedStepRecordsQueryKey, getGetAdminSettlementHistoryQueryKey, getGetAdminUserQueryKey, getSearchAdminUsersQueryKey, getGetLedgerQueryKey, getGetPayoutAccountQueryKey, getGetStridePoolBootstrapQueryKey, getGetStridePoolChallengeLeaderboardQueryKey, getGetStridePoolCommunityChallengesQueryKey, getGetStridePoolLifetimeLeaderboardQueryKey, getGetStridePoolPendingInvitesQueryKey, getGetStridePoolInviteQueryKey, getGetStridePoolNotificationsQueryKey, getGetStridePoolReferralSummaryQueryKey, getGetStridePoolReferralPreviewQueryKey, getSearchStridePoolUsersQueryKey, useGetAdminChallenges, useGetAdminFlaggedStepRecords, useGetAdminSettlementHistory, useGetAdminUser, useSearchAdminUsers, useOverrideAdminChallengeParticipant, useAcceptStridePoolInvite, useCheckEligibility, useCreateCheckout, useCreateProSubscriptionCheckout, useCreateStridePoolChallenge, useCreateStridePoolChallengeInvite, useCreateWithdrawal, useGetComplianceStatus, useGetLedger, useGetPayoutAccount, useGetStridePoolBootstrap, useGetStridePoolChallengeLeaderboard, useGetStridePoolCommunityChallenges, useGetStridePoolLifetimeLeaderboard, useGetStridePoolInvite, useGetStridePoolPendingInvites, useGetStridePoolNotifications, useGetStridePoolReferralSummary, useGetStridePoolReferralPreview, useClaimStridePoolReferral, useJoinStridePoolChallenge, useLeaveStridePoolChallenge, useMarkAllStridePoolNotificationsRead, useMarkStridePoolNotificationRead, useSearchStridePoolUsers, useStartPayoutOnboarding, useUpdateStridePoolProfile, useUpdateStridePoolHealthSourceConnection, useReportStridePoolSourceDelivery, useIngestStridePoolSourceSamples, useCreateStridePoolGroupChallenge, type AdminChallenge, type AdminFlaggedStepRecord, type AdminParticipantOverride, type AdminSettlement, type AdminUserChallenge, type Challenge as ApiChallenge, type ComplianceStatus, type EligibilityInput, type FreeStreak, type HealthSource, type LifetimeLeaderboardEntry, type MembershipSummary, type Notification as ApiNotification, type PendingInvite, type ProfileSettings as ApiProfileSettings, type StepReview, type UserSearchResult } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { LaunchControls } from '@/components/launch-controls';
+import RulesPage from '@/pages/rules';
+import TermsPage from '@/pages/terms';
+import { BookOpen, ScrollText } from 'lucide-react';
 import { ArrowLeft, ArrowUpRight, Award, Bell, CalendarDays, Check, ChevronDown, ChevronRight, CircleAlert, CircleHelp, CircleUserRound, Clock3, Compass, Copy, CreditCard, ExternalLink, Flame, Footprints, Gift, HeartPulse, Home, Info, ListFilter, LockKeyhole, Menu, Plus, RefreshCw, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, UserCheck, UserPlus, Users, UsersRound, WalletCards, X, type LucideIcon } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
 import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
@@ -269,6 +272,8 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/community', label: 'Community', icon: UsersRound },
   { href: '/wallet', label: 'Wallet', icon: WalletCards },
   { href: '/safety', label: 'Safety', icon: ShieldCheck },
+  { href: '/rules', label: 'Rules', icon: BookOpen },
+  { href: '/terms', label: 'Terms', icon: ScrollText },
   { href: '/profile', label: 'Profile', icon: CircleUserRound },
 ];
 
@@ -324,7 +329,7 @@ function AppShell({ children }: { children: ReactNode }) {
        <main className="shell-main page-enter min-h-[calc(100dvh-72px)] px-5 pb-28 pt-8 sm:px-8 lg:px-12 lg:pb-12">{children}</main>
     </div>
      <nav className="mobile-nav fixed bottom-0 left-0 right-0 z-30 flex border-t border-border bg-card/95 px-3 py-2 backdrop-blur-md lg:hidden" aria-label="Mobile navigation">
-      {navItems.map((item) => <NavItem key={item.href} item={item} active={item.href === '/' ? location === '/' : location.startsWith(item.href)} />)}
+      {navItems.filter((item) => item.href !== '/rules' && item.href !== '/terms').map((item) => <NavItem key={item.href} item={item} active={item.href === '/' ? location === '/' : location.startsWith(item.href)} />)}
     </nav>
     {mobileOpen && <div className="fixed inset-0 z-40 lg:hidden"><button className="absolute inset-0 bg-foreground/35" onClick={() => setMobileOpen(false)} aria-label="Close navigation overlay" data-testid="button-close-navigation-overlay" /><aside className="relative flex h-full w-[280px] flex-col justify-between bg-sidebar px-5 py-6 text-sidebar-foreground shadow-2xl"><div><div className="flex items-center justify-between"><Logo /><button onClick={() => setMobileOpen(false)} className="rounded-lg p-2 hover:bg-sidebar-foreground/10" aria-label="Close navigation" data-testid="button-close-navigation"><X size={18} /></button></div><nav className="mt-12 space-y-1">{navItems.map((item) => <NavItem key={item.href} item={item} active={item.href === '/' ? location === '/' : location.startsWith(item.href)} dark onNavigate={() => setMobileOpen(false)} />)}</nav></div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Small steps, shared momentum.</p></aside></div>}
   </div>;
@@ -1058,6 +1063,8 @@ function SafetyPage() {
         <p className="mb-2 font-mono-app text-[10px] uppercase tracking-[.2em] text-primary">Money with guardrails</p>
         <h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-bold tracking-[-.06em]">Paid play, on purpose.</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Free community challenges are open. Real-money entries remain locked until counsel review, provider-verified identity, state eligibility, and payment controls are complete.</p>
+        <Link href="/rules" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary underline underline-offset-4" data-testid="link-safety-rules"><BookOpen size={16} /> Read the challenge rules</Link>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground"><Link href="/terms" className="font-bold text-primary underline underline-offset-4" data-testid="link-safety-terms">Review the Terms &amp; Conditions draft</Link> — not yet adopted; viewing it does not change your consent or eligibility.</p>
       </div>
       <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <section className="space-y-5">
@@ -1370,6 +1377,24 @@ function AdminOverridePanel({ userId, challenges, overrides, availableChallenges
 
 function NotFound() { return <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center text-center"><div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-primary/10 text-primary"><ShoelaceMascot size={68} mood="calm" label="Shoelace mascot for missing page" /></div><h1 className="mt-5 font-display text-3xl font-bold">This path wandered off.</h1><p className="mt-2 text-sm text-muted-foreground">That page is not part of today's route.</p><Link href="/" className="mt-6 rounded-xl bg-foreground px-5 py-3 text-sm font-bold text-background" data-testid="link-back-home">Back to today</Link></div>; }
 
-function Router() { const [location] = useLocation(); return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Dashboard} /><Route path="/challenges" component={ChallengesPage} /><Route path="/community" component={CommunityPage} /><Route path="/challenge/:id" component={ChallengeDetail} /><Route path="/invite/:token" component={InvitePage} /><Route path="/referrals" component={ReferralsPage} /><Route path="/referral/:code" component={ReferralPage} /><Route path="/wallet" component={WalletPage} /><Route path="/safety" component={SafetyPage} /><Route path="/profile" component={ProfilePage} /><Route path="/admin" component={AdminPage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>; }
+function Router() {
+  const [location] = useLocation();
+  return <ErrorBoundary resetKey={location}><AppShell><Switch>
+    <Route path="/" component={Dashboard} />
+    <Route path="/challenges" component={ChallengesPage} />
+    <Route path="/community" component={CommunityPage} />
+    <Route path="/challenge/:id" component={ChallengeDetail} />
+    <Route path="/invite/:token" component={InvitePage} />
+    <Route path="/referrals" component={ReferralsPage} />
+    <Route path="/referral/:code" component={ReferralPage} />
+    <Route path="/wallet" component={WalletPage} />
+    <Route path="/safety" component={SafetyPage} />
+    <Route path="/rules" component={RulesPage} />
+    <Route path="/terms" component={TermsPage} />
+    <Route path="/profile" component={ProfilePage} />
+    <Route path="/admin" component={AdminPage} />
+    <Route component={NotFound} />
+  </Switch></AppShell></ErrorBoundary>;
+}
 function App() { return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><AppProvider><Router /></AppProvider></WouterRouter></QueryClientProvider>; }
 export default App;
