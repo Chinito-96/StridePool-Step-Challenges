@@ -34,6 +34,8 @@ export const usersTable = pgTable("users", {
   eligibilityState: varchar("eligibility_state").notNull().default(""),
   eligibilityIdentityStatus: varchar("eligibility_identity_status").notNull().default("not_started"),
   eligibilityAcceptedTerms: boolean("eligibility_accepted_terms").notNull().default(false),
+  eligibilityAcceptedTermsAt: timestamp("eligibility_accepted_terms_at", { withTimezone: true }),
+  eligibilityAcceptedTermsVersion: varchar("eligibility_accepted_terms_version"),
   // Future real-payment fields: populate only when a provider is selected.
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeConnectAccountId: varchar("stripe_connect_account_id"),

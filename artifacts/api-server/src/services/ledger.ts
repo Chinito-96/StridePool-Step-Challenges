@@ -45,6 +45,7 @@ import {
   getStripePayoutAccount,
   getStripeProviderStatus,
 } from "./stripe-provider";
+import { hasCurrentPaidTermsAcceptance } from "./eligibility-consent";
 
 const providerName = "Stripe";
 export const MINIMUM_WITHDRAWAL_CENTS = 2_000;
@@ -120,7 +121,7 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
     // Client-editable legacy profile values cannot authorize real-money play.
     // Keep this closed until server-verified provider identity evidence is integrated.
     identityStatus: "not_started",
-    acceptedTerms: user.eligibilityAcceptedTerms,
+    acceptedTerms: hasCurrentPaidTermsAcceptance(user),
   });
   if (!eligibility.eligible) {
     throw new Error(eligibility.reasons.join(" "));

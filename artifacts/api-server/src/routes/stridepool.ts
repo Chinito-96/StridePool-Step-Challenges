@@ -68,6 +68,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { buildLifetimeLeaderboard, calculateProjectedPayouts, getParticipantStatus, type LifetimeLeaderboardRow, type ParticipantStatus } from "../services/stridepool-status";
 import { buildGroupMemberJoinedCandidate, buildParticipantNotificationCandidates } from "../services/stridepool-notifications";
 import { checkEligibility, getComplianceStatus } from "../services/ledger";
+import { hasCurrentPaidTermsAcceptance, PAID_CHALLENGE_TERMS_VERSION } from "../services/eligibility-consent";
 import { publicUser } from "../lib/public-user";
 
 const router: IRouter = Router();
@@ -130,7 +131,7 @@ function profileFor(user: typeof usersTable.$inferSelect) {
     eligibilityState: user.eligibilityState,
     // Legacy profile claims are not provider verification evidence.
     identityStatus: "not_started" as const,
-    acceptedTerms: user.eligibilityAcceptedTerms,
+    acceptedTerms: hasCurrentPaidTermsAcceptance(user),
   };
 }
 function challengeFor(challenge: Challenge, joinedIds: Set<string>, joinPrice = 2, currentUserId: string | null = null) {
@@ -625,7 +626,7 @@ router.post("/stridepool/challenges", async (req, res): Promise<void> => {
     age: user.eligibilityAge,
     state: user.eligibilityState,
     identityStatus: "not_started",
-    acceptedTerms: user.eligibilityAcceptedTerms,
+    acceptedTerms: hasCurrentPaidTermsAcceptance(user),
   }) : null;
   if (!compliance.paidPlayEnabled || !eligibility?.eligible) {
     res.status(409).json({ error: "Challenge creation is locked until launch controls and your eligibility checks pass." });
@@ -1333,6 +1334,11 @@ router.patch("/stridepool/profile", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const termsConsentUpdate = parsed.data.acceptedTerms === undefined ? {} : {
+    eligibilityAcceptedTerms: parsed.data.acceptedTerms,
+    eligibilityAcceptedTermsAt: parsed.data.acceptedTerms ? new Date() : null,
+    eligibilityAcceptedTermsVersion: parsed.data.acceptedTerms ? PAID_CHALLENGE_TERMS_VERSION : null,
+  };
   const [user] = await db.update(usersTable).set({
     displayName: parsed.data.displayName,
     reminders: parsed.data.reminders,
@@ -1341,7 +1347,7 @@ router.patch("/stridepool/profile", async (req, res): Promise<void> => {
     healthConnected: parsed.data.healthConnected,
     eligibilityAge: parsed.data.eligibilityAge,
     eligibilityState: parsed.data.eligibilityState,
-    eligibilityAcceptedTerms: parsed.data.acceptedTerms,
+    ...termsConsentUpdate,
     updatedAt: new Date(),
   }).where(eq(usersTable.id, userId)).returning();
   if (!user) {

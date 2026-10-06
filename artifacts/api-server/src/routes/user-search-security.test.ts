@@ -20,12 +20,21 @@ let baseUrl = "";
 let session = "";
 
 before(async () => {
-  await db.insert(usersTable).values([
-    { id: actorId, displayName: "Privacy test actor", email: `${actorId}@example.test` },
-    { id: targetId, displayName: nameToken, email: `${emailToken}@example.test`, eligibilityIdentityStatus: "verified" },
-    { id: anonymousA, displayName: "Anonymous fixture A", walletBalance: "0.00", walletPending: "0.00", totalEarned: "0.00" },
-    { id: anonymousB, displayName: "Anonymous fixture B", walletBalance: "0.00", walletPending: "0.00", totalEarned: "0.00" },
-  ]);
+  await pool.query(
+    `INSERT INTO users (
+      id, email, display_name, eligibility_identity_status,
+      wallet_balance, wallet_pending, total_earned
+    ) VALUES
+      ($1, $2, $3, 'not_started', DEFAULT, DEFAULT, DEFAULT),
+      ($4, $5, $6, 'verified', DEFAULT, DEFAULT, DEFAULT),
+      ($7, NULL, $8, 'not_started', '0.00', '0.00', '0.00'),
+      ($9, NULL, $10, 'not_started', '0.00', '0.00', '0.00')`,
+    [
+      actorId, `${actorId}@example.test`, "Privacy test actor",
+      targetId, `${emailToken}@example.test`, nameToken,
+      anonymousA, "Anonymous fixture A", anonymousB, "Anonymous fixture B",
+    ],
+  );
   await db.insert(challengesTable).values({
     id: challengeId, name: challengeId, theme: "Isolated membership fixture", level: "Community",
     startDate: new Date().toISOString().slice(0, 10),
