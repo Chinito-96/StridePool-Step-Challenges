@@ -35,6 +35,15 @@ export const usersTable = pgTable("users", {
   eligibilityAcceptedTerms: boolean("eligibility_accepted_terms").notNull().default(false),
   eligibilityAcceptedTermsAt: timestamp("eligibility_accepted_terms_at", { withTimezone: true }),
   eligibilityAcceptedTermsVersion: varchar("eligibility_accepted_terms_version"),
+  // Paid Play Terms §12.3: self-exclusion and entry limits apply immediately.
+  paidPlaySelfExcludedUntil: timestamp("paid_play_self_excluded_until", { withTimezone: true }),
+  paidPlaySelfExcludedPermanently: boolean("paid_play_self_excluded_permanently").notNull().default(false),
+  paidPlayWeeklyEntryLimitCents: integer("paid_play_weekly_entry_limit_cents"),
+  // Paid Play Terms §9.6: written consent before any biometric identity check.
+  biometricConsentAt: timestamp("biometric_consent_at", { withTimezone: true }),
+  biometricConsentVersion: varchar("biometric_consent_version"),
+  // Paid Play Terms §6.4: closure pays out the full available balance.
+  accountClosedAt: timestamp("account_closed_at", { withTimezone: true }),
   weightLbs: numeric("weight_lbs", { precision: 6, scale: 1 }),
   heightInches: integer("height_inches"),
   fitnessGoals: text("fitness_goals").notNull().default(""),

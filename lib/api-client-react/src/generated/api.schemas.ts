@@ -779,6 +779,7 @@ export type PaidPlayLaunchControlId = typeof PaidPlayLaunchControlId[keyof typeo
 export const PaidPlayLaunchControlId = {
   launch_enabled: 'launch_enabled',
   counsel_approval: 'counsel_approval',
+  terms_effective: 'terms_effective',
   approved_states: 'approved_states',
   stripe_provider: 'stripe_provider',
   managed_webhook: 'managed_webhook',
@@ -905,11 +906,79 @@ export interface PayoutAccount {
   minimumWithdrawal: number;
 }
 
+/**
+ * standard withdrawals require at least $20.00; refund_credit and account_closure are exempt (Paid Play Terms 6.3, 6.4).
+ */
+export type WithdrawalInputPurpose = typeof WithdrawalInputPurpose[keyof typeof WithdrawalInputPurpose];
+
+
+export const WithdrawalInputPurpose = {
+  standard: 'standard',
+  refund_credit: 'refund_credit',
+  account_closure: 'account_closure',
+} as const;
+
 export interface WithdrawalInput {
-  /** @minimum 2000 */
+  /** @minimum 1 */
   amountCents: number;
   /** @minLength 8 */
   idempotencyKey: string;
+  /** standard withdrawals require at least $20.00; refund_credit and account_closure are exempt (Paid Play Terms 6.3, 6.4). */
+  purpose?: WithdrawalInputPurpose;
+}
+
+export interface PaidPlayAccount {
+  termsVersion: string;
+  termsAccepted: boolean;
+  biometricNoticeVersion: string;
+  biometricConsentRecorded: boolean;
+  selfExcluded: boolean;
+  selfExcludedUntil: string | null;
+  selfExcludedPermanently: boolean;
+  weeklyEntryLimitCents: number | null;
+  restrictedStates: string[];
+  entryBlocks: string[];
+  accountClosed: boolean;
+}
+
+export interface SelfExclusionInput {
+  /**
+     * @minimum 1
+     * @maximum 3650
+     */
+  days?: number;
+  permanent?: boolean;
+}
+
+export interface EntryLimitInput {
+  /** @minimum 0 */
+  weeklyLimitCents: number | null;
+}
+
+export interface BiometricConsentInput {
+  consent: true;
+  noticeVersion: string;
+}
+
+export interface AccountClosureInput {
+  confirm: true;
+  /** @minLength 8 */
+  idempotencyKey: string;
+}
+
+export type AccountClosureResultPayoutStatus = typeof AccountClosureResultPayoutStatus[keyof typeof AccountClosureResultPayoutStatus];
+
+
+export const AccountClosureResultPayoutStatus = {
+  none: 'none',
+  pending: 'pending',
+  needs_payout_account: 'needs_payout_account',
+} as const;
+
+export interface AccountClosureResult {
+  closed: boolean;
+  payoutCents: number;
+  payoutStatus: AccountClosureResultPayoutStatus;
 }
 
 export type WithdrawalResponseStatus = typeof WithdrawalResponseStatus[keyof typeof WithdrawalResponseStatus];

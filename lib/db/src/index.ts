@@ -19,3 +19,4 @@ export * from "./stridepool-money";
 export * from "./stridepool-membership";
 export * from "./stridepool-step-sources";
 export * from "./stridepool-referrals";
+export * from "./stridepool-paid-play-policy";

@@ -22,6 +22,7 @@ const launchEnvironment = {
   PAID_PLAY_ENABLED: "true",
   PAID_PLAY_COUNSEL_APPROVED: "true",
   PAID_PLAY_APPROVED_STATES: "CA, NY",
+  PAID_PLAY_TERMS_EFFECTIVE_DATE: "2026-01-01",
 };
 
 const eligibleParticipant = {
@@ -48,6 +49,7 @@ test("paid play opens only when every launch control is true", () => {
     isPaidPlayLaunchEnabled({
       enabled: true,
       counselApproved: true,
+      termsEffective: true,
       approvedStates: ["CA"],
       ...readyProvider,
     }),
@@ -57,6 +59,7 @@ test("paid play opens only when every launch control is true", () => {
   for (const missingControl of [
     "enabled",
     "counselApproved",
+    "termsEffective",
     "providerReady",
     "webhookReady",
     "backfillReady",
@@ -65,6 +68,7 @@ test("paid play opens only when every launch control is true", () => {
     const controls = {
       enabled: true,
       counselApproved: true,
+      termsEffective: true,
       approvedStates: ["CA"],
       ...readyProvider,
       [missingControl]: false,
@@ -76,6 +80,7 @@ test("paid play opens only when every launch control is true", () => {
     isPaidPlayLaunchEnabled({
       enabled: true,
       counselApproved: true,
+      termsEffective: true,
       approvedStates: [],
       ...readyProvider,
     }),
@@ -88,10 +93,10 @@ test("paid play opens only when every launch control is true", () => {
   assert.equal(checkEligibility(eligibleParticipant, readyProvider, launchEnvironment).eligible, true);
 });
 
-test("compliance explains all seven launch controls and each independent blocker", () => {
+test("compliance explains all eight launch controls and each independent blocker", () => {
   const ready = getComplianceStatus(readyProvider, launchEnvironment);
   const ids = [
-    "launch_enabled", "counsel_approval", "approved_states", "stripe_provider",
+    "launch_enabled", "counsel_approval", "terms_effective", "approved_states", "stripe_provider",
     "managed_webhook", "provider_backfill", "sandbox_reconciliation",
   ];
   assert.deepEqual(ready.launchControls.map((control) => control.id), ids);
@@ -100,7 +105,10 @@ test("compliance explains all seven launch controls and each independent blocker
   const cases = [
     { id: "launch_enabled", environment: { ...launchEnvironment, PAID_PLAY_ENABLED: "false" } },
     { id: "counsel_approval", environment: { ...launchEnvironment, PAID_PLAY_COUNSEL_APPROVED: "TRUE" } },
+    { id: "terms_effective", environment: { ...launchEnvironment, PAID_PLAY_TERMS_EFFECTIVE_DATE: "" } },
+    { id: "terms_effective", environment: { ...launchEnvironment, PAID_PLAY_TERMS_EFFECTIVE_DATE: "2999-01-01" } },
     { id: "approved_states", environment: { ...launchEnvironment, PAID_PLAY_APPROVED_STATES: " , " } },
+    { id: "approved_states", environment: { ...launchEnvironment, PAID_PLAY_APPROVED_STATES: "AZ, WA, CT" } },
     { id: "stripe_provider", provider: { ...readyProvider, providerReady: false } },
     { id: "managed_webhook", provider: { ...readyProvider, webhookReady: false } },
     { id: "provider_backfill", provider: { ...readyProvider, backfillReady: false } },
@@ -115,7 +123,7 @@ test("compliance explains all seven launch controls and each independent blocker
     const blockers = status.launchControls.filter((control) => control.status === "blocking");
     assert.deepEqual(blockers.map((control) => control.id), [example.id]);
     assert.ok(blockers[0].explanation.length > 20, "blockers must explain corrective action");
-    assert.equal(status.launchControls.length, 7);
+    assert.equal(status.launchControls.length, 8);
   }
 
   const closed = getComplianceStatus({
@@ -350,6 +358,7 @@ test("a payout balance mismatch blocks the sandbox reconciliation launch control
       isPaidPlayLaunchEnabled({
         enabled: true,
         counselApproved: true,
+        termsEffective: true,
         approvedStates: ["CA"],
         ...blockedProvider,
       }),
@@ -358,4 +367,16 @@ test("a payout balance mismatch blocks the sandbox reconciliation launch control
   } finally {
     setProviderReconciliationMismatch(false);
   }
+});
+
+test("restricted states stay closed even when configured as approved (Paid Play Terms 1.2)", () => {
+  const environment = { ...launchEnvironment, PAID_PLAY_APPROVED_STATES: "CA, AZ, MD, WA, CT, IA" };
+  const status = getComplianceStatus(readyProvider, environment);
+  assert.deepEqual(status.approvedStates, ["CA"]);
+  for (const state of ["AZ", "AR", "CT", "DE", "IA", "LA", "MD", "MT", "SC", "SD", "TN", "VT", "WA", "az"]) {
+    const decision = checkEligibility({ ...eligibleParticipant, state }, readyProvider, environment);
+    assert.equal(decision.eligible, false, state);
+    assert.ok(decision.reasons.some((reason) => reason.includes("not available in this state")), state);
+  }
+  assert.equal(checkEligibility(eligibleParticipant, readyProvider, environment).eligible, true);
 });

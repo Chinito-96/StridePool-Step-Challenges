@@ -12,6 +12,7 @@ export type PaidPlayLaunchControlId = typeof PaidPlayLaunchControlId[keyof typeo
 export const PaidPlayLaunchControlId = {
   launch_enabled: 'launch_enabled',
   counsel_approval: 'counsel_approval',
+  terms_effective: 'terms_effective',
   approved_states: 'approved_states',
   stripe_provider: 'stripe_provider',
   managed_webhook: 'managed_webhook',

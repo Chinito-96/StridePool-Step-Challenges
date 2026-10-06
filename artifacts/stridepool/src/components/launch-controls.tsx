@@ -3,6 +3,7 @@ import { getGetComplianceStatusQueryKey, useGetComplianceStatus } from '@workspa
 const labels = {
   launch_enabled: 'Paid-play launch switch',
   counsel_approval: 'Legal review',
+  terms_effective: 'Paid Play Terms effective date',
   approved_states: 'Approved states',
   stripe_provider: 'Payment provider',
   managed_webhook: 'Signed webhook delivery',

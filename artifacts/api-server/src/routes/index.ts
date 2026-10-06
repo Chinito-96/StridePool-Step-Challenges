@@ -5,6 +5,7 @@ import stridepoolRouter from "./stridepool";
 import complianceRouter from "./compliance";
 import moneyRouter from "./money";
 import adminRouter from "./admin";
+import paidPlayRouter from "./paid-play";
 
 const router: IRouter = Router();
 
@@ -13,6 +14,7 @@ router.use(authRouter);
 router.use(stridepoolRouter);
 router.use(complianceRouter);
 router.use(moneyRouter);
+router.use(paidPlayRouter);
 router.use(adminRouter);
 
 export default router;

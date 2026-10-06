@@ -57,6 +57,10 @@ export const challengesTable = pgTable("challenges", {
   community: boolean("community").notNull().default(false),
   groupId: varchar("group_id").references(() => groupsTable.id, { onDelete: "set null" }),
   creatorUserId: varchar("creator_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  // Paid Play Terms §3.4: every challenge day runs midnight to midnight in this zone.
+  timeZone: varchar("time_zone").notNull().default("America/Chicago"),
+  // Paid Play Terms §4.5: below this count at start, the challenge is cancelled and refunded.
+  minParticipants: integer("min_participants").notNull().default(2),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -73,6 +77,9 @@ export const entriesTable = pgTable(
     // Future real-payment fields: do not treat these as payment processing yet.
     paymentProvider: varchar("payment_provider"),
     paymentReference: varchar("payment_reference"),
+    // Paid Play Terms §5.3: the platform fee is tracked so refunds follow the fee table.
+    platformFeeCents: integer("platform_fee_cents").notNull().default(0),
+    exitReason: varchar("exit_reason"),
     settlementStatus: varchar("settlement_status"),
     settlementAmount: numeric("settlement_amount", { precision: 12, scale: 2 }),
     settledAt: timestamp("settled_at", { withTimezone: true }),

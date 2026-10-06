@@ -5,10 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { WithdrawalInputPurpose } from './withdrawalInputPurpose';
 
 export interface WithdrawalInput {
-  /** @minimum 2000 */
+  /** @minimum 1 */
   amountCents: number;
   /** @minLength 8 */
   idempotencyKey: string;
+  /** standard withdrawals require at least $20.00; refund_credit and account_closure are exempt (Paid Play Terms 6.3, 6.4). */
+  purpose?: WithdrawalInputPurpose;
 }

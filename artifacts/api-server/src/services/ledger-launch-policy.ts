@@ -4,6 +4,7 @@ import type {
   EligibilityInput,
   PaidPlayLaunchControl,
 } from "@workspace/api-zod";
+import { isRestrictedPaidPlayState, RESTRICTED_PAID_PLAY_STATES } from "@workspace/db/paid-play-policy";
 
 export type LaunchEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -19,6 +20,7 @@ const providerName = "Stripe";
 type PaidPlayLaunchInput = {
   enabled: boolean;
   counselApproved: boolean;
+  termsEffective: boolean;
   approvedStates: string[];
   providerReady: boolean;
   webhookReady: boolean;
@@ -30,7 +32,14 @@ function readApprovedStates(environment: LaunchEnvironment): string[] {
   return (environment.PAID_PLAY_APPROVED_STATES ?? "")
     .split(",")
     .map((state) => state.trim().toUpperCase())
-    .filter(Boolean);
+    .filter(Boolean)
+    // Paid Play Terms §1.2: restricted states stay closed even if configured.
+    .filter((state) => !isRestrictedPaidPlayState(state));
+}
+
+function readTermsEffectiveDate(environment: LaunchEnvironment): string | null {
+  const value = environment.PAID_PLAY_TERMS_EFFECTIVE_DATE?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
 function getPaidPlayLaunchControls(input: PaidPlayLaunchInput): PaidPlayLaunchControl[] {
@@ -52,6 +61,9 @@ function getPaidPlayLaunchControls(input: PaidPlayLaunchInput): PaidPlayLaunchCo
     control("counsel_approval", input.counselApproved,
       "Written counsel approval is marked as recorded.",
       "Obtain and record written qualified-counsel approval before setting PAID_PLAY_COUNSEL_APPROVED=true."),
+    control("terms_effective", input.termsEffective,
+      "The Paid Play Terms effective date is set and has arrived.",
+      "Set PAID_PLAY_TERMS_EFFECTIVE_DATE (YYYY-MM-DD) to the adopted Paid Play Terms effective date; paid play stays closed until that date."),
     control("approved_states", input.approvedStates.length > 0,
       "An approved-jurisdiction list is configured.",
       "After written counsel approval, add only covered jurisdictions to PAID_PLAY_APPROVED_STATES."),
@@ -82,6 +94,8 @@ function eligibilityReasons(input: EligibilityInput, status: ComplianceStatus): 
     reasons.push("Paid play is paused while state-by-state counsel review is pending.");
   } else if (status.counselReviewRequired) {
     reasons.push("Paid play is paused until written qualified-counsel approval is recorded.");
+  } else if (isRestrictedPaidPlayState(input.state)) {
+    reasons.push("Paid Challenges are not available in this state.");
   } else if (!status.approvedStates.includes(input.state.toUpperCase())) {
     reasons.push("Paid play is not available in this state.");
   }
@@ -96,11 +110,13 @@ export function getComplianceStatus(
   environment: LaunchEnvironment,
 ): ComplianceStatus {
   const approvedStates = readApprovedStates(environment);
+  const termsEffectiveDate = readTermsEffectiveDate(environment);
   const counselApproved = environment.PAID_PLAY_COUNSEL_APPROVED === "true";
   const providerConfigured = provider.providerReady && provider.webhookReady;
   const launchControls = getPaidPlayLaunchControls({
     enabled: environment.PAID_PLAY_ENABLED === "true",
     counselApproved,
+    termsEffective: termsEffectiveDate !== null && termsEffectiveDate <= new Date().toISOString().slice(0, 10),
     approvedStates,
     providerReady: provider.providerReady,
     webhookReady: provider.webhookReady,
@@ -121,13 +137,18 @@ export function getComplianceStatus(
       "18 or older",
       "Identity verified by the payment provider",
       "State eligibility confirmed after counsel review",
+      `Not available in ${RESTRICTED_PAID_PLAY_STATES.join(", ")}`,
+      "Current Paid Play Terms accepted; re-acceptance required after material changes",
+      "Biometric notice consent recorded before identity verification",
+      "Not self-excluded from Paid Challenges",
       "Paid-challenge terms and refund policy accepted",
       "Geolocation, tax, dispute, responsible-play, and record-retention notices acknowledged",
       "Settlement, refund, dispute, and payout-retry events reconciled from the provider",
     ],
     settlementPolicy: [
       "All amounts are stored as integer USD cents; no floating-point balance math",
-      "Winner shares use deterministic largest-remainder rounding and must reconcile to the pool",
+      "Winner shares use deterministic largest-remainder rounding and must reconcile to the pool; leftover cents go to finishers in join order",
+      "Settlement waits until 24 hours after the final day's 24-hour sync window closes",
       "No-finisher refunds and provider disputes are separate immutable events",
       "Failed payouts remain pending and carry a retry count until reconciled by the provider",
     ],

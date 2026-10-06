@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccountClosureInput,
+  AccountClosureResult,
   AdminChallengesResponse,
   AdminCloseoutAlertsResponse,
   AdminFlaggedStepRecordsResponse,
@@ -37,6 +39,7 @@ import type {
   AdminUserSearchResponse,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  BiometricConsentInput,
   Challenge,
   ChallengeChatMessage,
   ChallengeChatMessageInput,
@@ -53,6 +56,7 @@ import type {
   CreateMembershipBillingPortal201,
   EligibilityDecision,
   EligibilityInput,
+  EntryLimitInput,
   EntryMutationResponse,
   ErrorResponse,
   GetStridePoolCommunityChallengesParams,
@@ -74,6 +78,7 @@ import type {
   MobileTokenExchangeSuccess,
   NotificationMutationResponse,
   NotificationsResponse,
+  PaidPlayAccount,
   PayoutAccount,
   PayoutOnboardingInput,
   PayoutOnboardingResponse,
@@ -90,6 +95,7 @@ import type {
   ReferralSummary,
   SearchAdminUsersParams,
   SearchStridePoolUsersParams,
+  SelfExclusionInput,
   StridePoolBootstrap,
   StripeWebhookPayload,
   UserSearchResponse,
@@ -640,6 +646,367 @@ export const useCreateWithdrawal = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateWithdrawalMutationOptions(options));
+    }
+
+export const getGetPaidPlayAccountUrl = () => {
+
+
+
+
+  return `/api/paid-play/account`
+}
+
+/**
+ * @summary Paid Play Terms status for the signed-in account (terms, biometric notice, self-exclusion, entry limit)
+ */
+export const getPaidPlayAccount = async ( options?: Parameters<typeof customFetch>[1]): Promise<PaidPlayAccount> => {
+
+  return customFetch<PaidPlayAccount>(getGetPaidPlayAccountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaidPlayAccountQueryKey = () => {
+    return [
+    `/api/paid-play/account`
+    ] as const;
+    }
+
+
+export const getGetPaidPlayAccountQueryOptions = <TData = Awaited<ReturnType<typeof getPaidPlayAccount>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaidPlayAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaidPlayAccountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPaidPlayAccount>>> = ({ signal }) => getPaidPlayAccount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPaidPlayAccount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPaidPlayAccountQueryResult = NonNullable<Awaited<ReturnType<typeof getPaidPlayAccount>>>
+export type GetPaidPlayAccountQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Paid Play Terms status for the signed-in account (terms, biometric notice, self-exclusion, entry limit)
+ */
+
+export function useGetPaidPlayAccount<TData = Awaited<ReturnType<typeof getPaidPlayAccount>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaidPlayAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPaidPlayAccountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestPaidPlaySelfExclusionUrl = () => {
+
+
+
+
+  return `/api/paid-play/self-exclusion`
+}
+
+/**
+ * @summary Exclude this account from Paid Challenges for a period or permanently (Paid Play Terms 12.3)
+ */
+export const requestPaidPlaySelfExclusion = async (selfExclusionInput: SelfExclusionInput, options?: Parameters<typeof customFetch>[1]): Promise<PaidPlayAccount> => {
+
+  return customFetch<PaidPlayAccount>(getRequestPaidPlaySelfExclusionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(selfExclusionInput)
+  }
+);}
+
+
+
+
+
+export const getRequestPaidPlaySelfExclusionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPaidPlaySelfExclusion>>, TError,{data: BodyType<SelfExclusionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestPaidPlaySelfExclusion>>, TError,{data: BodyType<SelfExclusionInput>}, TContext> => {
+
+const mutationKey = ['requestPaidPlaySelfExclusion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestPaidPlaySelfExclusion>>, {data: BodyType<SelfExclusionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestPaidPlaySelfExclusion(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestPaidPlaySelfExclusionMutationResult = NonNullable<Awaited<ReturnType<typeof requestPaidPlaySelfExclusion>>>
+    export type RequestPaidPlaySelfExclusionMutationBody = BodyType<SelfExclusionInput>
+    export type RequestPaidPlaySelfExclusionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Exclude this account from Paid Challenges for a period or permanently (Paid Play Terms 12.3)
+ */
+export const useRequestPaidPlaySelfExclusion = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPaidPlaySelfExclusion>>, TError,{data: BodyType<SelfExclusionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestPaidPlaySelfExclusion>>,
+        TError,
+        {data: BodyType<SelfExclusionInput>},
+        TContext
+      > => {
+      return useMutation(getRequestPaidPlaySelfExclusionMutationOptions(options));
+    }
+
+export const getSetPaidPlayEntryLimitUrl = () => {
+
+
+
+
+  return `/api/paid-play/entry-limit`
+}
+
+/**
+ * @summary Set or clear a weekly paid-entry spending limit (Paid Play Terms 12.3)
+ */
+export const setPaidPlayEntryLimit = async (entryLimitInput: EntryLimitInput, options?: Parameters<typeof customFetch>[1]): Promise<PaidPlayAccount> => {
+
+  return customFetch<PaidPlayAccount>(getSetPaidPlayEntryLimitUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(entryLimitInput)
+  }
+);}
+
+
+
+
+
+export const getSetPaidPlayEntryLimitMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPaidPlayEntryLimit>>, TError,{data: BodyType<EntryLimitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setPaidPlayEntryLimit>>, TError,{data: BodyType<EntryLimitInput>}, TContext> => {
+
+const mutationKey = ['setPaidPlayEntryLimit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setPaidPlayEntryLimit>>, {data: BodyType<EntryLimitInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setPaidPlayEntryLimit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetPaidPlayEntryLimitMutationResult = NonNullable<Awaited<ReturnType<typeof setPaidPlayEntryLimit>>>
+    export type SetPaidPlayEntryLimitMutationBody = BodyType<EntryLimitInput>
+    export type SetPaidPlayEntryLimitMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set or clear a weekly paid-entry spending limit (Paid Play Terms 12.3)
+ */
+export const useSetPaidPlayEntryLimit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPaidPlayEntryLimit>>, TError,{data: BodyType<EntryLimitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setPaidPlayEntryLimit>>,
+        TError,
+        {data: BodyType<EntryLimitInput>},
+        TContext
+      > => {
+      return useMutation(getSetPaidPlayEntryLimitMutationOptions(options));
+    }
+
+export const getRecordBiometricConsentUrl = () => {
+
+
+
+
+  return `/api/paid-play/biometric-consent`
+}
+
+/**
+ * @summary Record written consent to the biometric notice before identity verification (Paid Play Terms 9.6)
+ */
+export const recordBiometricConsent = async (biometricConsentInput: BiometricConsentInput, options?: Parameters<typeof customFetch>[1]): Promise<PaidPlayAccount> => {
+
+  return customFetch<PaidPlayAccount>(getRecordBiometricConsentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(biometricConsentInput)
+  }
+);}
+
+
+
+
+
+export const getRecordBiometricConsentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordBiometricConsent>>, TError,{data: BodyType<BiometricConsentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordBiometricConsent>>, TError,{data: BodyType<BiometricConsentInput>}, TContext> => {
+
+const mutationKey = ['recordBiometricConsent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordBiometricConsent>>, {data: BodyType<BiometricConsentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordBiometricConsent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordBiometricConsentMutationResult = NonNullable<Awaited<ReturnType<typeof recordBiometricConsent>>>
+    export type RecordBiometricConsentMutationBody = BodyType<BiometricConsentInput>
+    export type RecordBiometricConsentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record written consent to the biometric notice before identity verification (Paid Play Terms 9.6)
+ */
+export const useRecordBiometricConsent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordBiometricConsent>>, TError,{data: BodyType<BiometricConsentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordBiometricConsent>>,
+        TError,
+        {data: BodyType<BiometricConsentInput>},
+        TContext
+      > => {
+      return useMutation(getRecordBiometricConsentMutationOptions(options));
+    }
+
+export const getClosePaidPlayAccountUrl = () => {
+
+
+
+
+  return `/api/paid-play/account-closure`
+}
+
+/**
+ * @summary Close the account and pay out the full available balance regardless of the minimum (Paid Play Terms 6.4)
+ */
+export const closePaidPlayAccount = async (accountClosureInput: AccountClosureInput, options?: Parameters<typeof customFetch>[1]): Promise<AccountClosureResult> => {
+
+  return customFetch<AccountClosureResult>(getClosePaidPlayAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accountClosureInput)
+  }
+);}
+
+
+
+
+
+export const getClosePaidPlayAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closePaidPlayAccount>>, TError,{data: BodyType<AccountClosureInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closePaidPlayAccount>>, TError,{data: BodyType<AccountClosureInput>}, TContext> => {
+
+const mutationKey = ['closePaidPlayAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closePaidPlayAccount>>, {data: BodyType<AccountClosureInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  closePaidPlayAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClosePaidPlayAccountMutationResult = NonNullable<Awaited<ReturnType<typeof closePaidPlayAccount>>>
+    export type ClosePaidPlayAccountMutationBody = BodyType<AccountClosureInput>
+    export type ClosePaidPlayAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Close the account and pay out the full available balance regardless of the minimum (Paid Play Terms 6.4)
+ */
+export const useClosePaidPlayAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closePaidPlayAccount>>, TError,{data: BodyType<AccountClosureInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closePaidPlayAccount>>,
+        TError,
+        {data: BodyType<AccountClosureInput>},
+        TContext
+      > => {
+      return useMutation(getClosePaidPlayAccountMutationOptions(options));
     }
 
 export const getGetLedgerUrl = () => {

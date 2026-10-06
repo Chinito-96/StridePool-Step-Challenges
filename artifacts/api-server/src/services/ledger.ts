@@ -19,6 +19,9 @@ import {
   providerMoneyEventsTable,
   usersTable,
   walletLedgerEntriesTable,
+  paidEntryBlocks,
+  withdrawalBlocks,
+  MINIMUM_WITHDRAWAL_CENTS as POLICY_MINIMUM_WITHDRAWAL_CENTS,
 } from "@workspace/db";
 import { and, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import {
@@ -49,7 +52,7 @@ import { hasCurrentPaidTermsAcceptance } from "./eligibility-consent";
 import { assertProductionWithdrawalsEnabled } from "./stripe-live-policy";
 
 const providerName = "Stripe";
-export const MINIMUM_WITHDRAWAL_CENTS = 2_000;
+export const MINIMUM_WITHDRAWAL_CENTS = POLICY_MINIMUM_WITHDRAWAL_CENTS;
 export { isPaidPlayLaunchEnabled };
 
 export function getComplianceStatus(
@@ -69,6 +72,27 @@ export function checkEligibility(
     provider ?? getStripeProviderStatus(),
     environment ?? process.env,
   );
+}
+
+/** Paid Play Terms §12.3: a user-set weekly cap on paid entry spending. */
+export async function assertWithinWeeklyEntryLimit(
+  user: typeof usersTable.$inferSelect,
+  newEntryTotalCents: number,
+  now = new Date(),
+): Promise<void> {
+  const limit = user.paidPlayWeeklyEntryLimitCents;
+  if (limit === null || limit === undefined) return;
+  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const [spent] = await db.select({
+    cents: sql<number>`coalesce(sum(round(${entriesTable.entryFee} * 100) + ${entriesTable.platformFeeCents}), 0)`,
+  }).from(entriesTable).where(and(
+    eq(entriesTable.userId, user.id),
+    gte(entriesTable.joinedAt, since),
+    isNotNull(entriesTable.paymentReference),
+  ));
+  if (Number(spent?.cents ?? 0) + newEntryTotalCents > limit) {
+    throw new Error(`This entry would exceed your weekly paid-entry limit of $${(limit / 100).toFixed(2)}.`);
+  }
 }
 
 function legacyIdempotencyMatch(
@@ -127,6 +151,11 @@ export async function createCheckout(userId: string, input: CheckoutInput) {
   if (!eligibility.eligible) {
     throw new Error(eligibility.reasons.join(" "));
   }
+  // Paid Play Terms §1.2, §9.6, §12.3, §13.3: account-level blocks.
+  const accountBlocks = paidEntryBlocks(user);
+  if (accountBlocks.length) throw new Error(accountBlocks.join(" "));
+  if (user.accountClosedAt) throw new Error("This account is closed.");
+  await assertWithinWeeklyEntryLimit(user, totalCents);
   if (!Number.isInteger(input.amountCents)) throw new Error("Money amounts must be whole cents.");
 
   const checkout = await createStripeCheckout(user, challenge, totalCents, challengeEntryCents, policy.challengeJoinPriceCents, input.idempotencyKey);
@@ -256,6 +285,21 @@ export async function getPayoutAccount(userId: string) {
   };
 }
 
+/** Refunds credited to the wallet (§5.4 fallback) that have not yet been withdrawn below the minimum. */
+export async function unwithdrawnRefundCreditCents(userId: string): Promise<number> {
+  const entries = await db.select().from(walletLedgerEntriesTable).where(and(
+    eq(walletLedgerEntriesTable.userId, userId),
+    inArray(walletLedgerEntriesTable.eventType, ["refund_wallet_credit", "withdrawal_requested"]),
+  ));
+  const credited = entries
+    .filter((entry) => entry.eventType === "refund_wallet_credit")
+    .reduce((sum, entry) => sum + entry.amountCents, 0);
+  const usedBelowMinimum = entries
+    .filter((entry) => entry.eventType === "withdrawal_requested" && entry.metadata.purpose === "refund_credit" && entry.status !== "provider_failed")
+    .reduce((sum, entry) => sum + entry.amountCents, 0);
+  return Math.max(0, credited - usedBelowMinimum);
+}
+
 type WithdrawalDependencies = {
   getPayoutAccount: typeof getStripePayoutAccount;
   createWithdrawal: typeof createStripeWithdrawal;
@@ -272,8 +316,9 @@ export async function withdrawAvailableBalance(
   // Reject before reserving wallet funds or contacting Stripe.
   assertProductionWithdrawalsEnabled(process.env);
   const amountCents = input.amountCents;
-  if (!Number.isSafeInteger(amountCents) || amountCents < MINIMUM_WITHDRAWAL_CENTS) {
-    throw new Error("Withdrawal amount must be at least $20.00 in whole cents.");
+  const purpose = input.purpose ?? "standard";
+  if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+    throw new Error("Withdrawal amount must be a positive whole number of cents.");
   }
   const existingResult = (entry: typeof walletLedgerEntriesTable.$inferSelect) => {
     if (entry.amountCents !== amountCents) {
@@ -299,6 +344,24 @@ export async function withdrawAvailableBalance(
   const availableCents = Math.round(Number(user.walletBalance) * 100);
   if (amountCents > availableCents) {
     throw new Error("Requested withdrawal exceeds your available wallet balance.");
+  }
+  // Paid Play Terms §6.3/§6.4: the $20 minimum does not apply to wallet
+  // refund credits or to the full-balance payout when an account closes.
+  if (amountCents < MINIMUM_WITHDRAWAL_CENTS) {
+    if (purpose === "account_closure") {
+      if (amountCents !== availableCents) throw new Error("An account-closure payout must withdraw the full available balance.");
+    } else if (purpose === "refund_credit") {
+      const refundCredits = await unwithdrawnRefundCreditCents(userId);
+      if (amountCents > refundCredits) throw new Error("Only wallet refund credits can be withdrawn below the $20.00 minimum.");
+    } else {
+      throw new Error("Withdrawal amount must be at least $20.00 in whole cents.");
+    }
+  }
+  // Paid Play Terms §1.2: withdrawals are requested from a permitted state.
+  // Closure payouts return money already owed, so they are not blocked.
+  if (purpose !== "account_closure") {
+    const blocks = withdrawalBlocks(user);
+    if (blocks.length) throw new Error(blocks.join(" "));
   }
   const account = await dependencies.getPayoutAccount(user);
   if (!account.linked || !account.payoutsEnabled) {
@@ -333,6 +396,7 @@ export async function withdrawAvailableBalance(
       challengeId: null,
       metadata: {
         auditRule: "available wallet balance reserved before provider payout reconciliation",
+        purpose,
       },
     });
     return { reservedAmountCents: amountCents };

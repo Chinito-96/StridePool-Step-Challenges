@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./paid-play-policy": "./src/stridepool-paid-play-policy.ts"
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",

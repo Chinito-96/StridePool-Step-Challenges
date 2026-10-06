@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accountClosureInput';
+export * from './accountClosureResult';
+export * from './accountClosureResultPayoutStatus';
 export * from './activity';
 export * from './adminChallenge';
 export * from './adminChallengesResponse';
@@ -50,6 +53,7 @@ export * from './authorizationSessionHeaderParameter';
 export * from './authUser';
 export * from './authUserEnvelope';
 export * from './beginBrowserLoginParams';
+export * from './biometricConsentInput';
 export * from './challenge';
 export * from './challengeChallengeType';
 export * from './challengeChatMessage';
@@ -74,6 +78,7 @@ export * from './createMembershipBillingPortal201';
 export * from './eligibilityDecision';
 export * from './eligibilityInput';
 export * from './eligibilityInputIdentityStatus';
+export * from './entryLimitInput';
 export * from './entryMutationResponse';
 export * from './errorResponse';
 export * from './freeStreak';
@@ -115,6 +120,7 @@ export * from './notification';
 export * from './notificationMutationResponse';
 export * from './notificationsResponse';
 export * from './notificationType';
+export * from './paidPlayAccount';
 export * from './paidPlayLaunchControl';
 export * from './paidPlayLaunchControlId';
 export * from './paidPlayLaunchControlStatus';
@@ -145,6 +151,7 @@ export * from './referralPreview';
 export * from './referralSummary';
 export * from './searchAdminUsersParams';
 export * from './searchStridePoolUsersParams';
+export * from './selfExclusionInput';
 export * from './sourceSampleResult';
 export * from './sourceSampleResultVerificationStatus';
 export * from './stepReview';
@@ -159,5 +166,6 @@ export * from './userSearchResult';
 export * from './walletSummary';
 export * from './webhookResponse';
 export * from './withdrawalInput';
+export * from './withdrawalInputPurpose';
 export * from './withdrawalResponse';
 export * from './withdrawalResponseStatus';

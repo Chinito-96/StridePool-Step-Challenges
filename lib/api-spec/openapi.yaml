@@ -155,6 +155,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /paid-play/account:
+    get:
+      operationId: getPaidPlayAccount
+      tags: [compliance]
+      summary: Paid Play Terms status for the signed-in account (terms, biometric notice, self-exclusion, entry limit)
+      responses:
+        "200":
+          description: Paid-play account status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaidPlayAccount"
+  /paid-play/self-exclusion:
+    post:
+      operationId: requestPaidPlaySelfExclusion
+      tags: [compliance]
+      summary: Exclude this account from Paid Challenges for a period or permanently (Paid Play Terms 12.3)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelfExclusionInput"
+      responses:
+        "200":
+          description: Exclusion applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaidPlayAccount"
+  /paid-play/entry-limit:
+    put:
+      operationId: setPaidPlayEntryLimit
+      tags: [compliance]
+      summary: Set or clear a weekly paid-entry spending limit (Paid Play Terms 12.3)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntryLimitInput"
+      responses:
+        "200":
+          description: Limit saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaidPlayAccount"
+  /paid-play/biometric-consent:
+    post:
+      operationId: recordBiometricConsent
+      tags: [compliance]
+      summary: Record written consent to the biometric notice before identity verification (Paid Play Terms 9.6)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BiometricConsentInput"
+      responses:
+        "200":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaidPlayAccount"
+  /paid-play/account-closure:
+    post:
+      operationId: closePaidPlayAccount
+      tags: [compliance]
+      summary: Close the account and pay out the full available balance regardless of the minimum (Paid Play Terms 6.4)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountClosureInput"
+      responses:
+        "200":
+          description: Account closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountClosureResult"
+        "409":
+          description: Closure requirements are not met
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /money/ledger:
     get:
       operationId: getLedger
@@ -1856,7 +1946,7 @@ components:
       properties:
         id:
           type: string
-          enum: [launch_enabled, counsel_approval, approved_states, stripe_provider, managed_webhook, provider_backfill, sandbox_reconciliation]
+          enum: [launch_enabled, counsel_approval, terms_effective, approved_states, stripe_provider, managed_webhook, provider_backfill, sandbox_reconciliation]
         status: { type: string, enum: [ready, blocking] }
         explanation:
           type: string
@@ -1943,9 +2033,57 @@ components:
     WithdrawalInput:
       type: object
       properties:
-        amountCents: { type: integer, minimum: 2000 }
+        amountCents: { type: integer, minimum: 1 }
         idempotencyKey: { type: string, minLength: 8 }
+        purpose:
+          type: string
+          enum: [standard, refund_credit, account_closure]
+          description: "standard withdrawals require at least $20.00; refund_credit and account_closure are exempt (Paid Play Terms 6.3, 6.4)."
       required: [amountCents, idempotencyKey]
+    PaidPlayAccount:
+      type: object
+      properties:
+        termsVersion: { type: string }
+        termsAccepted: { type: boolean }
+        biometricNoticeVersion: { type: string }
+        biometricConsentRecorded: { type: boolean }
+        selfExcluded: { type: boolean }
+        selfExcludedUntil: { type: string, format: date-time, nullable: true }
+        selfExcludedPermanently: { type: boolean }
+        weeklyEntryLimitCents: { type: integer, nullable: true }
+        restrictedStates: { type: array, items: { type: string } }
+        entryBlocks: { type: array, items: { type: string } }
+        accountClosed: { type: boolean }
+      required: [termsVersion, termsAccepted, biometricNoticeVersion, biometricConsentRecorded, selfExcluded, selfExcludedUntil, selfExcludedPermanently, weeklyEntryLimitCents, restrictedStates, entryBlocks, accountClosed]
+    SelfExclusionInput:
+      type: object
+      properties:
+        days: { type: integer, minimum: 1, maximum: 3650 }
+        permanent: { type: boolean }
+    EntryLimitInput:
+      type: object
+      properties:
+        weeklyLimitCents: { type: integer, minimum: 0, nullable: true }
+      required: [weeklyLimitCents]
+    BiometricConsentInput:
+      type: object
+      properties:
+        consent: { type: boolean, enum: [true] }
+        noticeVersion: { type: string }
+      required: [consent, noticeVersion]
+    AccountClosureInput:
+      type: object
+      properties:
+        confirm: { type: boolean, enum: [true] }
+        idempotencyKey: { type: string, minLength: 8 }
+      required: [confirm, idempotencyKey]
+    AccountClosureResult:
+      type: object
+      properties:
+        closed: { type: boolean }
+        payoutCents: { type: integer }
+        payoutStatus: { type: string, enum: [none, pending, needs_payout_account] }
+      required: [closed, payoutCents, payoutStatus]
     WithdrawalResponse:
       type: object
       properties:

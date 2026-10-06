@@ -23,7 +23,7 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetComplianceStatusResponse = zod.object({
   "launchControls": zod.array(zod.object({
-  "id": zod.enum(['launch_enabled', 'counsel_approval', 'approved_states', 'stripe_provider', 'managed_webhook', 'provider_backfill', 'sandbox_reconciliation']),
+  "id": zod.enum(['launch_enabled', 'counsel_approval', 'terms_effective', 'approved_states', 'stripe_provider', 'managed_webhook', 'provider_backfill', 'sandbox_reconciliation']),
   "status": zod.enum(['ready', 'blocking']),
   "explanation": zod.string().describe('Fixed, non-secret readiness explanation or corrective action. Never includes raw configuration values or provider errors.')
 })).describe('Each required launch control independently reports readiness; paidPlayEnabled is true only when every control is ready.'),
@@ -122,15 +122,15 @@ export const GetPayoutAccountResponse = zod.object({
 /**
  * @summary Withdraw a specified amount from the available wallet balance to the linked bank account
  */
-export const createWithdrawalBodyAmountCentsMin = 2000;
 
 export const createWithdrawalBodyIdempotencyKeyMin = 8;
 
 
 
 export const CreateWithdrawalBody = zod.object({
-  "amountCents": zod.int().min(createWithdrawalBodyAmountCentsMin),
-  "idempotencyKey": zod.string().min(createWithdrawalBodyIdempotencyKeyMin)
+  "amountCents": zod.int().min(1),
+  "idempotencyKey": zod.string().min(createWithdrawalBodyIdempotencyKeyMin),
+  "purpose": zod.enum(['standard', 'refund_credit', 'account_closure']).optional().describe('standard withdrawals require at least $20.00; refund_credit and account_closure are exempt (Paid Play Terms 6.3, 6.4).')
 })
 
 export const CreateWithdrawalResponse = zod.object({
@@ -138,6 +138,119 @@ export const CreateWithdrawalResponse = zod.object({
   "amountCents": zod.int(),
   "status": zod.enum(['pending', 'paid']),
   "provider": zod.string()
+})
+
+
+/**
+ * @summary Paid Play Terms status for the signed-in account (terms, biometric notice, self-exclusion, entry limit)
+ */
+export const GetPaidPlayAccountResponse = zod.object({
+  "termsVersion": zod.string(),
+  "termsAccepted": zod.boolean(),
+  "biometricNoticeVersion": zod.string(),
+  "biometricConsentRecorded": zod.boolean(),
+  "selfExcluded": zod.boolean(),
+  "selfExcludedUntil": zod.coerce.date().nullable(),
+  "selfExcludedPermanently": zod.boolean(),
+  "weeklyEntryLimitCents": zod.int().nullable(),
+  "restrictedStates": zod.array(zod.string()),
+  "entryBlocks": zod.array(zod.string()),
+  "accountClosed": zod.boolean()
+})
+
+
+/**
+ * @summary Exclude this account from Paid Challenges for a period or permanently (Paid Play Terms 12.3)
+ */
+export const requestPaidPlaySelfExclusionBodyDaysMax = 3650;
+
+
+
+export const RequestPaidPlaySelfExclusionBody = zod.object({
+  "days": zod.int().min(1).max(requestPaidPlaySelfExclusionBodyDaysMax).optional(),
+  "permanent": zod.boolean().optional()
+})
+
+export const RequestPaidPlaySelfExclusionResponse = zod.object({
+  "termsVersion": zod.string(),
+  "termsAccepted": zod.boolean(),
+  "biometricNoticeVersion": zod.string(),
+  "biometricConsentRecorded": zod.boolean(),
+  "selfExcluded": zod.boolean(),
+  "selfExcludedUntil": zod.coerce.date().nullable(),
+  "selfExcludedPermanently": zod.boolean(),
+  "weeklyEntryLimitCents": zod.int().nullable(),
+  "restrictedStates": zod.array(zod.string()),
+  "entryBlocks": zod.array(zod.string()),
+  "accountClosed": zod.boolean()
+})
+
+
+/**
+ * @summary Set or clear a weekly paid-entry spending limit (Paid Play Terms 12.3)
+ */
+export const setPaidPlayEntryLimitBodyWeeklyLimitCentsMin = 0;
+
+
+
+export const SetPaidPlayEntryLimitBody = zod.object({
+  "weeklyLimitCents": zod.int().min(setPaidPlayEntryLimitBodyWeeklyLimitCentsMin).nullable()
+})
+
+export const SetPaidPlayEntryLimitResponse = zod.object({
+  "termsVersion": zod.string(),
+  "termsAccepted": zod.boolean(),
+  "biometricNoticeVersion": zod.string(),
+  "biometricConsentRecorded": zod.boolean(),
+  "selfExcluded": zod.boolean(),
+  "selfExcludedUntil": zod.coerce.date().nullable(),
+  "selfExcludedPermanently": zod.boolean(),
+  "weeklyEntryLimitCents": zod.int().nullable(),
+  "restrictedStates": zod.array(zod.string()),
+  "entryBlocks": zod.array(zod.string()),
+  "accountClosed": zod.boolean()
+})
+
+
+/**
+ * @summary Record written consent to the biometric notice before identity verification (Paid Play Terms 9.6)
+ */
+export const RecordBiometricConsentBody = zod.object({
+  "consent": zod.literal(true),
+  "noticeVersion": zod.string()
+})
+
+export const RecordBiometricConsentResponse = zod.object({
+  "termsVersion": zod.string(),
+  "termsAccepted": zod.boolean(),
+  "biometricNoticeVersion": zod.string(),
+  "biometricConsentRecorded": zod.boolean(),
+  "selfExcluded": zod.boolean(),
+  "selfExcludedUntil": zod.coerce.date().nullable(),
+  "selfExcludedPermanently": zod.boolean(),
+  "weeklyEntryLimitCents": zod.int().nullable(),
+  "restrictedStates": zod.array(zod.string()),
+  "entryBlocks": zod.array(zod.string()),
+  "accountClosed": zod.boolean()
+})
+
+
+/**
+ * @summary Close the account and pay out the full available balance regardless of the minimum (Paid Play Terms 6.4)
+ */
+export const closePaidPlayAccountBodyIdempotencyKeyMin = 8;
+
+
+
+export const ClosePaidPlayAccountBody = zod.object({
+  "confirm": zod.literal(true),
+  "idempotencyKey": zod.string().min(closePaidPlayAccountBodyIdempotencyKeyMin)
+})
+
+export const ClosePaidPlayAccountResponse = zod.object({
+  "closed": zod.boolean(),
+  "payoutCents": zod.int(),
+  "payoutStatus": zod.enum(['none', 'pending', 'needs_payout_account'])
 })
 
 

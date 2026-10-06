@@ -1,7 +1,8 @@
-import type { User } from "@workspace/db";
+import { hasCurrentPaidPlayTermsAcceptance, PAID_PLAY_TERMS_VERSION, type User } from "@workspace/db";
 
-// Bump this whenever the paid-challenge terms or refund policy wording changes.
-export const PAID_CHALLENGE_TERMS_VERSION = "paid-challenge-v1";
+// The version lives with the other Paid Play Terms rules in @workspace/db.
+// Bumping it there requires every user to accept the updated terms again.
+export const PAID_CHALLENGE_TERMS_VERSION = PAID_PLAY_TERMS_VERSION;
 
 export function hasCurrentPaidTermsAcceptance(user: Pick<
   User,
@@ -9,7 +10,5 @@ export function hasCurrentPaidTermsAcceptance(user: Pick<
   | "eligibilityAcceptedTermsAt"
   | "eligibilityAcceptedTermsVersion"
 >): boolean {
-  return user.eligibilityAcceptedTerms
-    && user.eligibilityAcceptedTermsAt !== null
-    && user.eligibilityAcceptedTermsVersion === PAID_CHALLENGE_TERMS_VERSION;
+  return hasCurrentPaidPlayTermsAcceptance(user);
 }
