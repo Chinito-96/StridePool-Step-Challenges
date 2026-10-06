@@ -20,3 +20,9 @@ Development intentionally uses a separate test account from the app's live Strip
 **Why:** The user explicitly chose to keep a separate test account rather than match the live account.
 
 **How to apply:** Different account IDs across development and live are expected, not a configuration error. Verify credentials and Connect readiness within each intended account; do not replace the development key solely to make those IDs match.
+
+Keep Connect request versions aligned with the installed Stripe SDK's schema, without globally upgrading payment or webhook versions.
+
+**Why:** New standalone sandboxes can reject Accounts v1 creation by API policy. Accounts v2 works, but `2026-09-30.endive` removed the account-link `configurations` parameter that older SDKs still require. Pinning a newer API version against older SDK types caused valid-looking requests to fail. Stripe's rendered reference examples can also retain the removed field; consult the version-specific changelog and confirm with a real sandbox request.
+
+**How to apply:** Use Accounts v2 for new connected recipients. Upgrade the SDK and request schema together if changing versions; verify account creation, hosted link creation, and compatible bank-status reads without moving funds. Recipient creation requires a contact email. Temporary sandbox smoke recipients should be closed with their actual applied configurations.

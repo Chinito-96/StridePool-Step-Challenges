@@ -11,6 +11,7 @@ import {
 } from "../stripeClient";
 import { recordProviderWebhook, refreshProviderReconciliationGate } from "./ledger";
 import { openBillingPortal } from "./billing-portal";
+import { openPayoutOnboarding } from "./stripe-connect";
 import {
   isSandboxReconciliationPassed,
   type StripePayoutBalanceTransaction,
@@ -255,37 +256,16 @@ export async function createStripePayoutOnboarding(
   idempotencyKey: string,
 ) {
   const stripe = await getUncachableStripeClient();
-  let accountId = user.stripeConnectAccountId;
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      country: "US",
-      email: user.email ?? undefined,
-      capabilities: {
-        transfers: { requested: true },
-      },
-      metadata: { stridepool_user_id: user.id },
-    }, { idempotencyKey: `${idempotencyKey}-account` });
-    accountId = account.id;
-    await db.update(usersTable)
-      .set({ stripeConnectAccountId: accountId })
+  return openPayoutOnboarding(stripe, user, idempotencyKey, publicBaseUrl(), async (accountId) => {
+    await db.update(usersTable).set({ stripeConnectAccountId: accountId })
       .where(eq(usersTable.id, user.id));
-  }
-
-  const baseUrl = publicBaseUrl();
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    type: "account_onboarding",
-    collect: "eventually_due",
-    refresh_url: `${baseUrl}/wallet?onboarding=refresh`,
-    return_url: `${baseUrl}/wallet?onboarding=return`,
   });
-  return { accountId, accountLink };
 }
 
 export async function getStripePayoutAccount(user: typeof usersTable.$inferSelect) {
   if (!user.stripeConnectAccountId) return { linked: false, payoutsEnabled: false };
   const stripe = await getUncachableStripeClient();
+  // Accounts v2 interoperates with v1 reads; external bank accounts remain v1.
   const account = await stripe.accounts.retrieve(user.stripeConnectAccountId);
   return {
     linked: Boolean(account.details_submitted && account.external_accounts?.data.length),
