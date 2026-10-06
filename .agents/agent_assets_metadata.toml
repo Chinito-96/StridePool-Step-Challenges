@@ -28,3 +28,17 @@ mtime_ms = 1791306384313
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:4664460e-9e22-4c5f-8d9a-13a93eb34445/eec2997c-a2e1-4afa-8e02-0e863673093d/ed346336-62c5-4f54-8a97-b8abc1df6708"
 storage_version_token = "1791306393328013"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "dqnXjVZY3h8uBcUQ-EC8G"
+uri = "file://attached_assets/stridepool-paid-play-terms_clean-review-copy.md"
+type = "text"
+title = "StridePool Paid Play Terms — Clean Legal-Review Copy"
+description = "Clean copy with internal developer notes removed. It retains the legal-review warning and is explicitly marked not approved or active for participant acceptance."
+logical_id = "51f6b551-f0f5-459c-93c2-2896a1d24178"
+content_hash = "sha256:c0b54fb7f6689cf2b811bfcd37097d312568252ac56f46915435e07c51115150"
+size = 16552
+mtime_ms = 1791311585172
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:4664460e-9e22-4c5f-8d9a-13a93eb34445/51f6b551-f0f5-459c-93c2-2896a1d24178/49e421bf-b6aa-4e56-a154-0f2f02e136af"
+storage_version_token = "1791311602017840"
+content_type = "text/markdown"
