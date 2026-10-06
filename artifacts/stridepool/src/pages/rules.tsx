@@ -65,7 +65,6 @@ export default function RulesPage() {
           <Link href="/safety" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-rules-safety">Safety and eligibility</Link>
           <Link href="/challenges" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-rules-challenges">Challenges</Link>
           <Link href="/wallet" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-rules-wallet">Wallet</Link>
-          <Link href="/terms" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-rules-terms">Terms &amp; Conditions draft</Link>
         </div>
       </header>
 

@@ -23,8 +23,7 @@ export default function PrivacyPage() {
           <time dateTime={PRIVACY_DRAFT_UPDATED_ISO} className="font-bold text-foreground" data-testid="text-privacy-draft-date">{PRIVACY_DRAFT_UPDATED}</time>.
         </p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
-          <Link href="/terms" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-privacy-terms">Terms &amp; Conditions draft</Link>
-          <Link href="/rules" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-privacy-rules">Challenge rules</Link>
+          <Link href="/profile" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-privacy-profile">Profile &amp; settings</Link>
           <Link href="/safety" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-privacy-safety">Safety and eligibility</Link>
         </div>
       </header>

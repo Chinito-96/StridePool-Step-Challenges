@@ -26,7 +26,7 @@ export default function TermsPage() {
         <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
           <Link href="/rules" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-terms-rules">Challenge rules</Link>
           <Link href="/safety" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-terms-safety">Safety and eligibility</Link>
-          <Link href="/privacy" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-terms-privacy">Privacy Policy draft</Link>
+          <Link href="/profile" className="rounded-xl border border-border bg-card px-3 py-2 hover:border-primary" data-testid="link-terms-profile">Profile &amp; settings</Link>
         </div>
       </header>
 
