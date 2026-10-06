@@ -24,3 +24,4 @@
 - [Challenge grace boundary](challenge-grace-boundary.md) — no per-challenge allowance; injury/support review and Stripe delivery grace stay separate.
 - [Dependency installation evidence](dependency-installation-evidence.md) — a successful managed install can update the lockfile without replacing local packages.
 - [Webhook alert state](stripe-webhook-alerts.md) — preserve incomplete-evidence rules and share only matching active reviews, never completed reports.
+- [Intended launch eligibility](intended-launch-eligibility.md) — desired state coverage and age-only verification are conditional on legal requirements, not legal approval.
