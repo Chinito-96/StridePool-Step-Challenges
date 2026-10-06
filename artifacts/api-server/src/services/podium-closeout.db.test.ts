@@ -23,7 +23,8 @@ const userIds: string[] = [];
 const challengeIds: string[] = [];
 const sessionIds: string[] = [];
 const isolatedSchema = process.env.PODIUM_CLOSEOUT_TEST_SCHEMA;
-const now = new Date("2020-01-03T12:00:00.000Z");
+// After the 2020-01-02 final day's sync window and review period (Paid Play Terms 7.6).
+const now = new Date("2020-01-05T12:00:00.000Z");
 const beforeStart = new Date("2019-12-31T12:00:00.000Z");
 let server: Server | undefined;
 let baseUrl = "";
@@ -157,7 +158,7 @@ describe("automatic podium closeout with the database", () => {
   it("finds only ended open rankings and credits their podium once across concurrent and repeated passes", async () => {
     const endedRanking = await addChallenge("ranking", "2020-01-02");
     const excluded = [
-      await addChallenge("ranking", "2020-01-03"), // A challenge ending today is still active.
+      await addChallenge("ranking", "2020-01-05"), // A challenge ending today is still active.
       await addChallenge("goal", "2020-01-02"),
       await addChallenge("goal", "2020-01-04"),
       await addChallenge("elimination", "2020-01-02"),

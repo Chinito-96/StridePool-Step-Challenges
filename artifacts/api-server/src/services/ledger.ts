@@ -429,6 +429,7 @@ export async function withdrawAvailableBalance(
       payoutId: withdrawal.payoutId,
       transferId: withdrawal.transferId,
       auditRule: "available wallet balance reserved before provider payout reconciliation",
+      purpose,
     },
   }).where(eq(walletLedgerEntriesTable.id, ledgerId));
   return {

@@ -29,35 +29,43 @@ const challenge = (overrides: Partial<Challenge> = {}) => ({
 
 const record = (recordDate: string, steps: number) => ({ userId: "walker", challengeId: "test", recordDate, steps, verified: true } as DailyStepRecord);
 
-test("elimination challenges remove participants after any closed missed day", () => {
-  assert.equal(getParticipantStatus(challenge(), [record("2026-09-02", 8000)], 8000, undefined, "2026-09-02").status, "eliminated");
-  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, "2026-09-02").status, "eliminated");
+// Challenge days run in America/Chicago (CDT, UTC-5 in September). Day
+// 2026-09-01 ends at 2026-09-02T05:00Z and its sync window closes at
+// 2026-09-03T05:00Z (Paid Play Terms 3.4, 7.4).
+const at = (iso: string) => new Date(iso);
+
+test("a missed day is At Risk while its sync window is open, then eliminates", () => {
+  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, at("2026-09-02T12:00:00Z")).status, "at_risk");
+  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, at("2026-09-03T04:59:59Z")).status, "at_risk");
+  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, at("2026-09-03T05:00:00Z")).status, "eliminated");
 });
 
 test("an unfinished current day does not count as missed", () => {
-  assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, undefined, "2026-09-02").status, "on_track");
+  assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, undefined, at("2026-09-02T12:00:00Z")).status, "on_track");
+  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, at("2026-09-02T04:00:00Z")).status, "on_track");
 });
 
-test("goal-format challenges finish only when every day meets its target", () => {
+test("late steps synced inside the window restore On Track", () => {
+  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, at("2026-09-02T20:00:00Z")).status, "at_risk");
+  assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, undefined, at("2026-09-02T20:00:00Z")).status, "on_track");
+});
+
+test("goal-format challenges finish only after every day meets its target and the final window closes", () => {
   const everyDay = [record("2026-09-01", 8000), record("2026-09-02", 8000), record("2026-09-03", 8000), record("2026-09-04", 8000), record("2026-09-05", 8000)];
   const oneDayMissed = [record("2026-09-01", 8000), record("2026-09-03", 8000), record("2026-09-04", 8000), record("2026-09-05", 8000)];
-  assert.equal(getParticipantStatus(challenge({ challengeType: "goal" }), everyDay, 8000, undefined, "2026-09-06").status, "finished");
-  assert.equal(getParticipantStatus(challenge({ challengeType: "goal" }), oneDayMissed, 8000, undefined, "2026-09-06").status, "eliminated");
-});
-
-test("late-arriving verified records can restore an active elimination status", () => {
-  assert.equal(getParticipantStatus(challenge(), [], 8000, undefined, "2026-09-02").status, "eliminated");
-  assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, undefined, "2026-09-02").status, "on_track");
+  assert.equal(getParticipantStatus(challenge({ challengeType: "goal" }), everyDay, 8000, undefined, at("2026-09-06T12:00:00Z")).status, "on_track");
+  assert.equal(getParticipantStatus(challenge({ challengeType: "goal" }), everyDay, 8000, undefined, at("2026-09-07T05:00:00Z")).status, "finished");
+  assert.equal(getParticipantStatus(challenge({ challengeType: "goal" }), oneDayMissed, 8000, undefined, at("2026-09-07T05:00:00Z")).status, "eliminated");
 });
 
 test("manual overrides supersede computed status", () => {
-  assert.equal(getParticipantStatus(challenge(), [], 8000, "on_track", "2026-09-02").status, "on_track");
-  assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, "finished", "2026-09-02").status, "finished");
+  assert.equal(getParticipantStatus(challenge(), [], 8000, "on_track", at("2026-09-04T12:00:00Z")).status, "on_track");
+  assert.equal(getParticipantStatus(challenge(), [record("2026-09-01", 8000)], 8000, "finished", at("2026-09-04T12:00:00Z")).status, "finished");
 });
 
 test("ranking challenges never eliminate walkers for missing a daily target", () => {
-  assert.equal(getParticipantStatus(challenge({ challengeType: "ranking", dailyGoal: 0 }), [], 0, undefined, "2026-09-03").status, "on_track");
-  assert.equal(getParticipantStatus(challenge({ challengeType: "ranking", dailyGoal: 0 }), [], 0, undefined, "2026-09-06").status, "finished");
+  assert.equal(getParticipantStatus(challenge({ challengeType: "ranking", dailyGoal: 0 }), [], 0, undefined, at("2026-09-03T12:00:00Z")).status, "on_track");
+  assert.equal(getParticipantStatus(challenge({ challengeType: "ranking", dailyGoal: 0 }), [], 0, undefined, at("2026-09-07T05:00:00Z")).status, "finished");
 });
 
 test("lifetime ranking counts mirrored free rows once per user and date", () => {

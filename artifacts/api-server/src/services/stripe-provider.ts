@@ -472,13 +472,16 @@ export async function processStripeWebhook(payload: Buffer, signature: string) {
       try {
         const challengeEntryCents = Number(normalized.metadata.stridepool_challenge_entry_cents);
         const platformFeeCents = Number(normalized.metadata.stridepool_platform_fee_cents);
+        // Paid Play Terms §5.4: keep the payment intent so refunds can return
+        // to the original payment method.
+        const paymentIntentId = event.type === "payment_intent.succeeded" ? event.data.object.id : null;
         await activateProviderChallengeEntry(
           normalized.userId,
           normalized.challengeId,
           challengeEntryCents,
           platformFeeCents,
           normalized.amountCents,
-          normalized.providerEventId,
+          paymentIntentId ?? normalized.providerEventId,
         );
         await qualifyReferralForUser(normalized.userId);
       } catch (error) {

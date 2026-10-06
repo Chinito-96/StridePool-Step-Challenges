@@ -1,5 +1,5 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
-import { challengesTable, db, settleChallenge, usersTable, type SettlementResult } from "@workspace/db";
+import { challengesTable, db, isSettlementHoldActive, settleChallenge, usersTable, type SettlementResult } from "@workspace/db";
 import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { logger } from "../lib/logger";
@@ -22,7 +22,7 @@ type ClaimedCloseoutAlert = {
 };
 
 type CloseoutDependencies = {
-  findChallengeIds: (today: string) => Promise<string[]>;
+  findChallengeIds: (today: string, now: Date) => Promise<string[]>;
   settle: (challengeId: string, now: Date) => Promise<Pick<SettlementResult, "alreadySettled">>;
   recordFailure: (challengeId: string, now: Date, today: string) => Promise<CloseoutFailureSnapshot | null>;
   claimAlert: (challengeId: string, now: Date, today: string) => Promise<ClaimedCloseoutAlert | null>;
@@ -32,16 +32,21 @@ type CloseoutDependencies = {
 };
 
 const defaultDependencies: CloseoutDependencies = {
-  async findChallengeIds(today) {
+  async findChallengeIds(today, now) {
     const challenges = await db
-      .select({ id: challengesTable.id })
+      .select({ id: challengesTable.id, endDate: challengesTable.endDate, timeZone: challengesTable.timeZone, prizePool: challengesTable.prizePool })
       .from(challengesTable)
       .where(and(
         eq(challengesTable.challengeType, "ranking"),
         eq(challengesTable.settlementStatus, "open"),
         lt(challengesTable.endDate, today),
       ));
-    return challenges.map((challenge) => challenge.id);
+    // Paid Play Terms §7.6: paid pools wait out the final sync window and the
+    // review period. Held challenges are not attempted, so they never count
+    // as closeout failures or trigger support alerts.
+    return challenges
+      .filter((challenge) => Number(challenge.prizePool) === 0 || !isSettlementHoldActive(challenge.endDate, challenge.timeZone, now))
+      .map((challenge) => challenge.id);
   },
   settle: settleChallenge,
   async recordFailure(challengeId, now, today) {
@@ -152,7 +157,7 @@ export async function closeFinishedPodiumChallenges(
 ): Promise<PodiumCloseoutResult> {
   const dependencies: CloseoutDependencies = { ...defaultDependencies, ...overrides };
   const today = now.toISOString().slice(0, 10);
-  const challengeIds = await dependencies.findChallengeIds(today);
+  const challengeIds = await dependencies.findChallengeIds(today, now);
   let settled = 0;
   let failed = 0;
 

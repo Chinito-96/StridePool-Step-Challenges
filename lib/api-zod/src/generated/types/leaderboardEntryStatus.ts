@@ -11,6 +11,7 @@ export type LeaderboardEntryStatus = typeof LeaderboardEntryStatus[keyof typeof 
 
 export const LeaderboardEntryStatus = {
   on_track: 'on_track',
+  at_risk: 'at_risk',
   eliminated: 'eliminated',
   finished: 'finished',
 } as const;

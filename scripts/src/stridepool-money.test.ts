@@ -218,7 +218,7 @@ describe("settlement pool split and refunds", () => {
     await addVerifiedSteps(userIds[1], challengeId, ["2026-06-02"], 7000);
     await addVerifiedSteps(userIds[2], challengeId, ["2026-06-02"], 5000);
 
-    const result = await settleChallenge(challengeId, new Date("2026-06-05T00:00:00Z"));
+    const result = await settleChallenge(challengeId, new Date("2026-06-08T00:00:00Z"));
 
     assert.equal(result.finisherCount, 3);
     assert.deepEqual(
@@ -238,7 +238,7 @@ describe("settlement pool split and refunds", () => {
     const challengeId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "30.00" });
     await joinChallenge(userIds[0], challengeId, beforeStart);
     await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02"]);
-    const result = await settleChallenge(challengeId, new Date("2026-06-03T00:00:00Z"));
+    const result = await settleChallenge(challengeId, new Date("2026-06-06T00:00:00Z"));
     assert.deepEqual(result, { challengeId, poolTotal: 40, finisherCount: 1, perFinisherBase: 40, roundingRemainder: 0, refundedTotal: 0, alreadySettled: false });
     assert.deepEqual(await wallet(userIds[0]), { balance: "130.00", pending: "0.00", totalEarned: "40.00" });
   });
@@ -252,7 +252,7 @@ describe("settlement pool split and refunds", () => {
     await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02"]);
     await addVerifiedSteps(userIds[1], challengeId, ["2026-06-02"]);
     await addVerifiedSteps(userIds[2], challengeId, ["2026-06-02"]);
-    const result = await settleChallenge(challengeId, new Date("2026-06-03T00:00:00Z"));
+    const result = await settleChallenge(challengeId, new Date("2026-06-06T00:00:00Z"));
     assert.equal(result.finisherCount, 3);
     assert.equal(result.perFinisherBase, 3.33);
     assert.equal(result.roundingRemainder, 1);
@@ -264,7 +264,7 @@ describe("settlement pool split and refunds", () => {
   it("handles zero finishers, all finishers, and a non-divisible pool", async () => {
     const noFinisherId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "0.00" });
     await joinChallenge(userIds[0], noFinisherId, beforeStart);
-    const noFinisherResult = await settleChallenge(noFinisherId, new Date("2026-06-03T00:00:00Z"));
+    const noFinisherResult = await settleChallenge(noFinisherId, new Date("2026-06-06T00:00:00Z"));
     assert.equal(noFinisherResult.finisherCount, 0);
     assert.equal(noFinisherResult.refundedTotal, 10);
     assert.deepEqual(await wallet(userIds[0]), { balance: "100.00", pending: "0.00", totalEarned: "0.00" });
@@ -275,7 +275,7 @@ describe("settlement pool split and refunds", () => {
     await db.update(challengesTable).set({ prizePool: "21.00" }).where(eq(challengesTable.id, allFinisherId));
     await addVerifiedSteps(userIds[0], allFinisherId, ["2026-06-02"]);
     await addVerifiedSteps(userIds[1], allFinisherId, ["2026-06-02"]);
-    const allFinisherResult = await settleChallenge(allFinisherId, new Date("2026-06-03T00:00:00Z"));
+    const allFinisherResult = await settleChallenge(allFinisherId, new Date("2026-06-06T00:00:00Z"));
     assert.deepEqual(allFinisherResult, { challengeId: allFinisherId, poolTotal: 21, finisherCount: 2, perFinisherBase: 10.5, roundingRemainder: 0, refundedTotal: 0, alreadySettled: false });
   });
 
@@ -283,13 +283,30 @@ describe("settlement pool split and refunds", () => {
     const challengeId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "0.00" });
     await joinChallenge(userIds[0], challengeId, beforeStart);
     const [first, second] = await Promise.all([
-      settleChallenge(challengeId, new Date("2026-06-03T00:00:00Z")),
-      settleChallenge(challengeId, new Date("2026-06-03T01:00:00Z")),
+      settleChallenge(challengeId, new Date("2026-06-06T00:00:00Z")),
+      settleChallenge(challengeId, new Date("2026-06-06T01:00:00Z")),
     ]);
     assert.equal([first, second].filter((result) => !result.alreadySettled).length, 1);
     assert.equal([first, second].filter((result) => result.alreadySettled).length, 1);
     assert.equal([first, second].find((result) => !result.alreadySettled)?.refundedTotal, 10);
     assert.deepEqual(await wallet(userIds[0]), { balance: "100.00", pending: "0.00", totalEarned: "0.00" });
+  });
+});
+
+describe("Paid Play Terms settlement hold (7.6)", () => {
+  it("refuses to settle a paid pool before the final sync window and review period close", async () => {
+    // Final day 2026-06-02 ends 2026-06-03T05:00Z (America/Chicago); sync closes
+    // 24h later and review 24h after that, so the earliest settlement is 2026-06-05T05:00Z.
+    const challengeId = await addChallenge({ days: 1, endDate: "2026-06-02", prizePool: "0.00" });
+    await joinChallenge(userIds[0], challengeId, beforeStart);
+    await assert.rejects(
+      settleChallenge(challengeId, new Date("2026-06-05T04:59:59Z")),
+      (error: unknown) => error instanceof Error && error.message === "SETTLEMENT_HOLD",
+    );
+    const [held] = await db.select().from(challengesTable).where(eq(challengesTable.id, challengeId));
+    assert.equal(held.settlementStatus, "open");
+    const settled = await settleChallenge(challengeId, new Date("2026-06-05T05:00:00Z"));
+    assert.equal(settled.alreadySettled, false);
   });
 });
 
@@ -317,7 +334,7 @@ describe("free community and daily qualification paths", () => {
     await joinChallenge(userIds[0], challengeId, beforeStart);
     await db.update(challengesTable).set({ prizePool: "10.00" }).where(eq(challengesTable.id, challengeId));
     await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02", "2026-06-04"]);
-    const result = await settleChallenge(challengeId, new Date("2026-06-05T00:00:00Z"));
+    const result = await settleChallenge(challengeId, new Date("2026-06-08T00:00:00Z"));
     assert.equal(result.finisherCount, 0);
     assert.equal(result.refundedTotal, 10);
   });
@@ -327,7 +344,7 @@ describe("free community and daily qualification paths", () => {
     await joinChallenge(userIds[0], challengeId, beforeStart);
     await db.update(challengesTable).set({ prizePool: "10.00" }).where(eq(challengesTable.id, challengeId));
     await addVerifiedSteps(userIds[0], challengeId, ["2026-06-02", "2026-06-03", "2026-06-04"]);
-    const result = await settleChallenge(challengeId, new Date("2026-06-05T00:00:00Z"));
+    const result = await settleChallenge(challengeId, new Date("2026-06-08T00:00:00Z"));
     assert.equal(result.finisherCount, 1);
     assert.equal(result.refundedTotal, 0);
   });

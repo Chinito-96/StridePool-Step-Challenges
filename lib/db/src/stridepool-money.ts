@@ -3,6 +3,7 @@ import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { db } from "./index";
 import { challengesTable, dailyStepRecordsTable, entriesTable, usersTable, walletLedgerEntriesTable } from "./schema";
 import { membershipPolicyFor } from "./stridepool-membership";
+import { allocateEqualSplit, isSettlementHoldActive, refundCentsFor, zonedMidnightUtc, type EntryExitReason } from "./stridepool-paid-play-policy";
 
 export type WalletSnapshot = {
   balance: number;
@@ -55,7 +56,7 @@ export function calculatePodiumPayouts(
 }
 
 export class MoneyLogicError extends Error {
-  constructor(public readonly code: "NOT_FOUND" | "INSUFFICIENT_FUNDS" | "ALREADY_STARTED" | "ALREADY_SETTLED" | "INVALID_FREE_CHALLENGE" | "CHALLENGE_LIMIT" | "PRICE_MISMATCH") {
+  constructor(public readonly code: "NOT_FOUND" | "INSUFFICIENT_FUNDS" | "ALREADY_STARTED" | "ALREADY_SETTLED" | "INVALID_FREE_CHALLENGE" | "CHALLENGE_LIMIT" | "PRICE_MISMATCH" | "SETTLEMENT_HOLD") {
     super(code);
   }
 }
@@ -63,6 +64,45 @@ export class MoneyLogicError extends Error {
 const cents = (value: string | number | null | undefined) => Math.round(Number(value ?? 0) * 100);
 const dollars = (value: number) => Number((value / 100).toFixed(2));
 const toDate = (value: string) => new Date(`${value}T00:00:00.000Z`);
+
+type MoneyTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Paid Play Terms §5.4: refunds of card-paid entries go back to the original
+ * payment method. The provider refund is issued outside this transaction by
+ * the refund processor, which reads these pending ledger rows.
+ */
+async function requestOriginalMethodRefund(
+  tx: MoneyTx,
+  entry: typeof entriesTable.$inferSelect,
+  reason: EntryExitReason,
+  now: Date,
+): Promise<number> {
+  const refundCents = refundCentsFor(reason, cents(entry.entryFee), entry.platformFeeCents);
+  if (refundCents > 0) {
+    await tx.insert(walletLedgerEntriesTable).values({
+      id: `ledger_refund_request_${randomUUID()}`,
+      userId: entry.userId,
+      eventType: "entry_refund_requested",
+      status: "pending_provider",
+      amountCents: refundCents,
+      currency: "usd",
+      idempotencyKey: `entry_refund:${entry.id}:${reason}`,
+      challengeId: entry.challengeId,
+      metadata: {
+        source: "paid_play_terms_5_3",
+        entryId: entry.id,
+        reason,
+        refundTo: "original_payment_method",
+        paymentReference: entry.paymentReference,
+        entryFeeCents: cents(entry.entryFee),
+        platformFeeCents: entry.platformFeeCents,
+      },
+      createdAt: now,
+    }).onConflictDoNothing();
+  }
+  return refundCents;
+}
 
 function walletFor(user: typeof usersTable.$inferSelect): WalletSnapshot {
   return {
@@ -194,6 +234,8 @@ export async function activateProviderChallengeEntry(
         leftAt: null,
         paymentProvider: "Stripe",
         paymentReference,
+        platformFeeCents,
+        exitReason: null,
       }).where(eq(entriesTable.id, existing.id));
     } else {
       await tx.insert(entriesTable).values({
@@ -204,6 +246,7 @@ export async function activateProviderChallengeEntry(
         joinedAt: now,
         paymentProvider: "Stripe",
         paymentReference,
+        platformFeeCents,
       });
     }
     await tx.update(challengesTable).set({
@@ -222,7 +265,7 @@ export async function leaveChallenge(userId: string, challengeId: string, now = 
     if (!challenge || !entry || !user) throw new MoneyLogicError("NOT_FOUND");
     if (now >= toDate(challenge.startDate)) throw new MoneyLogicError("ALREADY_STARTED");
 
-    const [leftEntry] = await tx.update(entriesTable).set({ status: "left", leftAt: now }).where(and(eq(entriesTable.id, entry.id), eq(entriesTable.status, "active"))).returning();
+    const [leftEntry] = await tx.update(entriesTable).set({ status: "left", leftAt: now, exitReason: "left_before_deadline" }).where(and(eq(entriesTable.id, entry.id), eq(entriesTable.status, "active"))).returning();
     if (!leftEntry) return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity: cents(entry.entryFee) === 0 };
 
     const feeCents = cents(entry.entryFee);
@@ -232,6 +275,16 @@ export async function leaveChallenge(userId: string, challengeId: string, now = 
         participantCount: sql`greatest(${challengesTable.participantCount} - 1, 0)`,
       }).where(eq(challengesTable.id, challengeId));
       return { wallet: walletFor(user), charged: false, refunded: false, freeCommunity: true };
+    }
+
+    if (entry.paymentReference) {
+      // Card-paid entry: entry fee and platform fee both go back to the card (§5.3, §5.4).
+      await tx.update(challengesTable).set({
+        participantCount: sql`greatest(${challengesTable.participantCount} - 1, 0)`,
+        prizePool: sql`greatest(${challengesTable.prizePool} - ${(feeCents / 100).toFixed(2)}, 0)`,
+      }).where(eq(challengesTable.id, challengeId));
+      await requestOriginalMethodRefund(tx, entry, "left_before_deadline", now);
+      return { wallet: walletFor(user), charged: false, refunded: true, freeCommunity: false };
     }
 
     const [updatedUser] = await tx.update(usersTable).set({
@@ -273,6 +326,10 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
         refundedTotal: 0,
         alreadySettled: true,
       };
+    }
+    // Paid Play Terms §7.6: no settlement until the final sync window and review period close.
+    if (cents(existingChallenge.prizePool) > 0 && isSettlementHoldActive(existingChallenge.endDate, existingChallenge.timeZone, now)) {
+      throw new MoneyLogicError("SETTLEMENT_HOLD");
     }
     const [challenge] = await tx.update(challengesTable).set({ settlementStatus: "settling" }).where(and(eq(challengesTable.id, challengeId), eq(challengesTable.settlementStatus, "open"))).returning();
     if (!challenge) {
@@ -333,6 +390,10 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
     const podiumMap = new Map(podiumPayouts.map((payout) => [payout.entryId, payout]));
     const baseCents = challenge.challengeType === "ranking" ? 0 : finisherCount ? Math.floor(poolTotalCents / finisherCount) : 0;
     const remainder = challenge.challengeType === "ranking" ? 0 : finisherCount ? poolTotalCents % finisherCount : 0;
+    // §4.3: leftover cents go to finishers in join (entry id) order.
+    const equalSplit = new Map(challenge.challengeType === "ranking"
+      ? []
+      : allocateEqualSplit(poolTotalCents, finisherEntries).map(({ entry, payoutCents }) => [entry.id, payoutCents]));
     const finisherIds = new Set(finisherEntries.map((entry) => entry.id));
     let refundedTotalCents = 0;
 
@@ -341,6 +402,13 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
       const feeCents = cents(entry.entryFee);
       const user = userMap.get(entry.userId);
       if (!user) throw new MoneyLogicError("NOT_FOUND");
+      if (finisherCount === 0 && entry.paymentReference) {
+        // §4.4 + §5.3: entry fee back to the card; the platform fee is retained.
+        const refunded = await requestOriginalMethodRefund(tx, entry, "no_finishers", now);
+        await tx.update(entriesTable).set({ settlementStatus: "refund_pending", settlementAmount: (refunded / 100).toFixed(2), settledAt: now, exitReason: "no_finishers" }).where(eq(entriesTable.id, entry.id));
+        refundedTotalCents += refunded;
+        continue;
+      }
       if (finisherCount === 0) {
         await tx.update(usersTable).set({
           walletBalance: sql`${usersTable.walletBalance} + ${(feeCents / 100).toFixed(2)}`,
@@ -366,7 +434,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
       const podiumPayout = podiumMap.get(entry.id);
       const isFinisher = challenge.challengeType === "ranking" ? Boolean(podiumPayout) : finisherIds.has(entry.id);
       const payoutCents = challenge.challengeType === "ranking" ? podiumPayout?.payoutCents ?? 0 : isFinisher
-        ? baseCents + (finisherEntries.findIndex((candidate) => candidate.id === entry.id) < remainder ? 1 : 0)
+        ? equalSplit.get(entry.id) ?? 0
         : 0;
       await tx.update(usersTable).set({
         walletBalance: sql`${usersTable.walletBalance} + ${(payoutCents / 100).toFixed(2)}`,
@@ -375,6 +443,7 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
       }).where(eq(usersTable.id, user.id));
       await tx.update(entriesTable).set({
         settlementStatus: isFinisher ? "paid" : "forfeited",
+        exitReason: isFinisher ? null : "did_not_finish",
         settlementAmount: (payoutCents / 100).toFixed(2),
         settledAt: now,
       }).where(eq(entriesTable.id, entry.id));
@@ -414,4 +483,79 @@ export async function settleChallenge(challengeId: string, now = new Date()): Pr
       alreadySettled: false,
     };
   });
+}
+
+export type CancellationResult = { challengeId: string; cancelled: boolean; refundedEntries: number; refundedCents: number };
+
+/**
+ * Paid Play Terms §4.5 and §5.3: when StridePool cancels a challenge, or it
+ * is under-filled at its start time, every entry fee and platform fee is
+ * refunded. Card-paid entries refund to the card; legacy wallet entries are
+ * credited back to the wallet.
+ */
+export async function cancelChallengeWithRefunds(
+  challengeId: string,
+  reason: Extract<EntryExitReason, "challenge_cancelled" | "challenge_under_filled" | "challenge_voided">,
+  now = new Date(),
+): Promise<CancellationResult> {
+  return db.transaction(async (tx) => {
+    const [challenge] = await tx.update(challengesTable).set({ settlementStatus: "settling" })
+      .where(and(eq(challengesTable.id, challengeId), eq(challengesTable.settlementStatus, "open")))
+      .returning();
+    if (!challenge) return { challengeId, cancelled: false, refundedEntries: 0, refundedCents: 0 };
+    const entries = await tx.select().from(entriesTable)
+      .where(and(eq(entriesTable.challengeId, challengeId), eq(entriesTable.status, "active")));
+    let refundedCents = 0;
+    for (const entry of entries) {
+      const feeCents = cents(entry.entryFee);
+      if (entry.paymentReference) {
+        refundedCents += await requestOriginalMethodRefund(tx, entry, reason, now);
+      } else if (feeCents > 0) {
+        await tx.update(usersTable).set({
+          walletBalance: sql`${usersTable.walletBalance} + ${(feeCents / 100).toFixed(2)}`,
+          walletPending: sql`greatest(${usersTable.walletPending} - ${(feeCents / 100).toFixed(2)}, 0)`,
+        }).where(eq(usersTable.id, entry.userId));
+        await tx.insert(walletLedgerEntriesTable).values({
+          id: `ledger_cancel_refund_${entry.id}`,
+          userId: entry.userId,
+          eventType: "entry_refunded",
+          status: "recorded",
+          amountCents: feeCents,
+          currency: "usd",
+          idempotencyKey: `challenge_cancel:${challengeId}:${entry.id}`,
+          challengeId,
+          metadata: { source: "challenge_cancellation", entryId: entry.id, reason },
+          createdAt: now,
+        }).onConflictDoNothing();
+        refundedCents += feeCents;
+      }
+      await tx.update(entriesTable).set({
+        settlementStatus: "refunded",
+        settlementAmount: (feeCents / 100).toFixed(2),
+        settledAt: now,
+        exitReason: reason,
+      }).where(eq(entriesTable.id, entry.id));
+    }
+    await tx.update(challengesTable).set({
+      settlementStatus: "settled",
+      settledAt: now,
+      settledPool: "0.00",
+      prizePool: "0.00",
+      finishers: 0,
+    }).where(eq(challengesTable.id, challengeId));
+    return { challengeId, cancelled: true, refundedEntries: entries.length, refundedCents };
+  });
+}
+
+/** Paid challenges that reached their start time below their minimum participant count (§4.5). */
+export async function findUnderFilledPaidChallenges(now = new Date()): Promise<string[]> {
+  const candidates = await db.select().from(challengesTable).where(and(
+    eq(challengesTable.settlementStatus, "open"),
+    eq(challengesTable.community, false),
+  ));
+  return candidates
+    .filter((challenge) => cents(challenge.entryFee) > 0)
+    .filter((challenge) => now >= zonedMidnightUtc(challenge.startDate, challenge.timeZone))
+    .filter((challenge) => challenge.participantCount < challenge.minParticipants)
+    .map((challenge) => challenge.id);
 }

@@ -1,6 +1,16 @@
 import type { Challenge, DailyStepRecord } from "@workspace/db";
 
-export type ParticipantStatus = "on_track" | "eliminated" | "finished";
+import {
+  DEFAULT_CHALLENGE_TIME_ZONE,
+  syncWindowClosesAt,
+  zonedIsoDate,
+} from "@workspace/db/paid-play-policy";
+
+/**
+ * "at_risk" means a completed day is short of the goal but its 24-hour sync
+ * window is still open, so late steps can still count (Paid Play Terms §3.8, §7.4).
+ */
+export type ParticipantStatus = "on_track" | "at_risk" | "eliminated" | "finished";
 export type LifetimeLeaderboardRow = { userId: string; displayName: string | null; recordDate: string; steps: number };
 export type ProjectedPayoutRow = { userId: string; status: ParticipantStatus };
 
@@ -20,27 +30,39 @@ export function getParticipantStatus(
   challenge: Challenge,
   records: DailyStepRecord[],
   dailyGoal: number,
-  overrideStatus?: ParticipantStatus,
-  today = new Date().toISOString().slice(0, 10),
+  overrideStatus?: Extract<ParticipantStatus, "on_track" | "eliminated" | "finished">,
+  now: Date = new Date(),
 ): { status: ParticipantStatus; missedDays: number; elapsedDays: number } {
   if (overrideStatus) return { status: overrideStatus, missedDays: 0, elapsedDays: 0 };
-  const through = today < challenge.startDate ? null : today > challenge.endDate ? challenge.endDate : shiftDate(today, -1);
-  const elapsedDays = through ? daysThrough(challenge.startDate, through).length : 0;
+  const timeZone = challenge.timeZone || DEFAULT_CHALLENGE_TIME_ZONE;
+  const today = zonedIsoDate(now, timeZone);
+  // A challenge day counts as completed once it has ended in the challenge time zone (§3.4).
+  const through = today <= challenge.startDate ? null : today > challenge.endDate ? challenge.endDate : shiftDate(today, -1);
+  const completedDays = through ? daysThrough(challenge.startDate, through) : [];
+  const elapsedDays = completedDays.length;
   if (challenge.challengeType === "ranking") {
-    return { status: today > challenge.endDate ? "finished" : "on_track", missedDays: 0, elapsedDays };
+    const finalDayClosed = now >= syncWindowClosesAt(challenge.endDate, timeZone);
+    return { status: today > challenge.endDate && finalDayClosed ? "finished" : "on_track", missedDays: 0, elapsedDays };
   }
   const qualifyingDates = new Set(
     records
       .filter((record) => record.recordDate >= challenge.startDate && record.recordDate <= challenge.endDate && record.steps >= dailyGoal)
       .map((record) => record.recordDate),
   );
-  const missedDays = through ? daysThrough(challenge.startDate, through).filter((date) => !qualifyingDates.has(date)).length : 0;
-  if (challenge.challengeType === "elimination" && missedDays > 0) {
+  const missed = completedDays.filter((date) => !qualifyingDates.has(date));
+  const finalMissed = missed.filter((date) => now >= syncWindowClosesAt(date, timeZone));
+  const pendingMissed = missed.length - finalMissed.length;
+  const missedDays = missed.length;
+  if (challenge.challengeType === "elimination" && finalMissed.length > 0) {
     return { status: "eliminated", missedDays, elapsedDays };
   }
   if (today > challenge.endDate) {
-    return { status: missedDays === 0 ? "finished" : "eliminated", missedDays, elapsedDays };
+    if (finalMissed.length > 0) return { status: "eliminated", missedDays, elapsedDays };
+    if (pendingMissed > 0) return { status: "at_risk", missedDays, elapsedDays };
+    if (now < syncWindowClosesAt(challenge.endDate, timeZone)) return { status: "on_track", missedDays, elapsedDays };
+    return { status: "finished", missedDays, elapsedDays };
   }
+  if (pendingMissed > 0) return { status: "at_risk", missedDays, elapsedDays };
   return { status: "on_track", missedDays, elapsedDays };
 }
 

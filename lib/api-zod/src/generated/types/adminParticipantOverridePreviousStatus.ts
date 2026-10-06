@@ -11,6 +11,7 @@ export type AdminParticipantOverridePreviousStatus = typeof AdminParticipantOver
 
 export const AdminParticipantOverridePreviousStatus = {
   on_track: 'on_track',
+  at_risk: 'at_risk',
   eliminated: 'eliminated',
   finished: 'finished',
 } as const;

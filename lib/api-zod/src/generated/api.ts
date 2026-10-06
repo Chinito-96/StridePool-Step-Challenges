@@ -815,7 +815,7 @@ export const GetStridePoolChallengeLeaderboardResponse = zod.object({
   "steps": zod.int(),
   "completedDays": zod.int(),
   "completionPercent": zod.int(),
-  "status": zod.enum(['on_track', 'eliminated', 'finished']),
+  "status": zod.enum(['on_track', 'at_risk', 'eliminated', 'finished']),
   "isCurrentUser": zod.boolean(),
   "projectedPayout": zod.number()
 }))
@@ -1715,7 +1715,7 @@ export const GetAdminUserResponse = zod.object({
   "userId": zod.string(),
   "adminUserId": zod.string(),
   "status": zod.enum(['on_track', 'finished']),
-  "previousStatus": zod.enum(['on_track', 'eliminated', 'finished']),
+  "previousStatus": zod.enum(['on_track', 'at_risk', 'eliminated', 'finished']),
   "reason": zod.string(),
   "createdAt": zod.coerce.date()
 }))
@@ -1752,7 +1752,7 @@ export const OverrideAdminChallengeParticipantResponse = zod.object({
   "userId": zod.string(),
   "adminUserId": zod.string(),
   "status": zod.enum(['on_track', 'finished']),
-  "previousStatus": zod.enum(['on_track', 'eliminated', 'finished']),
+  "previousStatus": zod.enum(['on_track', 'at_risk', 'eliminated', 'finished']),
   "reason": zod.string(),
   "createdAt": zod.coerce.date()
 })

@@ -7,7 +7,7 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "test:launch-gate": "env -i PATH=\"$PATH\" HOME=\"$HOME\" pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/ledger-recovery.test.ts",
+    "test:launch-gate": "env -i PATH=\"$PATH\" HOME=\"$HOME\" pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/ledger-recovery.test.ts ../artifacts/api-server/src/services/paid-play-policy.test.ts ../artifacts/api-server/src/services/stridepool-status.test.ts",
     "test:withdrawals": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/ledger-withdrawal.test.ts",
     "test:live-stripe-policy": "env -i PATH=\"$PATH\" HOME=\"$HOME\" DATABASE_URL=postgresql://unused:unused@127.0.0.1:1/no_queries_expected pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/services/stripe-live-policy.test.ts",
     "smoke:sandbox-connect": "pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/scripts/stripe-connect-onboarding-smoke.ts",

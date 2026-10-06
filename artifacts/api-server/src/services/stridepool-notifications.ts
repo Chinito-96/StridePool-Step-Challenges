@@ -15,7 +15,7 @@ export function buildParticipantNotificationCandidates(input: {
   startDate: string;
   endDate: string;
   today: string;
-  status: "on_track" | "eliminated" | "finished";
+  status: "on_track" | "at_risk" | "eliminated" | "finished";
   todayHasVerifiedRecord: boolean;
 }): NotificationCandidate[] {
   const candidates: NotificationCandidate[] = [];
@@ -25,6 +25,15 @@ export function buildParticipantNotificationCandidates(input: {
       title: `You were eliminated from ${input.challengeName}`,
       body: "You missed a required daily goal. Review your source history if verified steps arrived late.",
       dedupeKey: `eliminated:${input.challengeId}:${input.userId}`,
+    });
+  }
+  if (input.status === "at_risk") {
+    // Paid Play Terms §3.8/§7.4: a short day is final only once its sync window closes.
+    candidates.push({
+      type: "daily_reminder",
+      title: `You're at risk in ${input.challengeName}`,
+      body: "A completed day is below your goal. Steps that sync within 24 hours after the day ends still count, so open your health app and sync now.",
+      dedupeKey: `at-risk:${input.challengeId}:${input.userId}:${input.today}`,
     });
   }
   if (input.today > input.endDate) {

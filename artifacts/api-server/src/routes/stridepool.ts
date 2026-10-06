@@ -865,7 +865,7 @@ router.get("/stridepool/challenges/:id/leaderboard", async (req, res): Promise<v
   const overrides = await db.select().from(challengeParticipantOverridesTable)
     .where(eq(challengeParticipantOverridesTable.challengeId, challenge.id))
     .orderBy(desc(challengeParticipantOverridesTable.createdAt));
-  const latestOverrides = new Map<string, ParticipantStatus>();
+  const latestOverrides = new Map<string, "on_track" | "finished">();
   for (const override of overrides) {
     if (!latestOverrides.has(override.userId) && (override.status === "on_track" || override.status === "finished")) {
       latestOverrides.set(override.userId, override.status);

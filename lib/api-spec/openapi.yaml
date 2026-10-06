@@ -1724,7 +1724,7 @@ components:
         steps: { type: integer }
         completedDays: { type: integer }
         completionPercent: { type: integer }
-        status: { type: string, enum: [on_track, eliminated, finished] }
+        status: { type: string, enum: [on_track, at_risk, eliminated, finished] }
         isCurrentUser: { type: boolean }
         projectedPayout: { type: number }
     LifetimeLeaderboardResponse:
@@ -2394,7 +2394,7 @@ components:
         userId: { type: string }
         adminUserId: { type: string }
         status: { type: string, enum: [on_track, finished] }
-        previousStatus: { type: string, enum: [on_track, eliminated, finished] }
+        previousStatus: { type: string, enum: [on_track, at_risk, eliminated, finished] }
         reason: { type: string }
         createdAt: { type: string, format: date-time }
     AdminParticipantOverrideResponse:
