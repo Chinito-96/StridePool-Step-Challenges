@@ -32,7 +32,14 @@ async function upsertUser(claims: Record<string, unknown>) {
     lastName: (claims.last_name as string) || null,
     profileImageUrl: (claims.profile_image_url || claims.picture) as string | null,
   };
-  const [user] = await db.insert(usersTable).values(userData).onConflictDoUpdate({
+  const [user] = await db.insert(usersTable).values({
+    ...userData,
+    // Explicit values also protect new sign-ins before older DB defaults are
+    // migrated. Do not include them in the conflict update below.
+    walletBalance: "0.00",
+    walletPending: "0.00",
+    totalEarned: "0.00",
+  }).onConflictDoUpdate({
     target: usersTable.id,
     set: { ...userData, updatedAt: new Date() },
   }).returning();

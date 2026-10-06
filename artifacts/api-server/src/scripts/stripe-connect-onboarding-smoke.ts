@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { getUncachableStripeClient } from "../../artifacts/api-server/src/stripeClient";
-import { CONNECT_API_VERSION, openPayoutOnboarding } from "../../artifacts/api-server/src/services/stripe-connect";
+import { getUncachableStripeClient } from "../stripeClient";
+import { CONNECT_API_VERSION, openPayoutOnboarding } from "../services/stripe-connect";
 
 // Explicitly sandbox-only; never attach this temporary recipient to an app user.
 assert.equal(process.env.NODE_ENV, "development");

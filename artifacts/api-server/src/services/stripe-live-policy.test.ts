@@ -75,3 +75,10 @@ test("both production withdrawal boundaries reject before database or Stripe acc
     else process.env.STRIPE_LIVE_PAYOUTS_ENABLED = previousFlag;
   }
 });
+
+test("new-account schema defaults never create demo money", async () => {
+  const { usersTable } = await import("@workspace/db");
+  assert.equal(usersTable.walletBalance.default, "0.00");
+  assert.equal(usersTable.walletPending.default, "0.00");
+  assert.equal(usersTable.totalEarned.default, "0.00");
+});

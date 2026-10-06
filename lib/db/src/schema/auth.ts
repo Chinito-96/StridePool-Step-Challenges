@@ -11,9 +11,8 @@ export const sessionsTable = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// Profile, demo-wallet, and personalized-goal fields live on the user row so
-// the first persistence pass stays small. The nullable payment fields are
-// deliberately reserved for the later provider-backed wallet migration.
+// Financial balances start empty; demo balances belong only in explicit
+// development fixtures, never in defaults for real accounts.
 export const usersTable = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
@@ -22,9 +21,9 @@ export const usersTable = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   displayName: varchar("display_name"),
   role: varchar("role").notNull().default("user"),
-  walletBalance: numeric("wallet_balance", { precision: 12, scale: 2 }).notNull().default("42.50"),
-  walletPending: numeric("wallet_pending", { precision: 12, scale: 2 }).notNull().default("18.00"),
-  totalEarned: numeric("total_earned", { precision: 12, scale: 2 }).notNull().default("156.75"),
+  walletBalance: numeric("wallet_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  walletPending: numeric("wallet_pending", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  totalEarned: numeric("total_earned", { precision: 12, scale: 2 }).notNull().default("0.00"),
   goalBaseline: numeric("goal_baseline", { precision: 8, scale: 0 }).notNull().default("7500"),
   reminders: boolean("reminders").notNull().default(true),
   weeklyDigest: boolean("weekly_digest").notNull().default(true),

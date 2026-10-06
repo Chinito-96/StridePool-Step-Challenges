@@ -96,3 +96,7 @@ STRIPE_SANDBOX_RECONCILIATION_PASSED = "false"
 
 [userenv.shared]
 RESEND_FROM_EMAIL = "alerts@stridepool.com"
+
+[userenv.production]
+PAID_PLAY_ENABLED = "false"
+STRIPE_LIVE_PAYOUTS_ENABLED = "false"

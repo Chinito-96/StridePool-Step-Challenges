@@ -43,13 +43,17 @@ identities into live configuration.
    enrollment/capabilities in that live account. Activation and approval must be
    completed by the owner/Stripe; no live test transaction is needed for this
    configuration review.
-3. Review the production database before publishing. User wallet columns still
-   have demo defaults ($42.50 available, $18 pending, $156.75 earned). Existing
+3. Review the production database before publishing. New-user sign-in inserts
+   now explicitly use zero financial balances, and the schema declares zero
+   defaults. Apply/verify the corresponding default changes through the
+   publishing schema review; no database migration was run in this preparation.
+   Existing
    demo balances, ledger fixtures, and sandbox customer/recipient/subscription
    references must never become spendable live funds. No balances or references
    were deleted during this review. Audit and authorize any cleanup separately.
-4. Resolve the workspace typecheck issue caused by the sandbox onboarding script
-   importing API-server sources across the scripts package's TypeScript root.
+4. The sandbox onboarding script now lives inside the API package, avoiding
+   imports across the scripts package's TypeScript root. It was not executed
+   during live preparation; no new sandbox recipients were created.
 5. Review live webhook coverage before enabling money movement: current startup
    requests Connect-event delivery only when using the development sandbox
    override. Production must receive and independently verify both platform
@@ -63,6 +67,10 @@ identities into live configuration.
    delayed-delivery evidence before treating webhook operations as ready.
 7. Complete legal jurisdiction approval and genuine payment/payout
    reconciliation before opening paid play or approving the payout switch.
+   Paid entry also deliberately requires server-verified identity evidence
+   which is not yet integrated: checkout currently treats identity as
+   `not_started`. Never replace that with client-editable profile claims just
+   to open paid play.
 
 No deployment, live account change, legal approval, wallet cleanup, or end-to-end
 live payout verification is implied by this checklist.
