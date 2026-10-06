@@ -14,3 +14,17 @@ mtime_ms = 1791166853669
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:4664460e-9e22-4c5f-8d9a-13a93eb34445/35251363-bf54-43ce-853b-3ac6e1ccb57f/794413fe-c71a-47fd-bc22-6eb5d1148a19"
 storage_version_token = "1791167061566443"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "ZkLBnUGh9lRKayWkktgVK"
+uri = "file://attached_assets/0_stridepool-paid-play-terms_1791305947283.md"
+type = "text"
+title = "Revised StridePool Paid Play Terms — Draft"
+description = "Updated platform fees, the $20 withdrawal minimum, no automatic grace days, and distribution of payout-rounding remainders. Other provisions remain unchanged and subject to legal review."
+logical_id = "eec2997c-a2e1-4afa-8e02-0e863673093d"
+content_hash = "sha256:6afab3788b15253a955b8142600618c64a2da70aa0cd52dc566f3ac0e1b280d8"
+size = 17258
+mtime_ms = 1791306384313
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:4664460e-9e22-4c5f-8d9a-13a93eb34445/eec2997c-a2e1-4afa-8e02-0e863673093d/ed346336-62c5-4f54-8a97-b8abc1df6708"
+storage_version_token = "1791306393328013"
+content_type = "text/markdown"

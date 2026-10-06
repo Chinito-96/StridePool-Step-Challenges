@@ -31,25 +31,25 @@ By entering a Paid Challenge, you agree to these Paid Play Terms.
 
 ## 3. How a Paid Challenge Works
 
-3.1 **Challenge rules.** Each Paid Challenge displays, before you enter: the entry fee, the daily step goal (or other goal), the duration, the start and end dates and times (with time zone), the format (for example, elimination or finish-the-goal), the grace-day rules, the maximum and minimum number of participants, and the payout rules.
+3.1 **Challenge rules.** Each Paid Challenge displays, before you enter: the challenge entry fee, the separate platform fee and total payment, the daily step goal (or other goal), the duration, the start and end dates and times (with time zone), the format (for example, elimination or finish-the-goal), the absence of an automatic grace-day allowance, the maximum and minimum number of participants, and the payout rules.
 
 3.2 **Entry.** Your entry is complete when your entry fee is successfully processed and the challenge screen shows you as joined. You may leave a challenge and receive a refund only before the join deadline shown on the challenge, if it allows leaving.
 
 3.3 **Goals.** Goals may be set by StridePool or, where the challenge allows, personalized to you at entry. Once a challenge starts, your goal is locked and cannot be changed.
 
-3.4 **Elimination format.** In elimination challenges, if you miss the daily goal on a day without a grace day available, you are eliminated, your live status shows "Eliminated," and your entry fee stays in the pool.
+3.4 **Elimination format.** In elimination challenges, a missed daily goal on a completed challenge day causes elimination under the challenge's verification rules. Your live status shows "Eliminated," and your challenge entry fee stays in the pool. There is no automatic grace-day allowance.
 
-3.5 **Grace days.** Where a challenge offers grace days, each grace day lets you miss the goal on one day without elimination. The number of grace days is shown on the challenge and cannot be increased once the challenge starts.
+3.5 **No automatic grace days.** Paid Challenges do not provide a grace-day allowance. Where the challenge requires a daily goal, you must meet that goal on every challenge day to qualify as a Finisher. Injury-related recovery and support review are separate processes; they do not create a grace-day allowance or automatically excuse a missed goal. Payment-provider delivery timing is also separate from challenge qualification.
 
 3.6 **Completion.** You are a "Finisher" if you meet every requirement of the challenge through its end under these terms and your data passes verification.
 
 ## 4. The Prize Pool and Payouts
 
-4.1 **Pool.** The prize pool for a Paid Challenge is made up of the entry fees of all participants in that challenge, less only the amounts described in Section 5.
+4.1 **Pool.** The prize pool for a Paid Challenge is made up of the creator-set challenge entry fees contributed by participants in that challenge. The separate platform fees described in Section 5 are charged in addition to those contributions, do not enter the prize pool, and are not deducted from the prize pool.
 
 4.2 **Split.** At the end of the challenge, the pool is divided equally among all Finishers, unless the challenge states a different payout structure before you enter.
 
-4.3 **Rounding.** Payouts are rounded down to the nearest cent. Any leftover fraction of a cent is retained by StridePool.
+4.3 **Rounding.** Prize pools and payouts are calculated in integer USD cents. For equal-split challenges, each Finisher receives the whole-cent base share, and any remaining whole cents are distributed among qualifying Finishers by the settlement allocator. For ranking challenges, the displayed payout structure is applied in whole cents, with remaining cents allocated deterministically among the eligible winners. Distributed payouts must total the prize pool; StridePool does not retain a rounding remainder from the pool.
 
 4.4 **No-Finisher Refund.** If no participant finishes a Paid Challenge, every participant who was not disqualified under Section 8 receives a full refund of their entry fee. Refunds are issued to your original payment method or your StridePool wallet balance, as we choose.
 
@@ -61,9 +61,9 @@ By entering a Paid Challenge, you agree to these Paid Play Terms.
 
 ## 5. Fees
 
-5.1 **No platform fee.** StridePool does not take a platform fee, rake, or commission from the prize pool.
+5.1 **Separate platform fee.** In addition to the creator-set challenge entry fee, Free members pay a $2 platform fee per paid entry and Pro members pay a $1 platform fee per paid entry, according to their effective membership at checkout. The platform fee is revenue paid to StridePool, not a contribution to the prize pool. StridePool does not deduct that platform fee from the prize pool.
 
-5.2 **Payment processing.** StridePool absorbs payment processing fees charged by our payment provider. The entry fee shown on a challenge is the full amount you pay.
+5.2 **Payment processing and total payment.** Stripe processes your payment. The total shown before checkout is the challenge entry fee plus the separate platform fee in Section 5.1. StridePool absorbs the payment-processing fees charged to it by Stripe; no additional Stripe processing surcharge is added to that disclosed total.
 
 5.3 **Third-party charges.** Your bank, card issuer, or mobile carrier may charge you fees. We are not responsible for those.
 
@@ -73,7 +73,7 @@ By entering a Paid Challenge, you agree to these Paid Play Terms.
 
 6.2 **Wallet balance.** Winnings and refunds may be credited to your StridePool wallet. Wallet balances are a record of amounts owed to you. They are not a bank account, are not insured by the FDIC or any government agency, and do not earn interest. Free-play balances and credits are kept separate from paid balances and cannot be withdrawn as cash.
 
-6.3 **Withdrawals.** You may withdraw eligible wallet balances to a verified payout method, subject to identity verification, a minimum withdrawal amount of $10, and the timing in Section 4.6.
+6.3 **Withdrawals.** You may withdraw eligible available wallet balances to a verified payout method, subject to identity verification, a minimum withdrawal amount of $20, and the timing in Section 4.6. You may choose an amount of at least $20, up to your available balance. Pending funds do not count toward the available balance.
 
 6.4 **Chargebacks.** If you file a chargeback or payment dispute for an entry fee, we may disqualify you from the challenge, suspend your account, and recover any winnings or credits associated with it. We may contest chargebacks that we believe are improper.
 
@@ -175,10 +175,11 @@ support@stridepool.com
 ### Drafting notes for the developer (remove before publishing)
 
 - All bracketed placeholders have been filled in.
-- Windows, minimums and dates (5 business days payout, 24-hour sync and review, 14-day disputes, $10 minimum withdrawal, 24-month inactivity) are working defaults. Confirm they match what the app enforces.
+- Section 6.3 now reflects the app's $20 minimum withdrawal and available-balance limit. Other windows and dates (5 business days payout, 24-hour sync and review, 14-day disputes, 24-month inactivity) remain working defaults requiring confirmation.
 - Section 1.2 must match the geo-blocking actually implemented in the app.
 - Section 4.4 (no-finisher refund) and Section 4.5 (cancel/under-filled refund) must match the settlement logic: no-finisher idempotency and the open, settling, settled transition.
-- Sections 5.1 and 5.2 say StridePool absorbs Stripe fees. Confirm the economics work, or switch to adding fees to the entry price.
+- Sections 5.1 and 5.2 now disclose the separate $2 Free / $1 Pro platform fee, outside the prize pool, and the challenge-entry-plus-platform-fee checkout total. Review the treatment of Stripe processing costs before legal approval.
+- Sections 3.4 and 3.5 now reflect the absence of a challenge grace-day allowance; injury/support review and payment-provider delivery timing remain separate. Section 4.3 now distributes remaining whole cents to qualifying participants rather than retaining them for StridePool.
 - Section 6.2 must match how paid and free wallet balances are separated in the ledger.
 - Sections 7.4 and 7.6 need real values that match the sync and review windows the app enforces.
 - Section 8.5 must match the admin override tooling, which should keep an audit log.
